@@ -106,6 +106,7 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 线程 — SQLite + Zstd 压缩 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 编程智能体 — session/message/part 三表 SQLite 存储（标题、工具调用、思考过程、Token 用量） |
 | **Hermes Agent** | `HERMES_HOME` 中的 `state.db`（默认 `~/.hermes`，Windows 为 `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research 的智能体 — SQLite 存储中的 CLI、桌面与网关会话（工具调用、推理过程、会话 Token 用量与费用） |
+| **Claude.ai**（账户导出） | 从 claude.ai → 设置 → 隐私 → 导出数据 获得的 zip 或解压后的文件夹（在设置中添加） | 只读：按 claude.ai 项目分组的对话，可搜索；导出不含令牌用量，因此不计入统计 |
 | **OpenHands** | `~/.openhands/sessions/` | 经典事件存储对话 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 按工作区的聊天记录（icube 存储；实验性，逆向工程） |
 

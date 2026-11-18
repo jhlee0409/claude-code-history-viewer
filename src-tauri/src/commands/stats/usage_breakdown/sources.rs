@@ -65,7 +65,9 @@ pub(super) fn reports_token_usage(provider: StatsProvider) -> bool {
         | P::PearAI
         | P::Trae
         | P::Vibe
-        | P::Zed => false,
+        | P::Zed
+        // A claude.ai account export records no token usage (#674).
+        | P::ClaudeAi => false,
     }
 }
 
@@ -682,7 +684,8 @@ fn scan_projects_reporting(
         | P::PearAI
         | P::Trae
         | P::Vibe
-        | P::Zed => scan_stats_projects(provider),
+        | P::Zed
+        | P::ClaudeAi => scan_stats_projects(provider),
     }
 }
 
@@ -728,7 +731,8 @@ fn load_sessions_reporting(
         | P::PearAI
         | P::Trae
         | P::Vibe
-        | P::Zed => load_stats_sessions(provider, project_path),
+        | P::Zed
+        | P::ClaudeAi => load_stats_sessions(provider, project_path),
     }
 }
 

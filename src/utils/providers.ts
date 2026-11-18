@@ -1,8 +1,10 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "claude-ai", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
+/** claude.ai account exports registered in Settings (`claudeAiExports`). */
+export const CLAUDE_AI_PROVIDER_ID: ProviderId = "claude-ai";
 
 // WSL provider loaders use UNC-backed paths and are not interchangeable with
 // native provider loaders. Keep this list aligned with the backend routing.
@@ -22,6 +24,7 @@ const PROVIDER_TRANSLATIONS: Record<
   amazonq: { key: "common.provider.amazonq", fallback: "Amazon Q CLI" },
   antigravity: { key: "common.provider.antigravity", fallback: "Antigravity" },
   claude: { key: "common.provider.claude", fallback: "Claude Code" },
+  "claude-ai": { key: "common.provider.claudeAi", fallback: "Claude.ai" },
   cline: { key: "common.provider.cline", fallback: "Cline" },
   codebuddy: { key: "common.provider.codebuddy", fallback: "CodeBuddy Code" },
   codex: { key: "common.provider.codex", fallback: "Codex CLI" },
@@ -90,6 +93,14 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsResumeCommand: true,
     supportsSessionDeletion: true,
     supportsArchiveCreation: true,
+  },
+  // A read-only account export: nothing to rename, resume, delete or archive.
+  "claude-ai": {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
   },
   cline: {
     supportsConversationBreakdown: false,
@@ -341,6 +352,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "zcode":
     case "zed":
     case "claude":
+    case "claude-ai":
       return provider;
     default:
       return DEFAULT_PROVIDER_ID;
@@ -555,6 +567,7 @@ export function supportsApiRequestView(provider?: ProviderId | string): boolean 
 
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "claude": "bg-provider-claude-surface text-provider-claude",
+  "claude-ai": "bg-provider-claude-ai-surface text-provider-claude-ai",
   "codebuddy": "bg-provider-codebuddy-surface text-provider-codebuddy",
   "codex": "bg-provider-codex-surface text-provider-codex",
   "continue": "bg-provider-continue-surface text-provider-continue",

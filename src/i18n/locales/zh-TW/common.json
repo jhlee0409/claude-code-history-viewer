@@ -315,5 +315,6 @@
   "common.command.actualSize": "實際大小",
   "common.missingValue.notRecorded": "未記錄",
   "common.missingValue.partialTokens": "僅記錄了部分權杖，顯示已觀測的小計。",
-  "common.missingValue.unknownTokens": "無法確定權杖記錄範圍，顯示現有值。"
+  "common.missingValue.unknownTokens": "無法確定權杖記錄範圍，顯示現有值。",
+  "common.provider.claudeAi": "Claude.ai"
 }

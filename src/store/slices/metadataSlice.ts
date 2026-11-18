@@ -12,10 +12,18 @@ import type {
   ProjectMetadata,
   UserSettings,
   CustomClaudePath,
+  ClaudeAiExportAdded,
   WslSettings,
 } from "../../types";
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
+import {
+  CLAUDE_AI_PROVIDER_ID,
+  DEFAULT_PROVIDER_ID,
+  getProviderId,
+  normalizeProviderIds,
+} from "../../utils/providers";
+import { ownPlace } from "@/navigation/ownership";
 import type { FullAppStore } from "./types";
 import type { ClaudeProject, ClaudeSession } from "../../types";
 import { toast } from "sonner";
@@ -99,6 +107,17 @@ export interface MetadataSliceActions {
   removeCustomClaudePath: (path: string) => Promise<void>;
   /** Update label for a custom Claude directory path */
   updateCustomClaudePathLabel: (path: string, label: string) => Promise<void>;
+  /**
+   * Register a claude.ai account export (zip or extracted folder). The
+   * backend reads it first and refuses a path that is not one; on success
+   * the `claude-ai` provider is shown alongside the active ones.
+   */
+  addClaudeAiExport: (path: string, label?: string) => Promise<ClaudeAiExportAdded>;
+  /**
+   * Forget a registered claude.ai export; the export itself is never
+   * touched. With no export left the `claude-ai` provider filter goes too.
+   */
+  removeClaudeAiExport: (path: string) => Promise<void>;
   /** Enable or disable WSL scanning */
   setWslEnabled: (enabled: boolean) => Promise<void>;
   /** Toggle a WSL distro in/out of the excluded list */
@@ -411,6 +430,53 @@ export const createMetadataSlice: StateCreator<
           : cp
       ),
     });
+  },
+
+  addClaudeAiExport: async (path: string, label?: string) => {
+    const added = await inTurn(async () => {
+      const result = await api<ClaudeAiExportAdded>("add_claude_ai_export", {
+        path,
+        label: label ?? null,
+      });
+      set({ userMetadata: result.metadata });
+      return result;
+    });
+    const { activeProviders, setActiveProviders } = get();
+    if (!activeProviders.includes(CLAUDE_AI_PROVIDER_ID)) {
+      setActiveProviders(normalizeProviderIds([...activeProviders, CLAUDE_AI_PROVIDER_ID]));
+    }
+    await get().scanProjects();
+    return added;
+  },
+
+  removeClaudeAiExport: async (path: string) => {
+    // Removing never navigates; only the place this removal started on may
+    // lose a project that no longer exists.
+    const ownsPlace = ownPlace(get);
+    const metadata = await inTurn(async () => {
+      const saved = await api<UserMetadata>("remove_claude_ai_export", { path });
+      set({ userMetadata: saved });
+      return saved;
+    });
+    const { activeProviders, setActiveProviders } = get();
+    if (
+      (metadata.settings.claudeAiExports?.length ?? 0) === 0 &&
+      activeProviders.includes(CLAUDE_AI_PROVIDER_ID)
+    ) {
+      const remaining = activeProviders.filter((id) => id !== CLAUDE_AI_PROVIDER_ID);
+      setActiveProviders(remaining.length > 0 ? remaining : [DEFAULT_PROVIDER_ID]);
+    }
+    await get().scanProjects();
+    // A project of the removed export may still be open.
+    const { selectedProject, projects, clearProjectSelection } = get();
+    if (
+      ownsPlace() &&
+      selectedProject &&
+      getProviderId(selectedProject.provider) === CLAUDE_AI_PROVIDER_ID &&
+      !projects.some((project) => project.path === selectedProject.path)
+    ) {
+      clearProjectSelection();
+    }
   },
 
   setWslEnabled: async (enabled: boolean) => {

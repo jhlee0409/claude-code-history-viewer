@@ -843,6 +843,7 @@ dependencies = [
  "walkdir",
  "windows-sys 0.61.2",
  "winreg",
+ "zip",
  "zstd",
 ]
 
@@ -7620,6 +7621,7 @@ checksum = "95ab361742de920c5535880f89bbd611ee62002bf11341d16a5f057bb8ba6899"
 dependencies = [
  "arbitrary",
  "crc32fast",
+ "flate2",
  "indexmap 2.14.0",
  "memchr",
 ]

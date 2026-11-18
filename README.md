@@ -106,6 +106,7 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel threads — SQLite + Zstd-compressed JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai's GLM coding agent — session/message/part SQLite store (titles, tool calls, thinking, token usage) |
 | **Hermes Agent** | `state.db` in `HERMES_HOME` (default `~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows) + `profiles/<name>/` | Nous Research's agent — CLI, desktop and gateway sessions from its SQLite store (tool calls, reasoning, session token usage and cost) |
+| **Claude.ai** (account export) | The zip from claude.ai → Settings → Privacy → Export data, or its extracted folder, added in Settings | Read-only: conversations grouped by claude.ai Project, searchable; no token usage in exports, so not counted in statistics |
 | **OpenHands** | `~/.openhands/sessions/` | Classic event-store conversations |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | Per-workspace chat (icube store; experimental, reverse-engineered) |
 

@@ -111,6 +111,7 @@ pub async fn scan_all_projects(
             "trae".to_string(),
             "vibe".to_string(),
             "zcode".to_string(),
+            "claude-ai".to_string(),
         ]
     });
 
@@ -203,6 +204,7 @@ pub async fn scan_all_projects(
         ("llm", providers::llm::scan_projects),
         ("copilot", providers::copilot::scan_projects),
         ("zcode", providers::zcode::scan_projects),
+        ("claude-ai", providers::claude_ai::scan_projects),
     ];
 
     // Spawn every enabled scanner up front so they run concurrently on the
@@ -400,6 +402,7 @@ pub async fn load_provider_sessions(
         "openhands" => providers::openhands::load_sessions(&project_path, exclude),
         "trae" => providers::trae::load_sessions(&project_path, exclude),
         "vibe" => providers::vibe::load_sessions(&project_path, exclude),
+        "claude-ai" => providers::claude_ai::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -551,6 +554,7 @@ fn load_non_claude_messages(
         "openhands" => providers::openhands::load_messages(session_path),
         "trae" => providers::trae::load_messages(session_path),
         "vibe" => providers::vibe::load_messages(session_path),
+        "claude-ai" => providers::claude_ai::load_messages(session_path),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -731,6 +735,7 @@ pub async fn search_all_providers(
             "trae".to_string(),
             "vibe".to_string(),
             "zcode".to_string(),
+            "claude-ai".to_string(),
         ]
     });
     // Native loaders use the full active provider selection. WSL loaders use
@@ -1094,6 +1099,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Trae search failed: {e}");
+            }
+        }
+    }
+
+    // claude.ai account exports
+    if providers_to_search.iter().any(|p| p == "claude-ai") {
+        match providers::claude_ai::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("claude.ai export search failed: {e}");
             }
         }
     }

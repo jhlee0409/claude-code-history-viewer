@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-17T17:45:57.403Z
- * 총 키 개수: 2441
+ * 생성 시간: 2026-11-18T03:54:41.595Z
+ * 총 키 개수: 2459
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (311개)
+ * common namespace의 번역 키 (312개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -217,6 +217,7 @@ export type CommonKeys =
   | 'common.provider.amazonq'
   | 'common.provider.antigravity'
   | 'common.provider.claude'
+  | 'common.provider.claudeAi'
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
@@ -911,7 +912,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (574개)
+ * settings namespace의 번역 키 (591개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -933,6 +934,23 @@ export type SettingsKeys =
   | 'folderPicker.selectedPath'
   | 'folderPicker.validating'
   | 'folderPicker.validationError'
+  | 'settings.claudeAiExports'
+  | 'settings.claudeAiExports.add'
+  | 'settings.claudeAiExports.added'
+  | 'settings.claudeAiExports.chooseFolder'
+  | 'settings.claudeAiExports.chooseZip'
+  | 'settings.claudeAiExports.description'
+  | 'settings.claudeAiExports.duplicate'
+  | 'settings.claudeAiExports.empty'
+  | 'settings.claudeAiExports.invalid'
+  | 'settings.claudeAiExports.label'
+  | 'settings.claudeAiExports.labelPlaceholder'
+  | 'settings.claudeAiExports.path'
+  | 'settings.claudeAiExports.pathPlaceholder'
+  | 'settings.claudeAiExports.remove'
+  | 'settings.claudeAiExports.removeConfirm'
+  | 'settings.claudeAiExports.removeFailed'
+  | 'settings.claudeAiExports.webPathHint'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'
@@ -3188,6 +3206,7 @@ export type TranslationKey =
   | 'common.provider.amazonq'
   | 'common.provider.antigravity'
   | 'common.provider.claude'
+  | 'common.provider.claudeAi'
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
@@ -4171,6 +4190,23 @@ export type TranslationKey =
   | 'sessionPicker.empty'
   | 'sessionPicker.subtitle'
   | 'sessionPicker.title'
+  | 'settings.claudeAiExports'
+  | 'settings.claudeAiExports.add'
+  | 'settings.claudeAiExports.added'
+  | 'settings.claudeAiExports.chooseFolder'
+  | 'settings.claudeAiExports.chooseZip'
+  | 'settings.claudeAiExports.description'
+  | 'settings.claudeAiExports.duplicate'
+  | 'settings.claudeAiExports.empty'
+  | 'settings.claudeAiExports.invalid'
+  | 'settings.claudeAiExports.label'
+  | 'settings.claudeAiExports.labelPlaceholder'
+  | 'settings.claudeAiExports.path'
+  | 'settings.claudeAiExports.pathPlaceholder'
+  | 'settings.claudeAiExports.remove'
+  | 'settings.claudeAiExports.removeConfirm'
+  | 'settings.claudeAiExports.removeFailed'
+  | 'settings.claudeAiExports.webPathHint'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'

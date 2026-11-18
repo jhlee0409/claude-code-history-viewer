@@ -42,6 +42,7 @@ use crate::commands::{
         get_archive_disk_usage, get_archive_sessions, get_expiring_sessions, list_archives,
         load_archive_session_messages, rename_archive,
     },
+    claude_ai_export::{add_claude_ai_export, remove_claude_ai_export},
     claude_settings::{
         get_all_mcp_servers, get_all_settings, get_claude_json_config, get_mcp_servers,
         get_settings_by_scope, read_text_file, save_mcp_servers, save_screenshot, save_settings,
@@ -250,6 +251,8 @@ fn run_tauri() {
             update_user_settings,
             is_project_hidden,
             get_session_display_name,
+            add_claude_ai_export,
+            remove_claude_ai_export,
             // Settings preset commands
             save_preset,
             load_presets,

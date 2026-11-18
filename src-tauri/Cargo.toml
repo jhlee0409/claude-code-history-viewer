@@ -57,6 +57,9 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 zstd = "0.13"
 notify = { version = "7.0", default-features = false, features = ["macos_fsevent"] }
 notify-debouncer-mini = "0.5"
+# claude.ai account exports are read in place from the downloaded zip.
+# Already in the tree through tauri-plugin-updater; deflate only.
+zip = { version = "4.2", default-features = false, features = ["deflate-flate2"] }
 
 # WebUI server mode (optional)
 argon2 = { version = "0.5", optional = true }

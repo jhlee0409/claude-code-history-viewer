@@ -117,6 +117,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
 /// and never reaches the POST check.
 #[cfg(test)]
 const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
+    "/add_claude_ai_export",
     "/create_archive",
     "/delete_archive",
     "/delete_mcp_preset",
@@ -124,6 +125,7 @@ const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
     "/delete_session",
     "/delete_unified_preset",
     "/move_session_to_project",
+    "/remove_claude_ai_export",
     "/rename_archive",
     "/rename_opencode_session_title",
     "/rename_session_native",
@@ -269,6 +271,8 @@ pub fn build_router(
         .route("/update_session_metadata", post(h::update_session_metadata))
         .route("/update_project_metadata", post(h::update_project_metadata))
         .route("/update_user_settings", post(h::update_user_settings))
+        .route("/add_claude_ai_export", post(h::add_claude_ai_export))
+        .route("/remove_claude_ai_export", post(h::remove_claude_ai_export))
         .route("/is_project_hidden", post(h::is_project_hidden))
         .route(
             "/get_session_display_name",

@@ -1415,6 +1415,7 @@ async fn save_webui_metadata(
     commands::metadata::mutate_and_save(&state.metadata, move |metadata| {
         mutate(metadata);
         keep_persisted_custom_claude_paths(metadata);
+        keep_persisted_claude_ai_exports(metadata);
     })
     .await
     .map_err(ApiError::from)
@@ -1443,6 +1444,18 @@ fn keep_persisted_custom_claude_paths(metadata: &mut crate::models::UserMetadata
         }
     }
     metadata.settings.custom_claude_paths = kept;
+}
+
+/// claude.ai exports name files the server reads, so over the `WebUI` they
+/// change only through `add_claude_ai_export` / `remove_claude_ai_export`,
+/// which check the path; a full-settings save keeps the list on disk.
+fn keep_persisted_claude_ai_exports(metadata: &mut crate::models::UserMetadata) {
+    metadata.settings.claude_ai_exports = commands::metadata::get_user_data_path()
+        .ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|content| serde_json::from_str::<crate::models::UserMetadata>(&content).ok())
+        .map(|persisted| persisted.settings.claude_ai_exports)
+        .unwrap_or_default();
 }
 
 #[derive(Deserialize)]
@@ -1505,6 +1518,35 @@ pub async fn update_user_settings(
         save_webui_metadata(&state, move |metadata| metadata.settings = p.settings).await?;
 
     json_ok(metadata_to_save)
+}
+
+#[derive(Deserialize)]
+pub struct AddClaudeAiExportParams {
+    pub path: String,
+    pub label: Option<String>,
+}
+
+/// Register a claude.ai export typed into the `WebUI`. With no native dialog
+/// to vouch for the choice, the path must lie in the folders a browser user
+/// may name (Downloads, Documents, Desktop - as for `read_text_file`).
+pub async fn add_claude_ai_export(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<AddClaudeAiExportParams>,
+) -> Result<Json<Value>, ApiError> {
+    commands::claude_settings::is_safe_path(std::path::Path::new(p.path.trim()))?;
+    let added =
+        commands::claude_ai_export::add_claude_ai_export_in(&state.metadata, p.path, p.label)
+            .await?;
+    json_ok(added)
+}
+
+pub async fn remove_claude_ai_export(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<PathParam>,
+) -> Result<Json<Value>, ApiError> {
+    let metadata =
+        commands::claude_ai_export::remove_claude_ai_export_in(&state.metadata, p.path).await?;
+    json_ok(metadata)
 }
 
 pub async fn is_project_hidden(
@@ -1839,6 +1881,63 @@ mod tests {
         let saved = persisted_metadata().settings.custom_claude_paths;
         assert_eq!(saved.len(), 1, "{saved:?}");
         assert_eq!(saved[0].path, config_dir.to_string_lossy());
+    }
+
+    /// claude.ai exports change over the `WebUI` only through their own
+    /// routes, and only for a path in the folders a browser user may name.
+    #[tokio::test]
+    #[serial]
+    async fn webui_claude_ai_exports_change_only_through_their_routes() {
+        use crate::providers::claude_ai::test_support::write_export_zip;
+        let home = crate::test_utils::SandboxHome::new();
+        let export = home.path().join("Downloads").join("data.zip");
+        let outside = home.path().join("elsewhere").join("data.zip");
+        for path in [&export, &outside] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            write_export_zip(path);
+        }
+        commands::metadata::save_metadata_to_disk(&crate::models::UserMetadata::new()).unwrap();
+        let state = metadata_state();
+        let add = |path: &std::path::Path| AddClaudeAiExportParams {
+            path: path.to_string_lossy().to_string(),
+            label: None,
+        };
+
+        let refused = add_claude_ai_export(State(Arc::clone(&state)), Json(add(&outside))).await;
+        assert!(refused.is_err(), "a path outside the allowed folders");
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, Vec::new());
+
+        let _ = add_claude_ai_export(State(Arc::clone(&state)), Json(add(&export)))
+            .await
+            .unwrap_or_else(|_| panic!("add_claude_ai_export failed"));
+        let saved = persisted_metadata().settings.claude_ai_exports;
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].path, export.to_string_lossy());
+
+        // A full-settings save can neither add nor drop an export.
+        let mut settings = persisted_metadata().settings;
+        settings.claude_ai_exports = vec![crate::models::ClaudeAiExport {
+            path: outside.to_string_lossy().to_string(),
+            label: None,
+        }];
+        let _ = update_user_settings(
+            State(Arc::clone(&state)),
+            Json(UpdateUserSettingsParams { settings }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("update_user_settings failed"));
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, saved);
+
+        let _ = remove_claude_ai_export(
+            State(Arc::clone(&state)),
+            Json(PathParam {
+                path: export.to_string_lossy().to_string(),
+            }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("remove_claude_ai_export failed"));
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, Vec::new());
+        assert!(export.is_file(), "removing an export never deletes it");
     }
 
     /// The `WebUI` path (Axum `/update_session_metadata`) keeps a favourite's

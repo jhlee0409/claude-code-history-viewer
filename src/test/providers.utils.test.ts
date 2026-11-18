@@ -53,6 +53,7 @@ describe("providers utils", () => {
       "amazonq",
       "antigravity",
       "claude",
+      "claude-ai",
       "cline",
       "codebuddy",
       "codex",

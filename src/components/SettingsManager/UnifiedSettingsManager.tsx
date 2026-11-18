@@ -31,6 +31,7 @@ import { SettingsEditorPane } from "./editor/SettingsEditorPane";
 import { SettingsScopeLine } from "./SettingsScopeLine";
 import { SettingsDiagnosticsPanel } from "./dialogs/SettingsDiagnosticsPanel";
 import { CustomDirectoriesSection } from "./sections/CustomDirectoriesSection";
+import { ClaudeAiExportsSection } from "./sections/ClaudeAiExportsSection";
 import { WslSection } from "./sections/WslSection";
 import { SessionResumeSection } from "./sections/SessionResumeSection";
 import { placeNameKey } from "@/navigation/placeNames";
@@ -127,6 +128,7 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
   // Panel state
   const [activePanel, setActivePanel] = React.useState<ActivePanel>("editor");
   const [isCustomDirsExpanded, setIsCustomDirsExpanded] = React.useState(false);
+  const [isClaudeAiExportsExpanded, setIsClaudeAiExportsExpanded] = React.useState(false);
   const [isSessionResumeExpanded, setIsSessionResumeExpanded] = React.useState(false);
   const [isWslExpanded, setIsWslExpanded] = React.useState(false);
 
@@ -387,6 +389,15 @@ export const UnifiedSettingsManager: React.FC<UnifiedSettingsManagerProps> = ({
               <CustomDirectoriesSection
                 isExpanded={isCustomDirsExpanded}
                 onToggle={(open) => setIsCustomDirsExpanded(open)}
+                readOnly={serverReadOnly}
+              />
+            </Card>
+
+            {/* claude.ai account exports — app-level, read in place (#674) */}
+            <Card className="shrink-0">
+              <ClaudeAiExportsSection
+                isExpanded={isClaudeAiExportsExpanded}
+                onToggle={(open) => setIsClaudeAiExportsExpanded(open)}
                 readOnly={serverReadOnly}
               />
             </Card>

@@ -60,6 +60,7 @@ describe("place model invariants", () => {
       "store/slices/projectSlice.ts": "refresh fallback when the open project vanished",
       "store/slices/navigationSlice.ts": "navigate({ project: null })",
       "store/slices/documentSlice.ts": "markProjectUnavailable: the open project's folder is gone",
+      "store/slices/metadataSlice.ts": "removeClaudeAiExport: the open export's project is gone",
     },
     setSelectedSession: {
       "store/slices/messageSlice.ts": "selectSession",

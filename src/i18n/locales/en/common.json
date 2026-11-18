@@ -315,5 +315,6 @@
   "common.command.actualSize": "Actual Size",
   "common.missingValue.notRecorded": "Not recorded",
   "common.missingValue.partialTokens": "Partial token recording; values are observed subtotals.",
-  "common.missingValue.unknownTokens": "Token recording coverage is unknown; existing values are shown."
+  "common.missingValue.unknownTokens": "Token recording coverage is unknown; existing values are shown.",
+  "common.provider.claudeAi": "Claude.ai"
 }

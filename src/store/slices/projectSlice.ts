@@ -30,6 +30,7 @@ import {
 } from "../../utils/worktreeUtils";
 import type { GroupingMode } from "../../types/metadata.types";
 import {
+  CLAUDE_AI_PROVIDER_ID,
   DEFAULT_PROVIDER_ID,
   getProviderId,
   normalizeProviderIds,
@@ -341,18 +342,29 @@ export const createProjectSlice: StateCreator<
       const savedProviderIds = normalizeProviderIds(
         get().userMetadata?.settings?.discoveredProviderIds ?? []
       );
-      if (savedProviderIds.length > 0) {
-        get().setActiveProviders(savedProviderIds);
+      const savedSettings = get().userMetadata?.settings;
+      // Registered claude.ai exports are scanned (and shown) on every start,
+      // like custom Claude directories; no discovery is needed for them.
+      const hasClaudeAiExports = (savedSettings?.claudeAiExports?.length ?? 0) > 0;
+      if (savedProviderIds.length > 0 || hasClaudeAiExports) {
+        const base = savedProviderIds.length > 0 ? savedProviderIds : get().activeProviders;
+        get().setActiveProviders(
+          normalizeProviderIds(
+            hasClaudeAiExports ? [...base, CLAUDE_AI_PROVIDER_ID] : base
+          )
+        );
       }
       const hasSavedNonClaudeProviders = savedProviderIds.some(
         (provider) => provider !== DEFAULT_PROVIDER_ID
       );
-      const savedSettings = get().userMetadata?.settings;
       const hasCustomClaudePaths =
         (savedSettings?.customClaudePaths?.length ?? 0) > 0;
       const hasWslSource = savedSettings?.wsl?.enabled ?? false;
       const hasConfiguredScanSource =
-        hasSavedNonClaudeProviders || hasCustomClaudePaths || hasWslSource;
+        hasSavedNonClaudeProviders ||
+        hasCustomClaudePaths ||
+        hasWslSource ||
+        hasClaudeAiExports;
 
       // Try to load saved settings first
       try {
@@ -497,6 +509,11 @@ export const createProjectSlice: StateCreator<
     );
     if (claudePath || hasCustomPaths || wslEnabled) {
       providerSet.add(DEFAULT_PROVIDER_ID);
+    }
+    // Registered claude.ai exports are a configured source, like custom
+    // Claude directories: scanned whether or not a discovery found them.
+    if ((settings?.claudeAiExports?.length ?? 0) > 0) {
+      providerSet.add(CLAUDE_AI_PROVIDER_ID);
     }
     const scanProviders = PROVIDER_IDS.filter((provider) => providerSet.has(provider));
     const hasNonClaudeProviders = scanProviders.some((provider) => provider !== DEFAULT_PROVIDER_ID);

@@ -315,5 +315,6 @@
   "common.command.actualSize": "实际大小",
   "common.missingValue.notRecorded": "未记录",
   "common.missingValue.partialTokens": "仅记录了部分令牌，显示已观测的小计。",
-  "common.missingValue.unknownTokens": "无法确定令牌记录范围，显示现有值。"
+  "common.missingValue.unknownTokens": "无法确定令牌记录范围，显示现有值。",
+  "common.provider.claudeAi": "Claude.ai"
 }

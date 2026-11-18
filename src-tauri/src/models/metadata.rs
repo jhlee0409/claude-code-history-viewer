@@ -229,6 +229,19 @@ pub struct CustomClaudePath {
     pub label: Option<String>,
 }
 
+/// A claude.ai account export (Settings → Privacy → Export data) the user
+/// registered: the downloaded zip, or the folder it was extracted to. It is
+/// read in place and never written, moved or deleted.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaudeAiExport {
+    /// Absolute path to the export zip or its extracted folder
+    pub path: String,
+    /// User-defined display label (e.g., "Personal")
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
 /// WSL (Windows Subsystem for Linux) integration settings
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -264,6 +277,10 @@ pub struct UserSettings {
     /// Additional Claude configuration directories to scan
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub custom_claude_paths: Vec<CustomClaudePath>,
+
+    /// claude.ai account exports shown under the `claude-ai` provider
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub claude_ai_exports: Vec<ClaudeAiExport>,
 
     /// WSL integration settings (Windows only)
     #[serde(skip_serializing_if = "Option::is_none")]
