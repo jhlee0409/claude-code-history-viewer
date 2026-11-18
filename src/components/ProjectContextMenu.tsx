@@ -1,7 +1,7 @@
 // src/components/ProjectContextMenu.tsx
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { EyeOff, Eye, Copy, ArrowRightLeft, Trash } from "lucide-react";
+import { EyeOff, Eye, Copy, ArrowRightLeft, AppWindow, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,8 @@ interface ProjectContextMenuProps {
    * Absent when the location is available or nothing there can be cleared.
    */
   onClearUnavailable?: () => void;
+  /** Open the project in a new window (desktop). Omitted: no such item. */
+  onOpenInNewWindow?: (project: ClaudeProject) => void;
 }
 
 export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
@@ -37,6 +39,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   providerSiblings = [],
   onSelectProject,
   onClearUnavailable,
+  onOpenInNewWindow,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -185,6 +188,19 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
             </button>
           );
         })}
+
+        {onOpenInNewWindow && (
+          <button
+            onClick={() => {
+              onOpenInNewWindow(project);
+              onClose();
+            }}
+            className={menuItemClass}
+          >
+            <AppWindow className="w-4 h-4" />
+            <span>{t("project.openInNewWindow")}</span>
+          </button>
+        )}
 
         {/* Copy path option */}
         <button

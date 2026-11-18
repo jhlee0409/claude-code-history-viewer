@@ -19,11 +19,17 @@
 //!   the tab the user saw when they chose it (ADR 0001 decision 6). The page
 //!   acts on that tab, or on none: an event with no stamp (no page reported
 //!   yet in this run) touches no tab.
+//! - Each window has its own journal (`MenuJournals`, issue #656): a menu
+//!   event belongs to the window in front when it was chosen, and only that
+//!   window's page pulls, runs and acknowledges it. A window's journal has an
+//!   epoch of its own, so a page never follows another window's numbers; it
+//!   goes away with its window.
 
 use super::manifest::Manifest;
 use serde::Serialize;
-use std::collections::VecDeque;
-use std::sync::Mutex;
+use std::collections::{HashMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 /// The most unacknowledged events kept; older ones are dropped first.
 pub const MAX_RETAINED: usize = 256;
@@ -85,13 +91,17 @@ impl MenuJournal {
         }
     }
 
-    /// A journal for this process: its epoch tells a page that kept its
-    /// cursor across an app restart that the numbers started over.
-    pub fn for_this_run() -> MenuJournal {
+    /// The journal of window `label`: its epoch is unique in this process
+    /// and across restarts, so a page that kept its cursor (a reload, an app
+    /// restart, a window reopened under the same label) sees that the
+    /// numbers started over.
+    pub fn for_window(label: &str) -> MenuJournal {
+        static CREATED: AtomicU64 = AtomicU64::new(0);
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_nanos());
-        MenuJournal::new(format!("{}-{nanos}", std::process::id()))
+        let count = CREATED.fetch_add(1, Ordering::Relaxed);
+        MenuJournal::new(format!("{}-{label}-{nanos}-{count}", std::process::id()))
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -164,6 +174,36 @@ impl MenuJournal {
         {
             inner.retained.pop_front();
         }
+    }
+}
+
+/// Every open window's journal, by window label.
+#[derive(Debug, Default)]
+pub struct MenuJournals {
+    journals: Mutex<HashMap<String, Arc<MenuJournal>>>,
+}
+
+impl MenuJournals {
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, Arc<MenuJournal>>> {
+        self.journals
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Window `label`'s journal, created with a fresh epoch on first use
+    /// (a menu event can come before the window's page asks).
+    pub fn of(&self, label: &str) -> Arc<MenuJournal> {
+        Arc::clone(
+            self.lock()
+                .entry(label.to_string())
+                .or_insert_with(|| Arc::new(MenuJournal::for_window(label))),
+        )
+    }
+
+    /// The window closed: its unrun events go with it. A window opened later
+    /// under the same label starts a new journal.
+    pub fn forget(&self, label: &str) {
+        self.lock().remove(label);
     }
 }
 
@@ -256,11 +296,46 @@ mod tests {
     }
 
     #[test]
-    fn each_run_has_its_own_epoch() {
-        let a = MenuJournal::for_this_run();
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        let b = MenuJournal::for_this_run();
+    fn each_journal_has_its_own_epoch() {
+        let a = MenuJournal::for_window("main");
+        let b = MenuJournal::for_window("main");
+        let c = MenuJournal::for_window("window-2");
         assert_ne!(a.snapshot().epoch, b.snapshot().epoch);
+        assert_ne!(a.snapshot().epoch, c.snapshot().epoch);
+        assert!(c.snapshot().epoch.contains("window-2"));
+    }
+
+    #[test]
+    fn each_window_keeps_numbers_and_stamps_of_its_own() {
+        let journals = MenuJournals::default();
+        let m = manifest();
+        journals.of("main").report_front_tab(Some("A".into()));
+        journals.of("window-2").report_front_tab(Some("B".into()));
+        journals.of("main").record(m, "tab.new");
+        let second = journals.of("window-2").record(m, "tab.close").unwrap();
+        assert_eq!(second.seq, 1, "another window's events take no number here");
+        assert_eq!(second.front_tab_id.as_deref(), Some("B"));
+        assert_eq!(seqs(&journals.of("main").snapshot()), vec![(1, "tab.new")]);
+        assert_eq!(
+            seqs(&journals.of("window-2").snapshot()),
+            vec![(1, "tab.close")]
+        );
+        // An acknowledgement in one window leaves the other's events alone.
+        let epoch = journals.of("main").snapshot().epoch;
+        journals.of("main").ack(&epoch, 1);
+        assert_eq!(journals.of("window-2").snapshot().events.len(), 1);
+    }
+
+    #[test]
+    fn a_closed_window_s_journal_is_gone_and_a_reopened_label_starts_over() {
+        let journals = MenuJournals::default();
+        let before = journals.of("window-2");
+        before.record(manifest(), "tab.new");
+        journals.forget("window-2");
+        let after = journals.of("window-2");
+        assert_ne!(after.snapshot().epoch, before.snapshot().epoch);
+        assert_eq!(after.snapshot().events, Vec::<MenuEvent>::new());
+        assert!(Arc::ptr_eq(&after, &journals.of("window-2")));
     }
 
     #[test]
@@ -324,10 +399,9 @@ mod tests {
     fn a_new_run_stamps_nothing_its_page_has_not_reported() {
         // A new epoch (an app restart) knows no front tab: an id reported to
         // the last run never stamps this run's events.
-        let old = MenuJournal::for_this_run();
+        let old = MenuJournal::for_window("main");
         old.report_front_tab(Some("A".into()));
-        std::thread::sleep(std::time::Duration::from_millis(1));
-        let new = MenuJournal::for_this_run();
+        let new = MenuJournal::for_window("main");
         let event = new.record(manifest(), "tab.close").unwrap();
         assert_ne!(event.epoch, old.snapshot().epoch);
         assert_eq!(event.front_tab_id, None);

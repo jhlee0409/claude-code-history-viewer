@@ -23,6 +23,7 @@ import i18n from "@/i18n";
 import { useAppStore, type AppStore } from "@/store/useAppStore";
 import type { PendingAnchor } from "@/store/slices/documentSlice";
 import type { ClaudeProject, ClaudeSession } from "@/types";
+import { isMainWindow } from "@/utils/platform";
 import { beginHistoryStep, writeWebUIDeepLink, type WebUIHistoryMode } from "@/utils/webuiDeepLink";
 import {
   blankDocument,
@@ -126,9 +127,11 @@ const PERSIST_DELAY_MS = 400;
 /**
  * Save `tabs.v2` whenever the tabs or the active tab's place change
  * (debounced), and right away when the page goes away. Returns the stop
- * function.
+ * function. `tabs.v2` is the launch window's: a window opened later keeps
+ * its tabs only while it is open (issue #656) and saves nothing.
  */
 export function startTabsPersistence(): () => void {
+  if (!isMainWindow()) return () => {};
   let timer: ReturnType<typeof setTimeout> | null = null;
   const flush = () => {
     if (timer) clearTimeout(timer);
