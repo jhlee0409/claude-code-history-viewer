@@ -1,4 +1,5 @@
 use crate::commands::stats::session_files;
+use crate::providers;
 use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 use lru::LruCache;
 use notify::{RecommendedWatcher, RecursiveMode};
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -18,8 +19,6 @@ pub struct FileWatchEvent {
     pub session_path: String,
     pub event_type: String,
 }
-
-type WatcherMap = Arc<Mutex<Option<Debouncer<RecommendedWatcher>>>>;
 
 /// LRU cache for `OpenCode` session-to-project mappings, capped at 10,000 entries.
 /// Each entry is ~150 bytes, bounding memory at ~1.5MB regardless of watcher activity.
@@ -49,118 +48,322 @@ struct FileSignature {
 
 static WATCHED_FILE_SIGNATURES: OnceLock<Mutex<HashMap<PathBuf, FileSignature>>> = OnceLock::new();
 
-/// Start watching the Claude projects directory for file changes
-#[tauri::command]
-pub async fn start_file_watcher(
-    app_handle: AppHandle,
-    claude_folder_path: String,
-    custom_claude_paths: Option<Vec<super::multi_provider::CustomClaudePathParam>>,
-) -> Result<String, String> {
-    let base_path = PathBuf::from(&claude_folder_path);
-    let projects_path = base_path.join("projects");
+/// The desktop app's one file watcher, shared by every window: each window's
+/// `useFileWatcher` listens for the `session-file-changed` events it emits.
+///
+/// Started at launch (`sync_desktop_watcher` in `setup`), brought up to date
+/// when the custom Claude directories change, stopped on exit. The `WebUI`
+/// server runs its own watcher (`start_server_file_watcher` in `lib.rs`).
+#[derive(Default)]
+pub struct WatcherState(Mutex<Option<ActiveWatcher>>);
 
-    // Reject symlinks to prevent symlink attacks
-    let base_meta = std::fs::symlink_metadata(&base_path)
-        .map_err(|e| format!("Cannot read metadata for base path: {e}"))?;
-    if base_meta.file_type().is_symlink() {
-        return Err("Claude folder path must not be a symlink".to_string());
-    }
+/// A running watcher and the roots it was registered on.
+struct ActiveWatcher {
+    roots: Vec<PathBuf>,
+    /// Kept alive for the watcher to run; dropping it stops the watcher.
+    _debouncer: Debouncer<RecommendedWatcher>,
+}
 
-    let projects_meta = std::fs::symlink_metadata(&projects_path)
-        .map_err(|e| format!("Cannot read metadata for projects path: {e}"))?;
-    if projects_meta.file_type().is_symlink() {
-        return Err("Projects directory must not be a symlink".to_string());
-    }
+/// What [`WatcherState::sync`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WatcherSync {
+    /// A watcher now runs on this many roots.
+    Started(usize),
+    /// The watcher already ran on the same roots and was kept.
+    Running,
+    /// No root could be watched; no watcher runs.
+    Disabled,
+}
 
-    // Canonicalize and verify path traversal safety
-    let canonical_base = std::fs::canonicalize(&base_path)
-        .map_err(|e| format!("Failed to canonicalize base path: {e}"))?;
-    let canonical_projects = std::fs::canonicalize(&projects_path)
-        .map_err(|e| format!("Failed to canonicalize projects path: {e}"))?;
-
-    if !canonical_projects.starts_with(&canonical_base) {
-        return Err("Projects path escapes the allowed base directory".to_string());
-    }
-
-    // Verify it is a directory
-    if !canonical_projects.is_dir() {
-        return Err(format!(
-            "Projects path is not a directory: {}",
-            canonical_projects.display()
-        ));
-    }
-
-    // Create a debounced watcher
-    let app_handle_clone = app_handle.clone();
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(500),
-        move |result: Result<Vec<DebouncedEvent>, notify::Error>| match result {
-            Ok(events) => {
-                for event in events {
-                    handle_file_event(&app_handle_clone, &event);
-                }
+impl WatcherState {
+    /// Run one watcher over `roots`, calling `on_event` for each debounced
+    /// event. Idempotent: the running watcher is kept when its roots are the
+    /// same; otherwise it is replaced.
+    fn sync<F>(&self, collect_roots: impl FnOnce() -> Vec<PathBuf>, on_event: F) -> WatcherSync
+    where
+        F: Fn(&DebouncedEvent) + Send + 'static,
+    {
+        let mut slot = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let roots = collect_roots();
+        if slot.as_ref().is_some_and(|active| active.roots == roots) {
+            return WatcherSync::Running;
+        }
+        // Stop the old watcher before registering the new one.
+        *slot = None;
+        match watch_roots(roots, on_event) {
+            Some((debouncer, roots)) => {
+                let watched = roots.len();
+                *slot = Some(ActiveWatcher {
+                    roots,
+                    _debouncer: debouncer,
+                });
+                WatcherSync::Started(watched)
             }
-            Err(error) => {
-                log::error!("File watcher error: {error:?}");
-            }
-        },
-    )
-    .map_err(|e| format!("Failed to create file watcher: {e}"))?;
-
-    // Start watching the canonicalized projects directory recursively
-    debouncer
-        .watcher()
-        .watch(&canonical_projects, RecursiveMode::Recursive)
-        .map_err(|e| format!("Failed to watch directory: {e}"))?;
-    prime_watch_signatures(&canonical_projects);
-
-    // Also watch custom Claude directories if provided
-    if let Some(custom_paths) = custom_claude_paths {
-        for custom in &custom_paths {
-            let custom_base = PathBuf::from(&custom.path);
-            match crate::utils::validate_custom_claude_path(&custom_base) {
-                Ok(canonical_projects) => {
-                    if debouncer
-                        .watcher()
-                        .watch(&canonical_projects, RecursiveMode::Recursive)
-                        .is_ok()
-                    {
-                        prime_watch_signatures(&canonical_projects);
-                        log::info!(
-                            "File watcher added custom path: {}",
-                            canonical_projects.display()
-                        );
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Skipping invalid custom watch path: {e}");
-                }
-            }
+            None => WatcherSync::Disabled,
         }
     }
 
-    // Store the debouncer in app state to prevent it from being dropped
-    let watcher_state: tauri::State<WatcherMap> = app_handle.state();
-    let mut watcher = watcher_state.lock().unwrap();
-    *watcher = Some(debouncer);
-
-    log::info!("File watcher started for: {}", canonical_projects.display());
-    Ok("watcher-started".to_string())
+    /// Stop the watcher; `false` when none was running.
+    pub(crate) fn stop(&self) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .is_some()
+    }
 }
 
-/// Stop the file watcher
+/// Create a debounced watcher on every root that can be registered, with
+/// the roots registered successfully; `None` when there is none.
+fn watch_roots<F>(
+    roots: Vec<PathBuf>,
+    on_event: F,
+) -> Option<(Debouncer<RecommendedWatcher>, Vec<PathBuf>)>
+where
+    F: Fn(&DebouncedEvent) + Send + 'static,
+{
+    if roots.is_empty() {
+        log::warn!("No history directory found; real-time file watcher disabled");
+        return None;
+    }
+    let mut debouncer = new_debouncer(
+        Duration::from_millis(500),
+        move |result: Result<Vec<DebouncedEvent>, notify::Error>| match result {
+            Ok(events) => events.iter().for_each(&on_event),
+            Err(error) => log::error!("File watcher error: {error:?}"),
+        },
+    )
+    .map_err(|error| log::error!("Failed to create file watcher: {error}"))
+    .ok()?;
+
+    let mut watched = roots;
+    watched.retain(
+        |root| match debouncer.watcher().watch(root, RecursiveMode::Recursive) {
+            Ok(()) => {
+                prime_watch_signatures(root);
+                log::info!("File watcher active: {}", root.display());
+                true
+            }
+            Err(error) => {
+                log::warn!("Failed to watch {}: {error}", root.display());
+                false
+            }
+        },
+    );
+    if watched.is_empty() {
+        log::warn!("Real-time updates disabled (no watch path could be registered)");
+        return None;
+    }
+    Some((debouncer, watched))
+}
+
+/// Start the desktop watcher over [`collect_watch_paths`], or bring it up to
+/// date with them. Blocking: priming walks every watched tree.
+pub fn sync_desktop_watcher(app_handle: &AppHandle) -> WatcherSync {
+    let handle = app_handle.clone();
+    app_handle
+        .state::<WatcherState>()
+        .sync(collect_watch_paths, move |event| {
+            handle_file_event(&handle, event);
+        })
+}
+
+/// Run [`sync_desktop_watcher`] off the async runtime.
+pub(crate) async fn sync_desktop_watcher_async(
+    app_handle: AppHandle,
+) -> Result<WatcherSync, String> {
+    tauri::async_runtime::spawn_blocking(move || sync_desktop_watcher(&app_handle))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))
+}
+
+/// Ensure the shared desktop watcher runs. Idempotent: the app starts it at
+/// launch, so this normally answers `watcher-running`.
+#[tauri::command]
+pub async fn start_file_watcher(app_handle: AppHandle) -> Result<String, String> {
+    match sync_desktop_watcher_async(app_handle).await? {
+        WatcherSync::Started(_) => Ok("watcher-started".to_string()),
+        WatcherSync::Running => Ok("watcher-running".to_string()),
+        WatcherSync::Disabled => Err("No history directory could be watched".to_string()),
+    }
+}
+
+/// Stop the shared desktop watcher (every window stops receiving updates).
 #[tauri::command]
 pub async fn stop_file_watcher(app_handle: AppHandle) -> Result<(), String> {
-    let watcher_state: tauri::State<WatcherMap> = app_handle.state();
-    let mut watcher = watcher_state.lock().unwrap();
-
-    if watcher.is_some() {
-        *watcher = None;
+    if app_handle.state::<WatcherState>().stop() {
         log::info!("File watcher stopped");
         Ok(())
     } else {
         Err("No active file watcher found".to_string())
     }
+}
+
+/// A provider's `get_base_path`, used to build the watch-path tables below.
+type BasePathFn = fn() -> Option<String>;
+
+/// The Claude roots under `home`: `~/.claude/projects` and the `projects/` of
+/// each valid custom Claude directory in `user-data.json`.
+fn claude_watch_roots(home: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    let claude_projects = home.join(".claude").join("projects");
+    if claude_projects.is_dir() {
+        paths.push(claude_projects);
+    }
+
+    let user_data = home.join(".claude-history-viewer").join("user-data.json");
+    paths.extend(
+        super::metadata::custom_claude_dirs_in(&user_data)
+            .iter()
+            .filter_map(|dir| crate::utils::validate_custom_claude_path(Path::new(dir)).ok()),
+    );
+    paths
+}
+
+/// Collect available provider directories to watch for live session file
+/// updates: the desktop watcher and the `WebUI` server watcher use the same.
+pub(crate) fn collect_watch_paths() -> Vec<PathBuf> {
+    use std::collections::HashSet;
+
+    let mut paths: Vec<PathBuf> = crate::utils::home_dir()
+        .map(|home| claude_watch_roots(&home))
+        .unwrap_or_default();
+
+    // Kimi Code (the `~/.kimi-code` rewrite) sessions. Symlinked sessions
+    // roots are not registered — `is_dir()` follows symlinks, and watching
+    // through one would observe directories outside the store.
+    if let Some(kimi_code_root) = providers::kimi_code::default_root() {
+        let sessions = kimi_code_root.join("sessions");
+        let is_real_dir = std::fs::symlink_metadata(&sessions)
+            .map(|meta| meta.file_type().is_dir())
+            .unwrap_or(false);
+        if is_real_dir {
+            paths.push(sessions);
+        }
+    }
+
+    if let Some(opencode_base) = providers::opencode::get_base_path() {
+        let base = PathBuf::from(&opencode_base);
+        let storage = base.join("storage");
+        let session = storage.join("session");
+        let message = storage.join("message");
+        if session.is_dir() {
+            paths.push(session);
+        }
+        if message.is_dir() {
+            paths.push(message);
+        }
+        // Watch opencode.db for SQLite-based storage changes
+        let db_path = base.join("opencode.db");
+        if db_path.is_file() {
+            paths.push(base);
+        }
+    }
+
+    // Kilo Code keeps its OpenCode-core sessions in kilo.db (no file-backed
+    // session/message storage dirs), so watching the store root covers it.
+    // Symlinked roots/databases are not registered — `is_file()` follows
+    // symlinks, and watching through one would observe paths outside the
+    // store (same hardening as the Kimi Code block above).
+    if let Some(kilo_base) = providers::kilo::get_base_path() {
+        let base = PathBuf::from(&kilo_base);
+        let is_real = |path: &Path, check: fn(&std::fs::FileType) -> bool| {
+            std::fs::symlink_metadata(path)
+                .map(|meta| check(&meta.file_type()))
+                .unwrap_or(false)
+        };
+        if is_real(&base, std::fs::FileType::is_dir)
+            && is_real(
+                &base.join(providers::kilo::DB_FILE),
+                std::fs::FileType::is_file,
+            )
+        {
+            paths.push(base);
+        }
+    }
+
+    // Providers whose base path is itself the directory to watch. For Pi and
+    // oh-my-pi, get_base_path() is already the sessions root.
+    let flat_bases: [BasePathFn; 14] = [
+        providers::pi::get_base_path,
+        providers::ompi::get_base_path,
+        providers::codebuddy::get_base_path,
+        providers::cursor_agent::get_base_path,
+        providers::continue_dev::get_base_path,
+        providers::pearai::get_base_path,
+        providers::goose::get_base_path,
+        providers::llm::get_base_path,
+        providers::amazon_q::get_base_path,
+        providers::qwen::get_base_path,
+        providers::zcode::get_base_path,
+        providers::zed::get_base_path,
+        providers::openhands::get_base_path,
+        providers::trae::get_base_path,
+    ];
+    paths.extend(
+        flat_bases
+            .iter()
+            .filter_map(|base| base())
+            .map(PathBuf::from)
+            .filter(|dir| dir.is_dir()),
+    );
+
+    // Providers that keep sessions in sub-directories of their base path.
+    let nested_bases: [(BasePathFn, &[&str]); 5] = [
+        (
+            providers::codex::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::kimi::get_base_path, &["sessions"]),
+        (
+            providers::openinterpreter::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::vibe::get_base_path, &["logs/session"]),
+        (providers::copilot_cli::get_base_path, &["session-state"]),
+    ];
+    for (get_base, subs) in nested_bases {
+        if let Some(base) = get_base() {
+            paths.extend(
+                subs.iter()
+                    .map(|sub| PathBuf::from(&base).join(sub))
+                    .filter(|dir| dir.is_dir()),
+            );
+        }
+    }
+
+    for vscode_base in providers::vscode::get_base_paths() {
+        let ws_storage = vscode_base.join("workspaceStorage");
+        if ws_storage.is_dir() {
+            paths.push(ws_storage);
+        }
+    }
+
+    // The whole desktop store, not just `brain/` and `conversations/`:
+    // `conversation_summaries.db` lives at its root, the rpc-cache under
+    // `.token-monitor/`, and a sub-directory created after startup is covered
+    // too. Files outside the session layout are filtered by the extractor.
+    if let Some(ag_root) = crate::commands::antigravity::resolve_antigravity_root() {
+        if std::fs::symlink_metadata(&ag_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_root);
+        }
+    }
+
+    // The CLI store root, so a `brain/` created after startup is covered.
+    if let Some(ag_cli_root) = providers::antigravity_cli::default_root() {
+        if std::fs::symlink_metadata(&ag_cli_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_cli_root);
+        }
+    }
+
+    let mut seen = HashSet::new();
+    paths
+        .into_iter()
+        .filter(|p| seen.insert(p.clone()))
+        .collect::<Vec<_>>()
 }
 
 /// Convert a debounced filesystem event into a [`FileWatchEvent`] if applicable.
@@ -892,6 +1095,133 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::TempDir;
+
+    fn temp_roots(count: usize) -> (TempDir, Vec<PathBuf>) {
+        let dir = TempDir::new().unwrap();
+        let roots = (0..count)
+            .map(|i| {
+                let root = dir.path().join(format!("root-{i}"));
+                std::fs::create_dir_all(&root).unwrap();
+                root
+            })
+            .collect();
+        (dir, roots)
+    }
+
+    #[test]
+    fn watcher_sync_is_idempotent_and_follows_root_changes() {
+        let (_dir, roots) = temp_roots(2);
+        let state = WatcherState::default();
+
+        let one = vec![roots[0].clone()];
+        assert_eq!(state.sync(|| one.clone(), |_| {}), WatcherSync::Started(1));
+        assert_eq!(state.sync(|| one, |_| {}), WatcherSync::Running);
+
+        assert_eq!(
+            state.sync(|| roots.clone(), |_| {}),
+            WatcherSync::Started(2)
+        );
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Running);
+
+        assert!(state.stop());
+        assert!(!state.stop());
+    }
+
+    #[test]
+    fn watcher_sync_without_a_watchable_root_runs_nothing() {
+        let (dir, roots) = temp_roots(1);
+        let state = WatcherState::default();
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(1));
+
+        assert_eq!(state.sync(Vec::new, |_| {}), WatcherSync::Disabled);
+        assert!(!state.stop(), "the old watcher is stopped, not kept");
+        let missing = vec![dir.path().join("missing")];
+        assert_eq!(state.sync(|| missing, |_| {}), WatcherSync::Disabled);
+        assert!(!state.stop());
+    }
+
+    #[test]
+    fn watcher_retries_a_root_that_failed_to_register() {
+        let (dir, mut roots) = temp_roots(1);
+        let missing = dir.path().join("not-yet");
+        roots.push(missing.clone());
+        let state = WatcherState::default();
+
+        assert_eq!(
+            state.sync(|| roots.clone(), |_| {}),
+            WatcherSync::Started(1)
+        );
+        std::fs::create_dir(&missing).unwrap();
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(2));
+    }
+
+    #[test]
+    fn watcher_reports_a_session_file_written_after_start() {
+        let (_dir, roots) = temp_roots(1);
+        let state = WatcherState::default();
+        let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
+        let tx = Mutex::new(tx);
+        state.sync(
+            || roots.clone(),
+            move |event| {
+                let _ = tx.lock().unwrap().send(event.path.clone());
+            },
+        );
+
+        let session = roots[0].join("session.jsonl");
+        std::fs::write(&session, "{}\n").unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let seen = loop {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(path) if path.ends_with("session.jsonl") => break true,
+                Ok(_) => {}
+                Err(_) => break false,
+            }
+        };
+        assert!(seen, "no event for {}", session.display());
+        state.stop();
+    }
+
+    #[test]
+    fn claude_watch_roots_has_default_and_valid_custom_roots() {
+        let home = TempDir::new().unwrap();
+        let default = home.path().join(".claude").join("projects");
+        std::fs::create_dir_all(&default).unwrap();
+        let custom = home.path().join("work-claude");
+        std::fs::create_dir_all(custom.join("projects")).unwrap();
+        let without_projects = home.path().join("empty-claude");
+        std::fs::create_dir_all(&without_projects).unwrap();
+
+        let config = home.path().join(".claude-history-viewer");
+        std::fs::create_dir_all(&config).unwrap();
+        let user_data = serde_json::json!({
+            "settings": { "customClaudePaths": [
+                { "path": custom.to_string_lossy(), "label": "Work" },
+                { "path": without_projects.to_string_lossy(), "label": "Empty" },
+                { "path": "relative/claude", "label": "Relative" },
+            ]}
+        });
+        std::fs::write(config.join("user-data.json"), user_data.to_string()).unwrap();
+
+        let roots = claude_watch_roots(home.path());
+        assert_eq!(
+            roots,
+            vec![
+                default,
+                std::fs::canonicalize(custom.join("projects")).unwrap()
+            ]
+        );
+    }
+
+    #[test]
+    fn claude_watch_roots_without_user_data_is_the_default_root() {
+        let home = TempDir::new().unwrap();
+        assert_eq!(claude_watch_roots(home.path()), Vec::<PathBuf>::new());
+        let default = home.path().join(".claude").join("projects");
+        std::fs::create_dir_all(&default).unwrap();
+        assert_eq!(claude_watch_roots(home.path()), vec![default]);
+    }
 
     #[test]
     fn test_extract_paths() {

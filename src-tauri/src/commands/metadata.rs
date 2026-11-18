@@ -8,7 +8,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 /// Validate a metadata project key.
 ///
@@ -94,6 +94,19 @@ pub(crate) async fn mutate_and_save<F>(
 where
     F: FnOnce(&mut UserMetadata) + Send + 'static,
 {
+    mutate_and_save_with(state, mutate)
+        .await
+        .map(|(saved, ())| saved)
+}
+
+async fn mutate_and_save_with<F, T>(
+    state: &MetadataState,
+    mutate: F,
+) -> Result<(UserMetadata, T), String>
+where
+    F: FnOnce(&mut UserMetadata) -> T + Send + 'static,
+    T: Send + 'static,
+{
     let _write = state.write_lock.lock().await;
     let mut metadata = state
         .metadata
@@ -102,9 +115,9 @@ where
         .clone()
         .unwrap_or_else(UserMetadata::new);
 
-    let saved = tauri::async_runtime::spawn_blocking(move || {
-        mutate(&mut metadata);
-        save_metadata_to_disk(&metadata).map(|()| metadata)
+    let (saved, result) = tauri::async_runtime::spawn_blocking(move || {
+        let result = mutate(&mut metadata);
+        save_metadata_to_disk(&metadata).map(|()| (metadata, result))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
@@ -116,7 +129,7 @@ where
     if let Some(observer) = state.on_saved.get() {
         observer(&saved);
     }
-    Ok(saved)
+    Ok((saved, result))
 }
 
 /// Get the metadata folder path (~/.claude-history-viewer)
@@ -128,6 +141,27 @@ fn get_metadata_folder() -> Result<PathBuf, String> {
 /// Get the user data file path (~/.claude-history-viewer/user-data.json)
 pub(crate) fn get_user_data_path() -> Result<PathBuf, String> {
     Ok(get_metadata_folder()?.join("user-data.json"))
+}
+
+/// The `path` of each custom Claude directory in the `user-data.json` at
+/// `user_data`; none when the file is missing or unreadable. Read leniently
+/// (any entry with a string `path`), as the file may be from another version.
+pub(crate) fn custom_claude_dirs_in(user_data: &Path) -> Vec<String> {
+    let Ok(content) = fs::read_to_string(user_data) else {
+        return Vec::new();
+    };
+    let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return Vec::new();
+    };
+    metadata
+        .get("settings")
+        .and_then(|s| s.get("customClaudePaths"))
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("path").and_then(|p| p.as_str()))
+        .map(str::to_string)
+        .collect()
 }
 
 /// Ensure the metadata folder exists
@@ -208,11 +242,28 @@ pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), Strin
 /// Save user metadata to disk with atomic write
 #[tauri::command]
 pub async fn save_user_metadata(
+    app_handle: AppHandle,
     metadata: UserMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<(), String> {
-    mutate_and_save(state.inner(), move |m| *m = metadata).await?;
+    let (_, changed) = mutate_and_save_with(state.inner(), move |current| {
+        let changed = current.settings.custom_claude_paths != metadata.settings.custom_claude_paths;
+        *current = metadata;
+        changed
+    })
+    .await?;
+    refresh_file_watcher(app_handle, changed).await;
     Ok(())
+}
+
+/// Bring the shared desktop watcher up to date after the saved roots change.
+async fn refresh_file_watcher(app_handle: AppHandle, changed: bool) {
+    if !changed {
+        return;
+    }
+    if let Err(error) = super::watcher::sync_desktop_watcher_async(app_handle).await {
+        log::error!("File watcher not updated: {error}");
+    }
 }
 
 /// Update metadata for a specific session
@@ -263,10 +314,18 @@ pub async fn update_project_metadata(
 /// Update global user settings
 #[tauri::command]
 pub async fn update_user_settings(
+    app_handle: AppHandle,
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    mutate_and_save(state.inner(), move |metadata| metadata.settings = settings).await
+    let (saved, changed) = mutate_and_save_with(state.inner(), move |metadata| {
+        let changed = metadata.settings.custom_claude_paths != settings.custom_claude_paths;
+        metadata.settings = settings;
+        changed
+    })
+    .await?;
+    refresh_file_watcher(app_handle, changed).await;
+    Ok(saved)
 }
 
 /// Check if a project should be hidden based on metadata
