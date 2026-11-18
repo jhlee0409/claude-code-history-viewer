@@ -245,6 +245,15 @@ pub fn project_name_for_path(project_path: &str) -> Option<String> {
         .or_else(|| (!cwd.is_empty()).then_some(cwd))
 }
 
+/// Display name for a session `cwd` (its folder leaf, else the cwd itself) —
+/// shared by scan and search.
+fn project_name_for_cwd(cwd: &str) -> String {
+    Path::new(cwd)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| cwd.to_string())
+}
+
 #[derive(Debug, Clone)]
 struct SessionInfo {
     session_id: String,
@@ -422,10 +431,7 @@ fn scan_projects_filtered(
         .into_iter()
         .filter(|(_, sessions)| !sessions.is_empty())
         .map(|(cwd, sessions)| {
-            let name = Path::new(&cwd)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| cwd.clone());
+            let name = project_name_for_cwd(&cwd);
             let session_count = sessions.len();
             let message_count: usize = sessions.iter().map(|s| s.message_count).sum();
             let last_modified = sessions
@@ -642,7 +648,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    search_from_path(&base, query, limit)
+    search_filtered(&base, None, query, limit, ClientKind::Cli)
 }
 
 /// Same as `search`, but only matches sessions whose workspace.yaml
@@ -652,28 +658,43 @@ pub fn search_desktop(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, S
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    search_desktop_from_path(&base, query, limit)
+    search_filtered(&base, None, query, limit, ClientKind::Desktop)
 }
 
+/// WSL/custom-path search. Hits carry the base-qualified project path that
+/// [`scan_projects_from_path`] emits when given a directory label, which the
+/// WSL scan always passes.
 pub fn search_from_path(
     base_path: &str,
     query: &str,
     limit: usize,
 ) -> Result<Vec<ClaudeMessage>, String> {
-    search_filtered(base_path, query, limit, ClientKind::Cli)
+    search_filtered(base_path, Some(base_path), query, limit, ClientKind::Cli)
 }
 
+/// Desktop counterpart of [`search_from_path`].
 pub fn search_desktop_from_path(
     base_path: &str,
     query: &str,
     limit: usize,
 ) -> Result<Vec<ClaudeMessage>, String> {
-    search_filtered(base_path, query, limit, ClientKind::Desktop)
+    search_filtered(
+        base_path,
+        Some(base_path),
+        query,
+        limit,
+        ClientKind::Desktop,
+    )
 }
 
+/// Search one client's sessions under `base_path`. Each hit carries the
+/// sub-project `path` the scan builds for its session (`project_base` as in
+/// [`build_project_path`]), so the unified Copilot search can map it onto the
+/// merged project (#672).
 #[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
 fn search_filtered(
     base_path: &str,
+    project_base: Option<&str>,
     query: &str,
     limit: usize,
     client: ClientKind,
@@ -701,12 +722,27 @@ fn search_filtered(
             continue;
         }
         if let Ok(messages) = load_messages(&entry.path().to_string_lossy()) {
-            for msg in messages {
+            // Resolved on the first hit only: same cached session info and
+            // "unknown" fallback the scan groups by.
+            let mut project: Option<(String, String)> = None;
+            for mut msg in messages {
                 if results.len() >= limit {
                     return Ok(results);
                 }
                 if let Some(content) = &msg.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
+                        let (name, path) = project.get_or_insert_with(|| {
+                            let cwd = extract_session_info_cached(entry.path())
+                                .ok()
+                                .and_then(|info| info.cwd)
+                                .unwrap_or_else(|| "unknown".to_string());
+                            (
+                                project_name_for_cwd(&cwd),
+                                build_project_path(&cwd, project_base, client),
+                            )
+                        });
+                        msg.project_name = Some(name.clone());
+                        msg.project_path = Some(path.clone());
                         results.push(msg);
                     }
                 }
@@ -1266,6 +1302,58 @@ mod tests {
         assert_eq!(project_a.session_count, 2);
         assert!(project_a.path.starts_with("copilot-cli://"));
         assert_eq!(project_a.provider.as_deref(), Some("copilot"));
+    }
+
+    #[test]
+    #[serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_cwds() {
+        let tmp = TempDir::new().unwrap();
+        let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
+        for (id, cwd) in [("sa", "/work/client-a/app"), ("sb", "/work/client-b/app")] {
+            write_session(
+                tmp.path(),
+                id,
+                &[
+                    json!({
+                        "type": "session.start",
+                        "data": {"sessionId": id, "context": {"cwd": cwd}},
+                        "timestamp": "2026-01-01T00:00:00.000Z"
+                    }),
+                    json!({
+                        "type": "user.message",
+                        "data": {"content": format!("needle {id}")},
+                        "timestamp": "2026-01-01T00:00:01.000Z"
+                    }),
+                ],
+            );
+        }
+        let base = tmp.path().to_string_lossy().to_string();
+
+        // Native form, then the base-qualified WSL form.
+        for (projects, hits) in [
+            (scan_projects().unwrap(), search("needle", 10).unwrap()),
+            (
+                scan_projects_from_path(&base, Some("WSL")).unwrap(),
+                search_from_path(&base, "needle", 10).unwrap(),
+            ),
+        ] {
+            let path_of = |cwd: &str| {
+                projects
+                    .iter()
+                    .find(|p| p.actual_path == cwd)
+                    .map(|p| p.path.clone())
+                    .unwrap()
+            };
+            let a = path_of("/work/client-a/app");
+            let b = path_of("/work/client-b/app");
+            assert_ne!(a, b);
+            assert_eq!(hits.len(), 2);
+            for hit in &hits {
+                let expected = if hit.session_id == "sa" { &a } else { &b };
+                assert_eq!(hit.project_path.as_ref(), Some(expected));
+                assert_eq!(hit.project_name.as_deref(), Some("app"));
+            }
+        }
     }
 
     #[test]

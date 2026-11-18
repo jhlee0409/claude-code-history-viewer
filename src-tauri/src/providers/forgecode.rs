@@ -177,6 +177,7 @@ fn search_from_path(base_path: &str, query: &str, limit: usize) -> Vec<ClaudeMes
     for row in rows {
         let created_at = normalize_timestamp_text(&row.created_at);
         let updated_at = latest_timestamp(&row.created_at, &row.updated_at);
+        let project_path = project_virtual_path(&row.workspace_id);
         let messages = map_context_messages(
             &row.workspace_id,
             &row.conversation_id,
@@ -186,13 +187,14 @@ fn search_from_path(base_path: &str, query: &str, limit: usize) -> Vec<ClaudeMes
             row.metrics_json.as_deref(),
         );
 
-        for message in messages {
+        for mut message in messages {
             if results.len() >= limit {
                 return results;
             }
 
             if let Some(content) = &message.content {
                 if search_json_value_case_insensitive(content, &query_lower) {
+                    message.project_path = Some(project_path.clone());
                     results.push(message);
                 }
             }
@@ -2367,6 +2369,54 @@ mod tests {
                 .as_ref()
                 .is_some_and(|content| search_json_value_case_insensitive(content, "parser"))
         }));
+    }
+
+    #[test]
+    /// #672: hits carry the scanned workspace path, so two workspaces whose
+    /// cwd leaf is `app` stay apart in search.
+    #[serial]
+    fn sqlite_search_hits_carry_scanned_project_path() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(&tmp);
+        for (workspace, cwd) in [
+            ("ws-a", "/work/client-a/app"),
+            ("ws-b", "/work/client-b/app"),
+        ] {
+            conn.execute(
+                "INSERT INTO conversations (id, workspace_id, title, context, created_at, updated_at)
+                 VALUES (?1, ?2, 't', ?3, '2026-01-10T08:00:00Z', '2026-01-10T08:00:00Z')",
+                params![
+                    format!("conv-{workspace}"),
+                    workspace,
+                    serde_json::to_string(&json!({
+                        "cwd": cwd,
+                        "messages": [{"Text": {"role": "user", "content": "needle"}}]
+                    }))
+                    .unwrap(),
+                ],
+            )
+            .unwrap();
+        }
+        drop(conn);
+        let base = tmp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_db(&base, &ScanReport::default()).unwrap();
+        let results = search_from_path(&base, "needle", 10);
+        assert_eq!(results.len(), 2);
+        for (workspace, cwd) in [
+            ("ws-a", "/work/client-a/app"),
+            ("ws-b", "/work/client-b/app"),
+        ] {
+            let project = projects.iter().find(|p| p.actual_path == cwd).unwrap();
+            assert_eq!(project.name, "app");
+            let hit = results
+                .iter()
+                .find(|m| m.session_id == format!("conv-{workspace}"))
+                .unwrap();
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+        assert_ne!(results[0].project_path, results[1].project_path);
     }
 
     #[test]

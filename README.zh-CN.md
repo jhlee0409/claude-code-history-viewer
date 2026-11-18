@@ -42,7 +42,7 @@
 |----------|----------|
 | macOS (通用) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 | Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (便携版)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.deb`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.rpm`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS)：
 
@@ -307,6 +307,17 @@ brew uninstall --cask claude-code-history-viewer
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
+
+### Flatpak (Linux)
+
+每个版本都附带 `.flatpak` 包。从[发布页面](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest)下载后运行：
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+所需的 GNOME 运行时会从 Flathub 安装。该包不会自动更新：应用提示有新版本时，请用同样的方式安装该版本的 `.flatpak`。沙盒可以读取你的主目录，但只会写入各助手的历史记录文件夹、应用自身的设置和下载文件夹。这对重命名、删除和编辑设置的影响见 [LINUX_BUILD.md](LINUX_BUILD.md#flatpak)。
 
 ## 从源码构建
 

@@ -250,7 +250,7 @@ fn resolve_store(provider: &str, path: &str) -> Result<Project, Excluded> {
                 .and_then(|root| Path::new(&root).canonicalize().ok())
                 .ok_or_else(|| Excluded::invalid("Cursor Agent projects folder not found"))?;
             let project_dir = folder_directly_inside(std::slice::from_ref(&root), path)?;
-            let (_, location) = crate::providers::cursor_agent::decode_project_dir(&project_dir);
+            let (_, location) = crate::providers::cursor_agent::project_display(&project_dir);
             Ok(Project {
                 store: Store::CursorAgent {
                     root,

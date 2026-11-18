@@ -198,6 +198,9 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
 
     let mut projects = Vec::new();
     let mut seen_canonical = std::collections::HashSet::new();
+    // Prompts whose transcript is gone (#764): listed as sessions of their
+    // project, which keeps a project whose transcripts are all gone listed.
+    let mut prompt_history = crate::commands::session::prompt_history::load(&claude_base);
 
     let mut entries: Vec<_> = WalkDir::new(&projects_path)
         .min_depth(1)
@@ -229,9 +232,33 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
             continue;
         }
 
-        if let Some(project) = read_project_dir(entry.path(), &canonical) {
+        let prompts = prompt_history.take_project(&entry.file_name().to_string_lossy());
+        if let Some(project) = read_project_dir(entry.path(), &canonical, prompts.as_ref()) {
             projects.push(project);
         }
+    }
+
+    // Projects whose folder holds no transcript any more, or is gone, but
+    // whose prompts are still in the log. The folder they would have is
+    // their path; the log records their directory exactly.
+    for prompts in prompt_history.into_projects() {
+        let last_modified: DateTime<Utc> = prompts.last_prompt_at().into();
+        projects.push(ClaudeProject {
+            name: project_display_name_from_path(&prompts.cwd)
+                .unwrap_or_else(|| extract_project_name(&prompts.dir_name)),
+            path: projects_path
+                .join(&prompts.dir_name)
+                .to_string_lossy()
+                .into_owned(),
+            session_count: prompts.session_count(),
+            message_count: prompts.prompt_count(),
+            last_modified: last_modified.to_rfc3339(),
+            git_info: detect_git_worktree_info(&prompts.cwd),
+            actual_path: prompts.cwd,
+            provider: None,
+            storage_type: None,
+            custom_directory_label: None,
+        });
     }
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
@@ -253,13 +280,20 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
 /// the scan derives its `actual_path` (#780).
 pub(crate) fn claude_project_location(project_dir: &Path) -> Option<String> {
     let canonical = project_dir.canonicalize().ok()?;
-    read_project_dir(project_dir, &canonical).map(|project| project.actual_path)
+    let claude_base = project_dir.parent()?.parent()?;
+    let mut history = crate::commands::session::prompt_history::load(claude_base);
+    let prompts = history.take_project(&project_dir.file_name()?.to_string_lossy());
+    read_project_dir(project_dir, &canonical, prompts.as_ref()).map(|project| project.actual_path)
 }
 
 /// One folder of a Claude `projects/` directory as the scan lists it, or
 /// `None` when it holds no session or its path is not absolute. `canonical`
 /// is the folder resolved: session files are read inside it only.
-fn read_project_dir(project_dir: &Path, canonical: &Path) -> Option<ClaudeProject> {
+fn read_project_dir(
+    project_dir: &Path,
+    canonical: &Path,
+    prompts: Option<&crate::commands::session::prompt_history::ProjectPrompts>,
+) -> Option<ClaudeProject> {
     let raw_project_name = project_dir
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
@@ -321,6 +355,15 @@ fn read_project_dir(project_dir: &Path, canonical: &Path) -> Option<ClaudeProjec
         }
     }
 
+    if let Some(prompts) = prompts {
+        session_count += prompts.session_count();
+        message_count += prompts.prompt_count();
+        let prompted = prompts.last_prompt_at();
+        if last_modified.map_or(true, |modified| prompted > modified) {
+            last_modified = Some(prompted);
+        }
+    }
+
     // Skip empty project containers (e.g. temp workdirs with only memory files).
     if session_count == 0 {
         return None;
@@ -353,13 +396,15 @@ fn read_project_dir(project_dir: &Path, canonical: &Path) -> Option<ClaudeProjec
     //    subagent JSONL files can run in narrower cwd values (for example
     //    `/home/cym/paseo`) while the parent project remains `/home/cym`,
     //    so nested files are only a secondary fallback here.
-    // 3. A lossy heuristic decode of the folder name, as a last resort.
+    // 3. The working directory recorded in the prompt log, if available.
+    // 4. A lossy heuristic decode of the folder name, as a last resort.
     let actual_path = crate::utils::decode_project_path_verified(&project_path)
         .or_else(|| {
             direct_cwd_candidate
                 .or(nested_cwd_candidate)
                 .map(|(_, cwd)| cwd)
         })
+        .or_else(|| prompts.map(|prompts| prompts.cwd.clone()))
         .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
     let project_name = project_display_name_from_path(&actual_path)
         .unwrap_or_else(|| extract_project_name(&raw_project_name));

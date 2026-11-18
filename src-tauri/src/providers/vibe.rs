@@ -258,6 +258,7 @@ pub fn search_from_base_path(
                 if let Some(content) = &message.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
                         message.project_name = Some(project.name.clone());
+                        message.project_path = Some(project.path.clone());
                         results.push(message);
                         if results.len() >= limit {
                             return Ok(results);
@@ -1369,6 +1370,46 @@ mod tests {
         assert_eq!(projects[0].session_count, 1);
         assert_eq!(projects[0].message_count, 3);
         assert_eq!(projects[0].provider.as_deref(), Some(PROVIDER_ID));
+    }
+
+    #[test]
+    /// Search hits carry the scanned project path, so same-named working
+    /// directories stay distinct (#672).
+    fn search_hits_carry_scanned_project_path_for_same_named_cwds() {
+        let temp = TempDir::new().expect("temp dir");
+        for (dir, cwd) in [("sa", "/work/client-a/app"), ("sb", "/work/client-b/app")] {
+            let session_dir = temp.path().join("logs/session").join(dir);
+            fs::create_dir_all(&session_dir).expect("create session dir");
+            let metadata = json!({
+                "session_id": dir,
+                "start_time": "2026-02-02T12:00:00+00:00",
+                "environment": { "working_directory": cwd }
+            });
+            fs::write(session_dir.join(METADATA_FILE), metadata.to_string())
+                .expect("write metadata");
+            let line = json!({ "role": "user", "content": "needle", "message_id": "m1" });
+            fs::write(session_dir.join(MESSAGES_FILE), line.to_string()).expect("write messages");
+        }
+        let base = temp.path().to_str().unwrap();
+
+        let projects = scan_projects_from_path(base).expect("scan");
+        let path_of = |cwd: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == cwd)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search_from_base_path(base, "needle", 10).expect("search");
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let expected = if hit.session_id == "sa" { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+        }
     }
 
     #[test]

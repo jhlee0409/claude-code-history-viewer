@@ -398,6 +398,7 @@ pub fn search_from_base_path(
                 if let Some(content) = &message.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
                         message.project_name = Some(project.name.clone());
+                        message.project_path = Some(project.path.clone());
                         results.push(message);
                         if results.len() >= limit {
                             return Ok(results);
@@ -987,6 +988,67 @@ mod tests {
 
         let results = search("needle", 10).expect("search succeeds");
         assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    #[serial]
+    fn search_hits_carry_the_scanned_project_path_across_both_stores() {
+        let temp = TempDir::new().unwrap();
+        let legacy = temp.path().join(".kimi");
+        let code = temp.path().join(".kimi-code");
+        // Two legacy projects whose cwds share the leaf name `app`.
+        for (project, session, cwd) in [
+            ("proj_a", "sess_a", "work/client-a/app"),
+            ("proj_b", "sess_b", "work/client-b/app"),
+        ] {
+            let session_dir = legacy.join(SESSIONS_DIR).join(project).join(session);
+            fs::create_dir_all(&session_dir).unwrap();
+            let system = serde_json::json!({
+                "role": "_system_prompt",
+                "content": format!(
+                    "The current working directory is `{}`.",
+                    crate::test_utils::abs(cwd)
+                ),
+            });
+            let user = serde_json::json!({ "role": "user", "content": "needle" });
+            fs::write(session_dir.join(CONTEXT_FILE), format!("{system}\n{user}")).unwrap();
+        }
+        write_code_session(
+            &code,
+            "wd_demo",
+            "session_code",
+            "needle",
+            1_786_959_458_516,
+        );
+
+        let _share = EnvVarGuard::remove("KIMI_SHARE_DIR");
+        let _home = EnvVarGuard::set("KIMI_HOME", legacy.as_os_str().to_owned());
+        let _code_home = EnvVarGuard::set("KIMI_CODE_HOME", code.as_os_str().to_owned());
+
+        let projects = scan_projects().expect("scan succeeds");
+        assert_eq!(projects.len(), 3);
+        let app_paths: Vec<&str> = projects
+            .iter()
+            .filter(|p| p.name == "app")
+            .map(|p| p.path.as_str())
+            .collect();
+        assert_eq!(app_paths.len(), 2);
+        assert_ne!(app_paths[0], app_paths[1]);
+        let mut session_project = std::collections::HashMap::new();
+        for project in &projects {
+            for session in load_sessions(&project.path, false).expect("sessions load") {
+                session_project.insert(session.actual_session_id, project.path.clone());
+            }
+        }
+
+        let results = search("needle", 10).expect("search succeeds");
+        assert_eq!(results.len(), 3);
+        for hit in &results {
+            let expected = session_project
+                .get(&hit.session_id)
+                .expect("scanned session");
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+        }
     }
 
     #[test]

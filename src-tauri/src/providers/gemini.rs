@@ -109,7 +109,7 @@ fn scan_projects_from_path_reporting(
 
         projects.push(ClaudeProject {
             name: project_name.clone(),
-            path: format!("gemini://{}", project_dir.to_string_lossy()),
+            path: project_path_for(&project_dir),
             actual_path,
             session_count,
             message_count,
@@ -256,7 +256,17 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 /// Search across all Gemini sessions
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let base = get_base_path().ok_or("Could not determine Gemini base path")?;
-    let tmp_dir = PathBuf::from(&base).join("tmp");
+    search_from_path(&base, query, limit)
+}
+
+/// [`search`] under a specific base path; the counterpart of
+/// [`scan_projects_from_path`], whose project paths the hits carry.
+fn search_from_path(
+    base_path: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
+    let tmp_dir = PathBuf::from(base_path).join("tmp");
 
     if !tmp_dir.is_dir() {
         return Ok(Vec::new());
@@ -275,12 +285,14 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             continue;
         }
 
-        let chats_dir = project_entry.path().join("chats");
+        let project_dir = project_entry.path();
+        let chats_dir = project_dir.join("chats");
         if is_symlink(&chats_dir) || !chats_dir.is_dir() {
             continue;
         }
 
         let project_name = project_entry.file_name().to_string_lossy().to_string();
+        let project_path = project_path_for(&project_dir);
 
         for chat_entry in fs::read_dir(&chats_dir).into_iter().flatten().flatten() {
             let path = chat_entry.path();
@@ -311,6 +323,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 if search_json_value_case_insensitive(msg, &query_lower) {
                     if let Some(mut claude_msg) = convert_gemini_message(msg, &session_id) {
                         claude_msg.project_name = Some(project_name.clone());
+                        claude_msg.project_path = Some(project_path.clone());
                         results.push(claude_msg);
                         if results.len() >= limit {
                             return Ok(results);
@@ -327,6 +340,11 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // ============================================================================
 // Path validation & file helpers
 // ============================================================================
+
+/// Opaque project identity of a `tmp/<project>` dir, shared by scan and search.
+fn project_path_for(project_dir: &Path) -> String {
+    format!("gemini://{}", project_dir.to_string_lossy())
+}
 
 /// Resolve and validate that a path is inside `~/.gemini/tmp/`
 fn validate_gemini_path(raw_path: &str) -> Result<PathBuf, String> {
@@ -1056,6 +1074,42 @@ fn map_gemini_tool_name(name: &str) -> &str {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn search_hits_carry_scanned_project_path() {
+        let temp = tempfile::TempDir::new().unwrap();
+        for (dir, id) in [("hash-a", "s-a"), ("hash-b", "s-b")] {
+            let chats = temp.path().join("tmp").join(dir).join("chats");
+            fs::create_dir_all(&chats).unwrap();
+            let session = json!({
+                "sessionId": id,
+                "projectHash": dir,
+                "lastUpdated": "2026-03-24T12:05:00Z",
+                "messages": [{"id": "u1", "type": "user", "content": [{"text": "shared needle"}]}]
+            });
+            fs::write(chats.join("session-1.json"), session.to_string()).unwrap();
+        }
+        let base = temp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_path(&base).unwrap();
+        assert_eq!(projects.len(), 2);
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search_from_path(&base, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let dir = if hit.session_id == "s-a" {
+                "hash-a"
+            } else {
+                "hash-b"
+            };
+            let project = projects
+                .iter()
+                .find(|p| p.name == dir)
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+    }
 
     #[test]
     fn test_parse_gemini_session_legacy_json() {

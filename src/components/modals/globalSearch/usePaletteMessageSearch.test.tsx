@@ -114,11 +114,18 @@ describe("buildMessageSearchRequest", () => {
     });
   });
 
-  it("preserves name-only filtering for search adapters without path metadata", () => {
-    const legacy = project({ provider: "gemini", path: "gemini:///work/repo", name: "repo" });
-    expect(buildMessageSearchRequest(input({ scope: "project", project: legacy }), config)?.args).toMatchObject({
-      activeProviders: ["gemini"], filters: { projects: ["repo"] },
-    });
+  it("scopes every provider's project by its exact path, not its folder name", () => {
+    for (const [provider, path] of [
+      ["gemini", "gemini:///work/client-a/repo"],
+      ["opencode", "opencode://proj-b"],
+      ["cursor", "cursor://workspace/abc"],
+      ["pi", "/home/u/.pi/agent/sessions/--work-client-b-repo--"],
+    ] as const) {
+      const scoped = project({ provider, path, name: "repo" });
+      expect(buildMessageSearchRequest(input({ scope: "project", project: scoped }), config)?.args).toMatchObject({
+        activeProviders: [provider], filters: { projectPaths: [path] },
+      });
+    }
   });
 
   it("keeps same-named project scopes distinct without rewriting their paths", () => {

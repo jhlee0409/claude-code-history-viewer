@@ -212,8 +212,20 @@ export const useMessageVirtualization = ({
   });
 
   const mountedRowKeys = useRef(new WeakMap<Element, VirtualItem["key"]>());
+  const measuredCount = useRef(flattenedMessages.length);
   useTranscriptWheelBoundary(virtualizer, wheelTransaction);
   useLayoutEffect(() => {
+    const countChanged = measuredCount.current !== flattenedMessages.length;
+    measuredCount.current = flattenedMessages.length;
+    // A commit that changed the row count (an earlier page prepended) mounts
+    // the pre-restore range: the viewer's anchor restore, a layout effect
+    // after this one, scrolls it away by a direct scrollTop write core sees
+    // only at the next scroll event. Measuring here re-renders that range, and
+    // rows it newly mounts are measured against the stale offset: their deltas
+    // go uncompensated and push the restored row off screen until the
+    // restore's next pass. Leave them unmarked; rows still mounted after the
+    // restore are reconciled then.
+    if (countChanged && virtualizer.isScrolling && !wheelTransaction.active.current) return;
     const measurements: { index: number; height: number }[] = [];
     for (const [key, node] of virtualizer.elementsCache) {
       const index = virtualizer.indexFromElement(node);
