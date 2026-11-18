@@ -48,6 +48,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
+    stepInTurn: vi.fn(),
     toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
     toggleInlineTokenUsage: vi.fn(),
@@ -68,6 +69,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
+    hasStepTarget: false,
     tabs: tabsOf(1),
     ownPlace: vi.fn(() => () => true),
     actions,
@@ -169,6 +171,23 @@ describe("command manifest", () => {
     expect(getCommand("go.back")?.shortcut).toMatchObject({ mac: "Cmd+[", web: "Alt+ArrowLeft" });
     expect(getCommand("go.forward")?.shortcut).toMatchObject({ mac: "Cmd+]", web: "Alt+ArrowRight" });
   });
+
+  it("steps within a turn with ⌘⌥↑↓ on the Mac app and ⌥⇧↑↓ elsewhere, apart from the prompt jump's ⌥↑↓", () => {
+    expect(getCommand("go.previousStep")?.shortcut).toEqual({
+      mac: "Cmd+Alt+ArrowUp",
+      win: "Alt+Shift+ArrowUp",
+      linux: "Alt+Shift+ArrowUp",
+      web: "Alt+Shift+ArrowUp",
+    });
+    expect(getCommand("go.nextStep")?.shortcut).toEqual({
+      mac: "Cmd+Alt+ArrowDown",
+      win: "Alt+Shift+ArrowDown",
+      linux: "Alt+Shift+ArrowDown",
+      web: "Alt+Shift+ArrowDown",
+    });
+    // Like the prompt jump, they stay out of text fields and dialogs.
+    expect(getCommand("go.nextStep")?.keys).toBeUndefined();
+  });
 });
 
 describe("command registry", () => {
@@ -212,6 +231,16 @@ describe("command registry", () => {
     const ctx = makeContext({ place: CONVERSATION, hasFindTarget: true });
     expect(runCommand("edit.find", ctx)).toBe(true);
     expect(ctx.actions.focusFind).toHaveBeenCalledTimes(1);
+  });
+
+  it("enables step navigation only on a conversation with its message list mounted", () => {
+    expect(runCommand("go.nextStep", makeContext({ place: CONVERSATION }))).toBe(false);
+    expect(runCommand("go.nextStep", makeContext({ place: { view: "analytics" }, hasStepTarget: true }))).toBe(false);
+    const ctx = makeContext({ place: CONVERSATION, hasStepTarget: true });
+    expect(runCommand("go.nextStep", ctx)).toBe(true);
+    expect(runCommand("go.previousStep", ctx)).toBe(true);
+    expect(ctx.actions.stepInTurn).toHaveBeenNthCalledWith(1, "next");
+    expect(ctx.actions.stepInTurn).toHaveBeenNthCalledWith(2, "previous");
   });
 
   it("enables the inspector toggle only where the inspector can show", () => {
@@ -376,7 +405,7 @@ describe("command targets: the tab in front at issue (ADR 0001 decision 6, revie
   /** Every command can run here, so a refusal can only be its target's. */
   const live: TabsSnapshot = { activeId: "B", ids: ["B", "C", "D", "E", "F", "G", "H", "I", "J"] };
   const runnable = () =>
-    makeContext({ place: CONVERSATION, canGoBack: true, canGoForward: true, hasFindTarget: true, tabs: live });
+    makeContext({ place: CONVERSATION, canGoBack: true, canGoForward: true, hasFindTarget: true, hasStepTarget: true, tabs: live });
   const actionsCalled = (ctx: CommandContext) =>
     Object.values(ctx.actions).some((action) => vi.mocked(action).mock.calls.length > 0);
 

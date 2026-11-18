@@ -20,6 +20,8 @@ export const COMMAND_IDS = [
   "palette.open",
   "go.back",
   "go.forward",
+  "go.previousStep",
+  "go.nextStep",
   "edit.find",
   "view.toggleInspector",
   "view.toggleMinimap",
