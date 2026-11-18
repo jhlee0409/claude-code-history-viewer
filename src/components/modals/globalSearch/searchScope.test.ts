@@ -36,10 +36,9 @@ describe("buildSidebarSearchScope", () => {
     ).toBeNull();
   });
 
-  it("names the shown projects' folders and keeps the session id list", () => {
+  it("keeps the shown projects and the session id list", () => {
     const scope = buildSidebarSearchScope(ALL, filterResult(["w1", "a1"]))!;
     expect(scope.projects).toEqual([web, api]);
-    expect(scope.projectDirs).toEqual(["web", "api"]);
     expect(scope.sessionIds).toEqual(["w1", "a1"]);
   });
 });
@@ -100,7 +99,19 @@ describe("buildMessageSearchRequest with the sidebar scope", () => {
     const restrict = buildSidebarSearchScope(ALL, filterResult(["w1", "a1"]))!;
     const request = buildMessageSearchRequest({ ...base, restrict }, config)!;
     expect(request.command).toBe("search_messages");
-    expect(request.args.filters).toEqual({ projects: ["web", "api"], sessionIds: ["w1", "a1"] });
+    expect(request.args.filters).toEqual({ projectPaths: [web.path, api.path], sessionIds: ["w1", "a1"] });
+  });
+
+  it("selects same-named projects of a non-Claude provider by their own paths", () => {
+    const a = { ...project("app", "opencode"), path: "opencode://proj-a" };
+    const b = { ...project("app", "opencode"), path: "opencode://proj-b" };
+    const restrict = buildSidebarSearchScope([a, b], {
+      projectPaths: [b.path],
+      sessionMatchesByProject: {},
+      sessionIds: null,
+    })!;
+    const request = buildMessageSearchRequest({ ...base, restrict }, { ...config, activeProviders: ["opencode"] })!;
+    expect(request.args).toMatchObject({ activeProviders: ["opencode"], filters: { projectPaths: [b.path] } });
   });
 
   it("is ignored under the project scope", () => {

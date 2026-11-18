@@ -82,17 +82,13 @@ fn scan_base_path(base_path: &Path, label: &str, report: &ScanReport) -> Vec<Cla
     // Group tasks by cwd
     let mut by_cwd: HashMap<String, Vec<&Value>> = HashMap::new();
     for item in &task_history {
-        let cwd = task_cwd(item).unwrap_or("unknown");
+        let cwd = task_cwd(item).unwrap_or(UNKNOWN_CWD);
         by_cwd.entry(cwd.to_string()).or_default().push(item);
     }
 
     let mut projects = Vec::new();
     for (cwd, tasks) in &by_cwd {
-        let project_name = PathBuf::from(cwd)
-            .file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
+        let project_name = extension_project_name(cwd);
 
         let session_count = tasks.len();
         let message_count: usize = tasks
@@ -110,7 +106,7 @@ fn scan_base_path(base_path: &Path, label: &str, report: &ScanReport) -> Vec<Cla
 
         projects.push(ClaudeProject {
             name: project_name,
-            path: format!("cline://{}:{}", base_path.to_string_lossy(), cwd),
+            path: extension_project_path(base_path, cwd),
             actual_path: cwd.clone(),
             session_count,
             message_count,
@@ -353,13 +349,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 None => continue,
             };
 
-            let project_name = task_cwd(item)
-                .and_then(|p| {
-                    PathBuf::from(p)
-                        .file_name()
-                        .map(|n| n.to_string_lossy().to_string())
-                })
-                .unwrap_or_default();
+            // Same cwd fallback, name and path as `scan_base_path`.
+            let cwd = task_cwd(item).unwrap_or(UNKNOWN_CWD);
+            let project_name = extension_project_name(cwd);
+            let project_path = extension_project_path(&base_path, cwd);
 
             let ui_path = base_path.join("tasks").join(id).join("ui_messages.json");
             let data = match fs::read_to_string(&ui_path) {
@@ -377,6 +370,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                     if let Some(ref c) = claude_msg.content {
                         if search_json_value_case_insensitive(c, &query_lower) {
                             claude_msg.project_name = Some(project_name.clone());
+                            claude_msg.project_path = Some(project_path.clone());
                             results.push(claude_msg);
                             if results.len() >= limit {
                                 return Ok(results);
@@ -398,6 +392,23 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // ============================================================================
 // Private helpers
 // ============================================================================
+
+/// Project bucket for extension tasks that record no working directory.
+const UNKNOWN_CWD: &str = "unknown";
+
+/// Display name of an extension project, shared by scan and search.
+fn extension_project_name(cwd: &str) -> String {
+    PathBuf::from(cwd)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+}
+
+/// Opaque identity of an extension project, shared by scan and search.
+fn extension_project_path(base_path: &Path, cwd: &str) -> String {
+    format!("cline://{}:{}", base_path.to_string_lossy(), cwd)
+}
 
 /// Editor user-data roots holding `<editor>/User/globalStorage`.
 ///
@@ -1403,6 +1414,66 @@ mod tests {
             assert!(load_messages(&path).is_err(), "{path} was read");
             assert!(!is_session_file(&path), "{path} was taken for a Cline file");
         }
+    }
+
+    /// Search hits carry the scanned project's path, so same-named projects
+    /// in different directories and stores stay apart (#672).
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let home = crate::test_utils::SandboxHome::new();
+        let ext = crate::utils::config_dir()
+            .unwrap()
+            .join("Code")
+            .join("User")
+            .join("globalStorage")
+            .join("saoudrizwan.claude-dev");
+        let history = json!([
+            {"id": "task-a", "ts": fixtures::TS_MS, "task": "hi", "tokensIn": 1,
+             "cwdOnTaskInitialization": "/work/client-a/app"},
+            {"id": "task-b", "ts": fixtures::TS_MS, "task": "hi", "tokensIn": 1,
+             "cwdOnTaskInitialization": "/work/client-b/app"}
+        ]);
+        fs::create_dir_all(ext.join("state")).unwrap();
+        fs::write(ext.join("state/taskHistory.json"), history.to_string()).unwrap();
+        for id in ["task-a", "task-b"] {
+            let task = ext.join("tasks").join(id);
+            fs::create_dir_all(&task).unwrap();
+            fs::write(
+                task.join("ui_messages.json"),
+                json!([{"type": "say", "say": "text", "text": "hi", "ts": fixtures::TS_MS}])
+                    .to_string(),
+            )
+            .unwrap();
+        }
+        fixtures::write_sdk_session(home.path(), "/work/client-b/app");
+
+        let projects = scan_projects().unwrap();
+        assert_eq!(projects.len(), 3);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        let session_project: HashMap<String, String> = projects
+            .iter()
+            .flat_map(|project| {
+                load_sessions(&project.path, false)
+                    .unwrap()
+                    .into_iter()
+                    .map(|s| (s.actual_session_id, project.path.clone()))
+            })
+            .collect();
+        assert_eq!(session_project.len(), 3);
+
+        let hits = search("hi", 100).unwrap();
+        let mut hit_paths: Vec<String> = hits
+            .iter()
+            .map(|hit| {
+                let path = hit.project_path.clone().expect("hit has project_path");
+                assert_eq!(Some(&path), session_project.get(&hit.session_id));
+                path
+            })
+            .collect();
+        hit_paths.sort();
+        hit_paths.dedup();
+        assert_eq!(hit_paths.len(), 3, "each project keeps its own path");
     }
 }
 

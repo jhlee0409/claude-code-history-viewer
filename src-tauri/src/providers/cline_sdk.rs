@@ -163,6 +163,11 @@ fn project_name(cwd: &str) -> String {
         .to_string()
 }
 
+/// Opaque project identity of a `cwd` in this store, shared by scan and search.
+fn project_path(cwd: &str) -> String {
+    format!("{PREFIX}{cwd}")
+}
+
 fn content_blocks(message: &Value) -> Vec<Value> {
     match message.get("content") {
         Some(Value::Array(blocks)) => blocks.clone(),
@@ -303,7 +308,7 @@ pub(super) fn scan_projects_in(root: &Path, report: &ScanReport) -> Vec<ClaudePr
                 .sum();
             ClaudeProject {
                 name: project_name(&cwd),
-                path: format!("{PREFIX}{cwd}"),
+                path: project_path(&cwd),
                 actual_path: cwd,
                 session_count: manifests.len(),
                 message_count,
@@ -405,6 +410,7 @@ pub(super) fn search_in(
                 .is_some_and(|content| search_json_value_case_insensitive(content, query_lower));
             if matched {
                 message.project_name = Some(project_name(&manifest.cwd));
+                message.project_path = Some(project_path(&manifest.cwd));
                 results.push(message);
                 if results.len() >= limit {
                     return;
@@ -663,7 +669,8 @@ mod tests {
         assert_eq!(results.len(), 2, "tool result and final answer");
         assert!(results
             .iter()
-            .all(|m| m.project_name.as_deref() == Some("cline")));
+            .all(|m| m.project_name.as_deref() == Some("cline")
+                && m.project_path.as_deref() == Some(format!("{PREFIX}{CWD}").as_str())));
 
         let mut limited = Vec::new();
         search_in(tmp.path(), "small test fixture", 1, &mut limited);

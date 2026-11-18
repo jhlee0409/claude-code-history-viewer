@@ -14,7 +14,7 @@
 //! so the two readers do not double-report the same conversations.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
-use crate::providers::opencode::{self, ChildSession};
+use crate::providers::opencode::{self, ChildSession, SessionTree};
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use std::path::{Path, PathBuf};
@@ -205,6 +205,7 @@ pub fn search_at(base_path: &str, query: &str, limit: usize) -> Result<Vec<Claud
                 .into_iter()
                 .map(|mut message| {
                     message.provider = Some(PROVIDER_ID.to_string());
+                    message.project_path = message.project_path.as_deref().map(to_kilo_scheme);
                     message
                 })
                 .collect()
@@ -240,7 +241,38 @@ pub fn load_subagent_messages(session_path: &str) -> Vec<ClaudeMessage> {
 
 /// [`load_subagent_messages`] against an explicit store root.
 pub fn load_subagent_messages_at(base_path: &str, session_path: &str) -> Vec<ClaudeMessage> {
-    opencode::load_subagent_messages_at(base_path, DB_FILE, &to_store_scheme(session_path))
+    rebrand_messages(opencode::load_subagent_messages_at(
+        base_path,
+        DB_FILE,
+        &to_store_scheme(session_path),
+    ))
+}
+
+/// How a Kilo project's sessions nest (`kilo://<project_id>`), read from
+/// `kilo.db` like the `OpenCode` reader's (#577).
+pub fn load_session_tree(project_path: &str) -> SessionTree {
+    let Some(base_path) = get_base_path() else {
+        return SessionTree::default();
+    };
+    opencode::load_session_tree_at(&base_path, DB_FILE, &to_store_scheme(project_path))
+}
+
+/// [`load_subagent_messages`] with the project's [`SessionTree`] already
+/// loaded.
+pub fn load_tree_subagent_messages(tree: &SessionTree, session_path: &str) -> Vec<ClaudeMessage> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    rebrand_messages(opencode::load_tree_subagent_messages_at(
+        &base_path,
+        DB_FILE,
+        tree,
+        &to_store_scheme(session_path),
+    ))
+}
+
+fn rebrand_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
+    messages
         .into_iter()
         .map(|mut message| {
             message.provider = Some(PROVIDER_ID.to_string());
@@ -346,6 +378,38 @@ pub(crate) mod test_support {
         )
         .unwrap();
     }
+
+    /// Add a session `id` in `proj1` whose `parent_id` is `parent` (a
+    /// subagent run), with one assistant reply carrying token usage.
+    pub(crate) fn seed_subagent_run(
+        conn: &rusqlite::Connection,
+        id: &str,
+        parent: &str,
+        input: u32,
+        output: u32,
+    ) {
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated,
+                                  parent_id)
+             VALUES (?1, 'proj1', ?1, '/tmp/kilo-project', 1700000200000, 1700000200000, ?2)",
+            rusqlite::params![id, parent],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data)
+             VALUES (?1, ?2, 1700000210000, 1700000210000, ?3)",
+            rusqlite::params![
+                format!("msg_{id}"),
+                id,
+                format!(
+                    "{{\"role\":\"assistant\",\"modelID\":\"kilo-test-model\",\
+                     \"time\":{{\"created\":1700000210000}},\
+                     \"tokens\":{{\"input\":{input},\"output\":{output}}}}}"
+                )
+            ],
+        )
+        .unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -408,6 +472,61 @@ mod tests {
         let results = search_at(&tmp.path().to_string_lossy(), "hello from kilo", 10).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].provider.as_deref(), Some("kilo"));
+    }
+
+    /// #672: hits carry the `kilo://` path scan emits for their project, so
+    /// same-named worktrees stay apart.
+    #[test]
+    fn search_hits_carry_scanned_kilo_project_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        for (project, worktree, session) in [
+            ("proj_a", "/work/client-a/app", "ses_a"),
+            ("proj_b", "/work/client-b/app", "ses_b"),
+        ] {
+            conn.execute(
+                "INSERT INTO project (id, worktree, time_created, time_updated)
+                 VALUES (?1, ?2, 1700000000000, 1700000000000)",
+                rusqlite::params![project, worktree],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+                 VALUES (?1, ?2, 't', ?3, 1700000000000, 1700000000000)",
+                rusqlite::params![session, project, worktree],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data)
+                 VALUES (?1, ?1, 1700000010000, 1700000010000,
+                         '{\"role\":\"user\",\"time\":{\"created\":1700000010000}}')",
+                [session],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+                 VALUES (?1, ?1, ?1, 1700000010000, 1700000010000,
+                         '{\"type\":\"text\",\"text\":\"needle\"}')",
+                [session],
+            )
+            .unwrap();
+        }
+        drop(conn);
+        let base = tmp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_at(&base).unwrap();
+        let results = search_at(&base, "needle", 10).unwrap();
+        assert_eq!(results.len(), 2);
+        for (worktree, session) in [
+            ("/work/client-a/app", "ses_a"),
+            ("/work/client-b/app", "ses_b"),
+        ] {
+            let project = projects.iter().find(|p| p.actual_path == worktree).unwrap();
+            assert_eq!(project.name, "app");
+            let hit = results.iter().find(|m| m.session_id == session).unwrap();
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+        assert_ne!(results[0].project_path, results[1].project_path);
     }
 
     #[test]

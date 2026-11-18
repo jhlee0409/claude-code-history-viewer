@@ -99,6 +99,7 @@ const actions: CommandActions = {
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
+    stepInTurn: vi.fn(),
     toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
     openSettingsManager: vi.fn(),
@@ -118,6 +119,7 @@ const context = (): CommandContext => ({
     canGoBack: true,
     canGoForward: false,
     hasFindTarget: false,
+    hasStepTarget: false,
     tabs: tabsOf(1),
     ownPlace: () => () => true,
     actions,
@@ -590,7 +592,7 @@ describe("⌘K palette: the sidebar filter's scope", () => {
         fireEvent.change(input(), { target: { value: "deploy" } });
         await waitFor(() => expect(searches()).toHaveLength(1));
         expect(searches()[0]?.[1]).toMatchObject({
-            filters: { projects: ["alpha", "beta-login"], sessionIds: ["s1", "s2", "b1"] },
+            filters: { projectPaths: [ALPHA.path, BETA.path], sessionIds: ["s1", "s2", "b1"] },
         });
 
         fireEvent.click(screen.getByRole("button", { name: "globalSearch.scope.all" }));

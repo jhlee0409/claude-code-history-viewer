@@ -4,24 +4,21 @@
  *
  * A project the filter matched by its own name counts with all its sessions;
  * a project shown only because some of its sessions matched counts with just
- * those. The backend narrows Claude and Codex results by project folder name
- * and, when every session in view is known, by session id. The same rules
- * are then applied here, per project, to every result: that covers providers
- * that do not apply search filters, and a session id list that could not be
- * built (a name-matched project whose sessions are not loaded).
+ * those. The backend narrows every provider's results to those projects by
+ * exact path (`projectPaths`) and, when every session in view is known, by
+ * session id. The same rules are then applied here, per project, to every
+ * result: that covers a session id list that could not be built (a
+ * name-matched project whose sessions are not loaded).
  */
 
 import type { ClaudeMessage, ClaudeProject } from "@/types";
 import type { SidebarFilterResult } from "@/store/slices/sidebarFilterSlice";
 import type { SessionRef } from "@/navigation/place";
-import { getPathLeaf } from "@/utils/pathUtils";
 import { projectForSearchResult } from "@/utils/projectIdentity";
 
 export interface SidebarSearchScope {
   /** The projects the sidebar shows. */
   projects: ClaudeProject[];
-  /** For the backend's `projects` filter: each project's folder name. */
-  projectDirs: string[];
   /** For the backend's `sessionIds` filter; null when it can't be built. */
   sessionIds: string[] | null;
   sessionIdSet: ReadonlySet<string> | null;
@@ -56,7 +53,6 @@ export const buildSidebarSearchScope = (
 
   return {
     projects: scoped,
-    projectDirs: [...new Set(scoped.map((project) => getPathLeaf(project.path) || project.path))],
     sessionIds: filterResult.sessionIds,
     sessionIdSet: filterResult.sessionIds ? new Set(filterResult.sessionIds) : null,
     sessionIdsByProject,

@@ -10,6 +10,7 @@ function createState(overrides: Partial<UpdateState> = {}): UpdateState {
     isInstalling: false,
     isRestarting: false,
     requiresManualRestart: false,
+    isFlatpak: false,
     downloadProgress: 100,
     error: null,
     updateInfo: null,
@@ -32,6 +33,7 @@ describe('buildUpdateDiagnostics', () => {
     expect(text).toContain('newVersion=1.5.1');
     expect(text).toContain('isRestarting=true');
     expect(text).toContain('requiresManualRestart=false');
+    expect(text).toContain('isFlatpak=false');
     expect(text).toContain('downloadProgress=100');
   });
 });

@@ -81,6 +81,12 @@ dispatch2 = "0.3"
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1", features = ["fs"] }
 
+# Inside the Flatpak sandbox a deleted session goes to the trash through
+# GIO, which uses the Trash portal there (commands/session/delete.rs).
+# Already in the tree through tauri's GTK stack; no new crate.
+[target.'cfg(target_os = "linux")'.dependencies]
+gio = "0.18"
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
 # A history file's identity is read from its handle

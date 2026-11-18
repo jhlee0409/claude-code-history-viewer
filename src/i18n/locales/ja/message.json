@@ -142,6 +142,7 @@
   "navigator.kind.summary": "要約",
   "navigator.userOnly": "自分のプロンプトと回答のみ表示",
   "navigator.promptJumpHint": "{{keys}}で前または次のプロンプトへ移動します。",
+  "navigator.stepJumpHint": "{{keys}}でターン内の前または次のステップ（応答またはツール呼び出し）へ移動します。",
   "navigator.showParallelTasks": "並列タスクを表示",
   "navigator.noMessages": "このセッションにメッセージはありません",
   "navigator.close": "ナビゲーターを閉じる",

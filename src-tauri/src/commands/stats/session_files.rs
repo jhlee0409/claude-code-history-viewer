@@ -524,6 +524,7 @@ mod raw_open_guard {
         "src/commands/session/chain.rs",
         "src/commands/session/edits.rs",
         "src/commands/session/load.rs",
+        "src/commands/session/prompt_history.rs",
         "src/commands/session/rename.rs",
         "src/commands/session/search.rs",
         "src/commands/archive.rs",

@@ -77,10 +77,27 @@ fn ms_to_iso_secs(secs: u64) -> String {
         .to_rfc3339()
 }
 
+/// Display name for a `conversations.key` (cwd), shared by scan and search.
+fn project_name_for(key: &str) -> String {
+    Path::new(key)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| key.to_string())
+}
+
+/// Opaque project identity for a `conversations.key`, shared by scan and search.
+fn project_path_for(key: &str) -> String {
+    format!("{SCHEME}{key}")
+}
+
 /// Scan Amazon Q projects — one per `conversations.key` (cwd).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let conn = open_db()?;
-    let fallback = db_mtime_iso();
+    scan_projects_in(&conn, &db_mtime_iso())
+}
+
+fn scan_projects_in(conn: &Connection, fallback: &str) -> Result<Vec<ClaudeProject>, String> {
     let mut stmt = conn
         .prepare("SELECT key, value FROM conversations")
         .map_err(|e| e.to_string())?;
@@ -99,18 +116,13 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
                 return None;
             }
             let (_, last) = q_conversation::history_time_bounds(&value);
-            let name = Path::new(&key)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| key.clone());
             Some(ClaudeProject {
-                name,
-                path: format!("{SCHEME}{key}"),
+                name: project_name_for(&key),
+                path: project_path_for(&key),
                 actual_path: key,
                 session_count: 1,
                 message_count: msg_count,
-                last_modified: last.unwrap_or_else(|| fallback.clone()),
+                last_modified: last.unwrap_or_else(|| fallback.to_string()),
                 git_info: None,
                 provider: Some(PROVIDER.to_string()),
                 storage_type: Some("sqlite".to_string()),
@@ -198,6 +210,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         return Ok(Vec::new());
     }
     let conn = open_db()?;
+    search_in(&conn, query, limit)
+}
+
+fn search_in(conn: &Connection, query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let pattern = format!("%{query}%");
     let query_lower = query.to_lowercase();
 
@@ -214,10 +230,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 
     let mut results = Vec::new();
     for (key, value) in rows.flatten() {
-        let project_name = Path::new(&key)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let project_name = project_name_for(&key);
+        let project_path = project_path_for(&key);
         for mut msg in q_conversation::parse_history(PROVIDER, &value, &key) {
             let matched = msg
                 .content
@@ -228,6 +242,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 continue;
             }
             msg.project_name = Some(project_name.clone());
+            msg.project_path = Some(project_path.clone());
             results.push(msg);
             if results.len() >= limit {
                 return Ok(results);
@@ -334,6 +349,46 @@ mod tests {
         if let Some(p) = get_db_path() {
             let s = p.to_string_lossy();
             assert!(s.ends_with("amazon-q/data.sqlite3") || s.ends_with("amazon-q\\data.sqlite3"));
+        }
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE conversations (key TEXT PRIMARY KEY, value TEXT)",
+            [],
+        )
+        .unwrap();
+        let value = serde_json::json!({
+            "history": [{
+                "user": {"content": {"Prompt": {"prompt": "shared needle"}}, "timestamp": "2026-06-20T10:00:00Z"},
+                "assistant": {"Response": {"message_id": "a1", "content": "ok"}}
+            }]
+        })
+        .to_string();
+        for key in ["/work/client-a/app", "/work/client-b/app"] {
+            conn.execute(
+                "INSERT INTO conversations VALUES (?1, ?2)",
+                [key, value.as_str()],
+            )
+            .unwrap();
+        }
+
+        let projects = scan_projects_in(&conn, "").unwrap();
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search_in(&conn, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let project = projects
+                .iter()
+                .find(|p| p.actual_path == hit.session_id)
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
         }
     }
 }

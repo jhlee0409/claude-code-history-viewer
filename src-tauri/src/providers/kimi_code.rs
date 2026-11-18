@@ -208,15 +208,7 @@ pub(crate) fn scan_projects_from_root(
             continue;
         }
 
-        let workspace_id = workspace_dir
-            .file_name()
-            .map(|name| name.to_string_lossy().to_string())
-            .unwrap_or_default();
-        let actual_path = workspace_map
-            .get(&workspace_id)
-            .cloned()
-            .or_else(|| read_state_cwd(&workspace_dir))
-            .unwrap_or_else(|| workspace_id.clone());
+        let (workspace_id, actual_path) = workspace_root(&workspace_dir, &workspace_map);
         let name = project_name_for_root(&actual_path, &workspace_id);
         let message_count = sessions.iter().map(|s| s.message_count).sum();
         let last_modified = sessions
@@ -228,7 +220,7 @@ pub(crate) fn scan_projects_from_root(
 
         projects.push(ClaudeProject {
             name,
-            path: format!("{SCHEME}{}", workspace_dir.to_string_lossy()),
+            path: project_path_for(&workspace_dir),
             actual_path: actual_path.clone(),
             session_count: sessions.len(),
             message_count,
@@ -306,7 +298,9 @@ pub(crate) fn search_from_root(
     let mut results = Vec::new();
     let unreported = ScanReport::default();
     for workspace_dir in list_workspace_dirs(sessions_root, &unreported) {
-        let project_name = project_name_for_workspace(&workspace_dir, &workspace_map);
+        let (workspace_id, actual_path) = workspace_root(&workspace_dir, &workspace_map);
+        let project_name = project_name_for_root(&actual_path, &workspace_id);
+        let project_path = project_path_for(&workspace_dir);
         for session_dir in list_session_dirs(&workspace_dir, &unreported) {
             let Some(session) = build_session(&session_dir, &unreported) else {
                 continue;
@@ -317,6 +311,7 @@ pub(crate) fn search_from_root(
                 });
                 if matches {
                     message.project_name = Some(project_name.clone());
+                    message.project_path = Some(project_path.clone());
                     results.push(message);
                     if results.len() >= limit {
                         return results;
@@ -595,18 +590,28 @@ fn project_name_for_root(root: &str, workspace_id: &str) -> String {
         .unwrap_or_else(|| workspace_id.to_string())
 }
 
-fn project_name_for_workspace(
+/// A workspace directory's id and project root: the workspaces.json `root`,
+/// else a session's state.json cwd, else the id itself.
+fn workspace_root(
     workspace_dir: &Path,
     workspace_map: &HashMap<String, String>,
-) -> String {
+) -> (String, String) {
     let id = workspace_dir
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_default();
-    workspace_map
+    let root = workspace_map
         .get(&id)
-        .map(|root| project_name_for_root(root, &id))
-        .unwrap_or_else(|| id)
+        .cloned()
+        .or_else(|| read_state_cwd(workspace_dir))
+        .unwrap_or_else(|| id.clone());
+    (id, root)
+}
+
+/// The opaque project identity (`ClaudeProject.path`) of a workspace dir,
+/// shared by scan and search so search hits group under their project.
+fn project_path_for(workspace_dir: &Path) -> String {
+    format!("{SCHEME}{}", workspace_dir.to_string_lossy())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2065,6 +2070,49 @@ mod tests {
             .all(|message| message.project_name.as_deref() == Some("demo-project")));
 
         assert!(search_from_root(&sessions_root(&root), "no-such-token", 10).is_empty());
+    }
+
+    #[test]
+    fn search_hits_carry_the_scanned_project_path_of_same_named_workspaces() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = code_root(&temp);
+        for (workspace, session, cwd) in [
+            ("wd_a", "session_a", "work/client-a/app"),
+            ("wd_b", "session_b", "work/client-b/app"),
+        ] {
+            let state = serde_json::json!({
+                "id": session,
+                "version": 2,
+                "cwd": crate::test_utils::abs(cwd),
+                "createdAt": 1786957369672u64,
+            })
+            .to_string();
+            write_session(&root, workspace, session, &state, &full_turn_wire());
+        }
+        let sessions = sessions_root(&root);
+
+        let projects = scan_projects_from_root(&sessions, &ScanReport::default());
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+        let session_project: HashMap<String, String> = projects
+            .iter()
+            .flat_map(|project| {
+                let dir = project.path.strip_prefix(SCHEME).expect("scheme");
+                load_sessions_from_dir(Path::new(dir), &ScanReport::default())
+                    .into_iter()
+                    .map(move |session| (session.session_id, project.path.clone()))
+            })
+            .collect();
+
+        let results = search_from_root(&sessions, "main.rs", 10);
+        assert_eq!(results.len(), 4);
+        for hit in &results {
+            let expected = session_project
+                .get(&hit.session_id)
+                .expect("scanned session");
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+        }
     }
 
     #[cfg(unix)]

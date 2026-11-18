@@ -20,6 +20,7 @@ export function buildUpdateDiagnostics({
     isInstalling: state.isInstalling,
     isRestarting: state.isRestarting,
     requiresManualRestart: state.requiresManualRestart,
+    isFlatpak: state.isFlatpak,
     downloadProgress: state.downloadProgress,
     userAgent:
       typeof navigator !== 'undefined' && navigator.userAgent
@@ -38,6 +39,7 @@ export function buildUpdateDiagnostics({
     `isInstalling=${info.isInstalling}`,
     `isRestarting=${info.isRestarting}`,
     `requiresManualRestart=${info.requiresManualRestart}`,
+    `isFlatpak=${info.isFlatpak}`,
     `downloadProgress=${info.downloadProgress}`,
     `userAgent=${info.userAgent}`,
   ].join('\n');
