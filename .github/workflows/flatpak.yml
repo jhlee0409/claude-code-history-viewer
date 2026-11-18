@@ -152,12 +152,15 @@ jobs:
           if-no-files-found: error
           retention-days: 3
 
+  # flatpak-builder runs on the runner, not in the
+  # flatpak/flatpak-github-actions container: that image cannot update or
+  # remove its preinstalled runtimes ("Invalid cross-device link" across its
+  # overlay layers, flatpak/flatpak-github-actions#267), so every build failed
+  # before reaching the manifest. org.flatpak.Builder is the same tool
+  # Flathub uses.
   flatpak:
     needs: [resolve, validate, deb]
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
-      options: --privileged
+    runs-on: ubuntu-24.04
     outputs:
       bundle: ${{ steps.names.outputs.bundle }}
     steps:
@@ -190,24 +193,31 @@ jobs:
           fi
           grep -A2 "<releases>" "$METAINFO"
 
-      # The image's preinstalled runtimes cannot be updated in place: the
-      # update renames across the image's overlay layers and fails with
-      # "Invalid cross-device link" (flatpak/flatpak-github-actions#267).
-      # Remove them so flatpak-builder installs current ones instead.
-      - name: drop the image's preinstalled runtimes
+      - name: install flatpak-builder
         run: |
-          flatpak list --columns=ref,installation || true
-          flatpak uninstall --system -y --noninteractive --all || true
-          flatpak uninstall --user -y --noninteractive --all || true
-          flatpak remotes --show-details
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends flatpak
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
 
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      - name: build the bundle
+        env:
+          BUNDLE: ${{ steps.names.outputs.bundle }}
+        run: |
+          set -euo pipefail
+          flatpak run org.flatpak.Builder --user --install-deps-from=flathub \
+            --disable-rofiles-fuse --force-clean --default-branch=master \
+            --repo=repo build-dir "$MANIFEST"
+          flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
+            repo "$BUNDLE" "$APP_ID" master
+
+      - uses: actions/upload-artifact@v4
         with:
-          manifest-path: ${{ env.MANIFEST }}
-          bundle: ${{ steps.names.outputs.bundle }}
-          artifact-name: flatpak-bundle
-          # One module that only unpacks a .deb: nothing worth caching.
-          cache: 'false'
+          name: flatpak-bundle
+          path: ${{ steps.names.outputs.bundle }}
+          if-no-files-found: error
+          retention-days: 14
 
   smoke:
     needs: flatpak
