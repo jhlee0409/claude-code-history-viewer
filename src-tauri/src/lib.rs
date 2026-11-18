@@ -207,9 +207,14 @@ fn run_tauri() {
             // One file watcher for every window (live refresh). Priming walks
             // the watched trees, so it starts off the main thread.
             let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                watcher::sync_desktop_watcher(&handle);
-            });
+            if let Err(error) = std::thread::Builder::new()
+                .name("desktop-file-watcher".into())
+                .spawn(move || {
+                    watcher::sync_desktop_watcher(&handle);
+                })
+            {
+                log::error!("Failed to start desktop file watcher: {error}");
+            }
             Ok(())
         })
         // Focus and close of every window: the window in front gets the menu

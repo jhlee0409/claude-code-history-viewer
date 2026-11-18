@@ -3,9 +3,7 @@
 //! This module provides commands for loading, saving, and updating
 //! user metadata stored in ~/.claude-history-viewer/user-data.json
 
-use crate::models::{
-    CustomClaudePath, ProjectMetadata, SessionMetadata, UserMetadata, UserSettings,
-};
+use crate::models::{ProjectMetadata, SessionMetadata, UserMetadata, UserSettings};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -96,6 +94,19 @@ pub(crate) async fn mutate_and_save<F>(
 where
     F: FnOnce(&mut UserMetadata) + Send + 'static,
 {
+    mutate_and_save_with(state, mutate)
+        .await
+        .map(|(saved, ())| saved)
+}
+
+async fn mutate_and_save_with<F, T>(
+    state: &MetadataState,
+    mutate: F,
+) -> Result<(UserMetadata, T), String>
+where
+    F: FnOnce(&mut UserMetadata) -> T + Send + 'static,
+    T: Send + 'static,
+{
     let _write = state.write_lock.lock().await;
     let mut metadata = state
         .metadata
@@ -104,9 +115,9 @@ where
         .clone()
         .unwrap_or_else(UserMetadata::new);
 
-    let saved = tauri::async_runtime::spawn_blocking(move || {
-        mutate(&mut metadata);
-        save_metadata_to_disk(&metadata).map(|()| metadata)
+    let (saved, result) = tauri::async_runtime::spawn_blocking(move || {
+        let result = mutate(&mut metadata);
+        save_metadata_to_disk(&metadata).map(|()| (metadata, result))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
@@ -118,7 +129,7 @@ where
     if let Some(observer) = state.on_saved.get() {
         observer(&saved);
     }
-    Ok(saved)
+    Ok((saved, result))
 }
 
 /// Get the metadata folder path (~/.claude-history-viewer)
@@ -235,28 +246,19 @@ pub async fn save_user_metadata(
     metadata: UserMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<(), String> {
-    let before = cached_custom_paths(state.inner());
-    let saved = mutate_and_save(state.inner(), move |m| *m = metadata).await?;
-    refresh_file_watcher(app_handle, before, &saved).await;
+    let (_, changed) = mutate_and_save_with(state.inner(), move |current| {
+        let changed = current.settings.custom_claude_paths != metadata.settings.custom_claude_paths;
+        *current = metadata;
+        changed
+    })
+    .await?;
+    refresh_file_watcher(app_handle, changed).await;
     Ok(())
 }
 
-/// The custom Claude directories in the metadata cache.
-fn cached_custom_paths(state: &MetadataState) -> Option<Vec<CustomClaudePath>> {
-    let cached = state.metadata.lock().ok()?;
-    cached
-        .as_ref()
-        .map(|metadata| metadata.settings.custom_claude_paths.clone())
-}
-
-/// Bring the shared desktop file watcher up to date when a save changed the
-/// custom Claude directories (`before` → `saved`).
-async fn refresh_file_watcher(
-    app_handle: AppHandle,
-    before: Option<Vec<CustomClaudePath>>,
-    saved: &UserMetadata,
-) {
-    if before.as_ref() == Some(&saved.settings.custom_claude_paths) {
+/// Bring the shared desktop watcher up to date after the saved roots change.
+async fn refresh_file_watcher(app_handle: AppHandle, changed: bool) {
+    if !changed {
         return;
     }
     if let Err(error) = super::watcher::sync_desktop_watcher_async(app_handle).await {
@@ -316,10 +318,13 @@ pub async fn update_user_settings(
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    let before = cached_custom_paths(state.inner());
-    let saved =
-        mutate_and_save(state.inner(), move |metadata| metadata.settings = settings).await?;
-    refresh_file_watcher(app_handle, before, &saved).await;
+    let (saved, changed) = mutate_and_save_with(state.inner(), move |metadata| {
+        let changed = metadata.settings.custom_claude_paths != settings.custom_claude_paths;
+        metadata.settings = settings;
+        changed
+    })
+    .await?;
+    refresh_file_watcher(app_handle, changed).await;
     Ok(saved)
 }
 

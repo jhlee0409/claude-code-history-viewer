@@ -79,7 +79,7 @@ impl WatcherState {
     /// Run one watcher over `roots`, calling `on_event` for each debounced
     /// event. Idempotent: the running watcher is kept when its roots are the
     /// same; otherwise it is replaced.
-    pub(crate) fn sync<F>(&self, roots: Vec<PathBuf>, on_event: F) -> WatcherSync
+    fn sync<F>(&self, collect_roots: impl FnOnce() -> Vec<PathBuf>, on_event: F) -> WatcherSync
     where
         F: Fn(&DebouncedEvent) + Send + 'static,
     {
@@ -87,13 +87,15 @@ impl WatcherState {
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let roots = collect_roots();
         if slot.as_ref().is_some_and(|active| active.roots == roots) {
             return WatcherSync::Running;
         }
         // Stop the old watcher before registering the new one.
         *slot = None;
-        match watch_roots(&roots, on_event) {
-            Some((debouncer, watched)) => {
+        match watch_roots(roots, on_event) {
+            Some((debouncer, roots)) => {
+                let watched = roots.len();
                 *slot = Some(ActiveWatcher {
                     roots,
                     _debouncer: debouncer,
@@ -115,8 +117,11 @@ impl WatcherState {
 }
 
 /// Create a debounced watcher on every root that can be registered, with
-/// the number registered; `None` when there is none.
-fn watch_roots<F>(roots: &[PathBuf], on_event: F) -> Option<(Debouncer<RecommendedWatcher>, usize)>
+/// the roots registered successfully; `None` when there is none.
+fn watch_roots<F>(
+    roots: Vec<PathBuf>,
+    on_event: F,
+) -> Option<(Debouncer<RecommendedWatcher>, Vec<PathBuf>)>
 where
     F: Fn(&DebouncedEvent) + Send + 'static,
 {
@@ -134,18 +139,21 @@ where
     .map_err(|error| log::error!("Failed to create file watcher: {error}"))
     .ok()?;
 
-    let mut watched = 0usize;
-    for root in roots {
-        match debouncer.watcher().watch(root, RecursiveMode::Recursive) {
+    let mut watched = roots;
+    watched.retain(
+        |root| match debouncer.watcher().watch(root, RecursiveMode::Recursive) {
             Ok(()) => {
                 prime_watch_signatures(root);
-                watched += 1;
                 log::info!("File watcher active: {}", root.display());
+                true
             }
-            Err(error) => log::warn!("Failed to watch {}: {error}", root.display()),
-        }
-    }
-    if watched == 0 {
+            Err(error) => {
+                log::warn!("Failed to watch {}: {error}", root.display());
+                false
+            }
+        },
+    );
+    if watched.is_empty() {
         log::warn!("Real-time updates disabled (no watch path could be registered)");
         return None;
     }
@@ -158,7 +166,7 @@ pub fn sync_desktop_watcher(app_handle: &AppHandle) -> WatcherSync {
     let handle = app_handle.clone();
     app_handle
         .state::<WatcherState>()
-        .sync(collect_watch_paths(), move |event| {
+        .sync(collect_watch_paths, move |event| {
             handle_file_event(&handle, event);
         })
 }
@@ -1106,11 +1114,14 @@ mod tests {
         let state = WatcherState::default();
 
         let one = vec![roots[0].clone()];
-        assert_eq!(state.sync(one.clone(), |_| {}), WatcherSync::Started(1));
-        assert_eq!(state.sync(one, |_| {}), WatcherSync::Running);
+        assert_eq!(state.sync(|| one.clone(), |_| {}), WatcherSync::Started(1));
+        assert_eq!(state.sync(|| one, |_| {}), WatcherSync::Running);
 
-        assert_eq!(state.sync(roots.clone(), |_| {}), WatcherSync::Started(2));
-        assert_eq!(state.sync(roots, |_| {}), WatcherSync::Running);
+        assert_eq!(
+            state.sync(|| roots.clone(), |_| {}),
+            WatcherSync::Started(2)
+        );
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Running);
 
         assert!(state.stop());
         assert!(!state.stop());
@@ -1120,13 +1131,28 @@ mod tests {
     fn watcher_sync_without_a_watchable_root_runs_nothing() {
         let (dir, roots) = temp_roots(1);
         let state = WatcherState::default();
-        assert_eq!(state.sync(roots, |_| {}), WatcherSync::Started(1));
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(1));
 
-        assert_eq!(state.sync(Vec::new(), |_| {}), WatcherSync::Disabled);
+        assert_eq!(state.sync(Vec::new, |_| {}), WatcherSync::Disabled);
         assert!(!state.stop(), "the old watcher is stopped, not kept");
         let missing = vec![dir.path().join("missing")];
-        assert_eq!(state.sync(missing, |_| {}), WatcherSync::Disabled);
+        assert_eq!(state.sync(|| missing, |_| {}), WatcherSync::Disabled);
         assert!(!state.stop());
+    }
+
+    #[test]
+    fn watcher_retries_a_root_that_failed_to_register() {
+        let (dir, mut roots) = temp_roots(1);
+        let missing = dir.path().join("not-yet");
+        roots.push(missing.clone());
+        let state = WatcherState::default();
+
+        assert_eq!(
+            state.sync(|| roots.clone(), |_| {}),
+            WatcherSync::Started(1)
+        );
+        std::fs::create_dir(&missing).unwrap();
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(2));
     }
 
     #[test]
@@ -1135,9 +1161,12 @@ mod tests {
         let state = WatcherState::default();
         let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
         let tx = Mutex::new(tx);
-        state.sync(roots.clone(), move |event| {
-            let _ = tx.lock().unwrap().send(event.path.clone());
-        });
+        state.sync(
+            || roots.clone(),
+            move |event| {
+                let _ = tx.lock().unwrap().send(event.path.clone());
+            },
+        );
 
         let session = roots[0].join("session.jsonl");
         std::fs::write(&session, "{}\n").unwrap();
