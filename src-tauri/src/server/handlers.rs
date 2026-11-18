@@ -1379,6 +1379,17 @@ handler_json!(
 );
 
 handler_json!(
+    get_conversation_branches,
+    ProviderMessagesParams,
+    |p: ProviderMessagesParams| async move {
+        if p.provider == "claude" {
+            require_history_path(&p.session_path)?;
+        }
+        commands::multi_provider::get_conversation_branches(p.provider, p.session_path).await
+    }
+);
+
+handler_json!(
     search_all_providers,
     SearchAllProvidersParams,
     |p: SearchAllProvidersParams| async move {

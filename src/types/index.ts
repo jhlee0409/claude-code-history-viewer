@@ -37,6 +37,9 @@ export type {
   MessageNode,
   MessagePage,
   PaginationState,
+  ConversationBranchPoint,
+  ConversationBranchOption,
+  ConversationBranches,
 } from "./core/message";
 
 // Content Types

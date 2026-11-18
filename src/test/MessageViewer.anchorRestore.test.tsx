@@ -24,6 +24,8 @@ const { storeState } = vi.hoisted(() => ({ storeState: {} as Record<string, unkn
 function resetStoreState() {
   Object.keys(storeState).forEach((key) => delete storeState[key]);
   Object.assign(storeState, {
+    // The raw loaded window (the paging counter reads it).
+    messages: [],
     isCaptureMode: false,
     isMinimapOpen: true,
     hiddenMessageIds: [] as string[],

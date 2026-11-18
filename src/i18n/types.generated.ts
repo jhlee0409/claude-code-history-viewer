@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T10:00:27.637Z
- * 총 키 개수: 2476
+ * 생성 시간: 2026-11-18T10:22:09.774Z
+ * 총 키 개수: 2481
  * Namespace 수: 13
  */
 
@@ -1628,7 +1628,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (173개)
+ * message namespace의 번역 키 (178개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1713,6 +1713,11 @@ export type MessageKeys =
   | 'messageViewer.claude'
   | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
+  | 'messageViewer.conversationBranch.group'
+  | 'messageViewer.conversationBranch.hint'
+  | 'messageViewer.conversationBranch.label'
+  | 'messageViewer.conversationBranch.next'
+  | 'messageViewer.conversationBranch.previous'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
   | 'messageViewer.debugInfo.hasMore'
@@ -3672,6 +3677,11 @@ export type TranslationKey =
   | 'messageViewer.claude'
   | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
+  | 'messageViewer.conversationBranch.group'
+  | 'messageViewer.conversationBranch.hint'
+  | 'messageViewer.conversationBranch.label'
+  | 'messageViewer.conversationBranch.next'
+  | 'messageViewer.conversationBranch.previous'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
   | 'messageViewer.debugInfo.hasMore'

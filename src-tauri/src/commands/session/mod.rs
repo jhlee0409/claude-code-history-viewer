@@ -10,6 +10,7 @@
 //! - `move_session`: Moving a Claude Code session to another project
 
 mod api_view;
+mod branches;
 mod chain;
 mod clear_unavailable;
 mod delete;
@@ -28,6 +29,10 @@ mod timestamp_fill;
 
 // Re-export all commands
 pub use api_view::load_session_api_view;
+pub use branches::{
+    claude_conversation_branches, conversation_branches_from_messages, BranchOption, BranchPoint,
+    ConversationBranches,
+};
 pub use chain::{resolve_session_chain, superseded_chain_paths};
 #[cfg(feature = "webui-server")]
 pub use clear_unavailable::is_trash_cleanup_provider;
