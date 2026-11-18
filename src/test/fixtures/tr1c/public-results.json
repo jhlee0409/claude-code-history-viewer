@@ -9099,5 +9099,204 @@
       "next_offset": 2,
       "total_count": 2
     }
+  },
+  "cursor-acp": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "text": "You are an AI coding assistant.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "level": "info",
+        "parentUuid": null,
+        "provider": "cursor-acp",
+        "role": "system",
+        "sessionId": "00000000-0000-4000-8000-00000000000a",
+        "subtype": "system_prompt",
+        "timestamp": "2026-09-28T09:23:59.336Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "00000000-0000-4000-8000-00000000000a-0"
+      },
+      {
+        "content": [
+          {
+            "text": "List the files",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cursor-acp",
+        "role": "user",
+        "sessionId": "00000000-0000-4000-8000-00000000000a",
+        "timestamp": "2026-09-28T09:23:59.836Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "00000000-0000-4000-8000-00000000000a-2"
+      },
+      {
+        "content": [
+          {
+            "signature": "",
+            "thinking": "I should list the files.",
+            "type": "thinking"
+          },
+          {
+            "text": "Listing the files.",
+            "type": "text"
+          },
+          {
+            "id": "tool_1",
+            "input": {
+              "glob_pattern": "*"
+            },
+            "name": "Glob",
+            "type": "tool_use"
+          },
+          {
+            "content": "a.txt\nb.txt",
+            "is_error": false,
+            "tool_use_id": "tool_1",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": null,
+        "model": "example-model",
+        "parentUuid": null,
+        "provider": "cursor-acp",
+        "role": "assistant",
+        "sessionId": "00000000-0000-4000-8000-00000000000a",
+        "timestamp": "2026-09-28T09:24:00.936Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-00000000000a-3"
+      },
+      {
+        "content": [
+          {
+            "text": "There are two files.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "cursor-acp",
+        "role": "assistant",
+        "sessionId": "00000000-0000-4000-8000-00000000000a",
+        "timestamp": "2026-09-28T09:24:04.086Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "00000000-0000-4000-8000-00000000000a-5"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "You are an AI coding assistant.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "level": "info",
+          "parentUuid": null,
+          "provider": "cursor-acp",
+          "role": "system",
+          "sessionId": "00000000-0000-4000-8000-00000000000a",
+          "subtype": "system_prompt",
+          "timestamp": "2026-09-28T09:23:59.336Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "00000000-0000-4000-8000-00000000000a-0"
+        },
+        {
+          "content": [
+            {
+              "text": "List the files",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cursor-acp",
+          "role": "user",
+          "sessionId": "00000000-0000-4000-8000-00000000000a",
+          "timestamp": "2026-09-28T09:23:59.836Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "00000000-0000-4000-8000-00000000000a-2"
+        },
+        {
+          "content": [
+            {
+              "signature": "",
+              "thinking": "I should list the files.",
+              "type": "thinking"
+            },
+            {
+              "text": "Listing the files.",
+              "type": "text"
+            },
+            {
+              "id": "tool_1",
+              "input": {
+                "glob_pattern": "*"
+              },
+              "name": "Glob",
+              "type": "tool_use"
+            },
+            {
+              "content": "a.txt\nb.txt",
+              "is_error": false,
+              "tool_use_id": "tool_1",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": null,
+          "model": "example-model",
+          "parentUuid": null,
+          "provider": "cursor-acp",
+          "role": "assistant",
+          "sessionId": "00000000-0000-4000-8000-00000000000a",
+          "timestamp": "2026-09-28T09:24:00.936Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "00000000-0000-4000-8000-00000000000a-3"
+        },
+        {
+          "content": [
+            {
+              "text": "There are two files.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "cursor-acp",
+          "role": "assistant",
+          "sessionId": "00000000-0000-4000-8000-00000000000a",
+          "timestamp": "2026-09-28T09:24:04.086Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "00000000-0000-4000-8000-00000000000a-5"
+        }
+      ],
+      "next_offset": 4,
+      "total_count": 4
+    }
   }
 }

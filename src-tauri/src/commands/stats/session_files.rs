@@ -532,6 +532,7 @@ mod raw_open_guard {
         "src/commands/watcher.rs",
         "src/export.rs",
         "src/providers/claude_ai.rs",
+        "src/providers/cursor_acp.rs",
     ];
 
     /// Opens by path that follow a symlink and block on a FIFO. An

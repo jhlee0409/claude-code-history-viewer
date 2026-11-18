@@ -15,12 +15,12 @@ import { ModelLifecycleBadge } from "@/components/ModelLifecycleBadge";
 import { getToolName } from "../../../utils/toolUtils";
 import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
-import type { ClaudeAssistantMessage, ProviderId } from "../../../types";
-import { PROVIDER_IDS, getProviderLabel } from "@/utils/providers";
+import type { ClaudeAssistantMessage } from "../../../types";
 import { useFormat } from "@/lib/format/useFormat";
 import { Num } from "@/lib/format/Num";
 import { useAppStore } from "@/store/useAppStore";
 import { InlineTokenUsage } from "./InlineTokenUsage";
+import { getProviderLabel, PROVIDER_IDS } from "@/utils/providers";
 
 export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
   const { t } = useTranslation();
@@ -73,7 +73,9 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 ? t("messageViewer.user")
                 : message.type === "assistant"
                   ? (message.provider && message.provider !== "claude"
-                    ? (PROVIDER_IDS.includes(message.provider as ProviderId)
+                    // The registry's key: ids such as `cursor-acp` are not
+                    // their translation keys (`common.provider.cursorAcp`).
+                    ? ((PROVIDER_IDS as string[]).includes(message.provider)
                       ? getProviderLabel(t, message.provider)
                       : message.provider)
                     : t("messageViewer.claude"))

@@ -97,6 +97,16 @@ exports[`TR1c added public provider result/fallback preservation > cursor: prese
 ]
 `;
 
+exports[`TR1c added public provider result/fallback preservation > cursor-acp: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "You are an AI coding assistant.",
+  "List the files",
+  "ThoughtsI should list the files.Listing the files.GlobResult2 linesa.txt
+b.txtCopy tool ID",
+  "There are two files.",
+]
+`;
+
 exports[`TR1c added public provider result/fallback preservation > cursor-agent: preserves text-only fallback without fabricating result/outcome 1`] = `
 [
   "fix the LOGIN bug",

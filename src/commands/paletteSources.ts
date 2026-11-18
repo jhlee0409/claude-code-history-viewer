@@ -250,6 +250,7 @@ export const MESSAGE_SEARCH_PROVIDERS: readonly ProviderId[] = [
   "copilot",
   "crush",
   "cursor",
+  "cursor-acp",
   "cursor-agent",
   "forgecode",
   "gemini",

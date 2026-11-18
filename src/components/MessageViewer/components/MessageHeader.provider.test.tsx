@@ -1,24 +1,14 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
-vi.mock("react-i18next", () => ({
-  initReactI18next: { type: "3rdParty", init: () => {} },
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
-}));
-
+import { cleanup, render } from "@testing-library/react";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import i18n from "@/i18n";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { ClaudeMessage } from "@/types";
 import { MessageHeader } from "./MessageHeader";
 
-/**
- * The assistant's name in a message header is the provider's label. Provider
- * ids with a hyphen (`claude-ai` #674, `cursor-agent`) have camelCase
- * translation keys, so the key must come from the provider table, not from
- * the id: `common.provider.claude-ai` does not exist and showed the raw id.
- */
-
-const assistant = (provider?: string): ClaudeMessage =>
-  ({
+// An assistant message names its provider by the registry label: ids such as
+// `cursor-acp` (#576) and `cursor-agent` are not their translation keys.
+const label = (provider: string) => {
+  const message = {
     type: "assistant",
     role: "assistant",
     uuid: "a1",
@@ -26,31 +16,28 @@ const assistant = (provider?: string): ClaudeMessage =>
     timestamp: "2026-11-18T10:00:00Z",
     content: [],
     provider,
-  }) as ClaudeMessage;
-
-const renderHeader = (message: ClaudeMessage) =>
-  render(
+  } as ClaudeMessage;
+  return render(
     <TooltipProvider>
       <MessageHeader message={message} />
     </TooltipProvider>,
-  );
+  ).container.querySelector(".font-medium")?.textContent;
+};
 
-describe("MessageHeader assistant name", () => {
-  afterEach(cleanup);
+beforeAll(async () => {
+  await i18n.changeLanguage("en");
+});
+afterEach(cleanup);
 
-  it.each([
-    ["claude-ai", "common.provider.claudeAi"],
-    ["cursor-agent", "common.provider.cursorAgent"],
-    ["codex", "common.provider.codex"],
-    [undefined, "messageViewer.claude"],
-    ["claude", "messageViewer.claude"],
-  ])("names provider %s by %s", (provider, label) => {
-    renderHeader(assistant(provider));
-    expect(screen.getByText(label)).toBeInTheDocument();
+describe("MessageHeader provider label", () => {
+  it("uses the provider registry label", () => {
+    expect(label("claude-ai")).toBe("Claude.ai");
+    expect(label("cursor-acp")).toBe("Cursor ACP");
+    expect(label("cursor-agent")).toBe("Cursor Agent");
+    expect(label("hermes")).toBe("Hermes Agent");
   });
 
-  it("shows an unknown provider id as it is", () => {
-    renderHeader(assistant("some-new-tool"));
-    expect(screen.getByText("some-new-tool")).toBeInTheDocument();
+  it("keeps an unknown provider id as recorded", () => {
+    expect(label("future-provider")).toBe("future-provider");
   });
 });

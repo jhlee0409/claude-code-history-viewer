@@ -22,6 +22,8 @@ pub mod copilot;
 pub mod copilot_cli;
 pub mod crush;
 pub mod cursor;
+/// Cursor's ACP bridge for `JetBrains` IDEs (`~/.cursor/acp-sessions`).
+pub mod cursor_acp;
 pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
@@ -81,6 +83,10 @@ pub enum ProviderId {
     /// Charmbracelet Crush (per-project `.crush/crush.db`).
     Crush,
     Cursor,
+    /// Cursor through the Agent Client Protocol bridge (`JetBrains` IDEs):
+    /// `~/.cursor/acp-sessions/<id>/{meta.json,store.db}`.
+    #[serde(rename = "cursor-acp")]
+    CursorAcp,
     #[serde(rename = "cursor-agent")]
     CursorAgent,
     Gemini,
@@ -135,6 +141,7 @@ impl ProviderId {
             Self::Copilot => "copilot",
             Self::Crush => "crush",
             Self::Cursor => "cursor",
+            Self::CursorAcp => "cursor-acp",
             Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
             Self::Goose => "goose",
@@ -173,6 +180,7 @@ impl ProviderId {
             "copilot" => Some(Self::Copilot),
             "crush" => Some(Self::Crush),
             "cursor" => Some(Self::Cursor),
+            "cursor-acp" => Some(Self::CursorAcp),
             "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
@@ -212,6 +220,7 @@ impl ProviderId {
             Self::Copilot => "Copilot",
             Self::Crush => "Crush",
             Self::Cursor => "Cursor",
+            Self::CursorAcp => "Cursor ACP",
             Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
@@ -317,6 +326,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = cursor_agent::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = cursor_acp::detect() {
         providers.push(info);
     }
     if let Some(info) = crush::detect() {

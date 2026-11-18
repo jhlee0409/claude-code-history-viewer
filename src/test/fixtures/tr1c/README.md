@@ -174,3 +174,24 @@ The matrix in `tr1c.preservation.test.tsx` mutates normalized blocks for
 component-state ordering controls; those mutations are not HTTP observations.
 Pi `sourceExecution` remains a separate system-message envelope, not a synthesized
 tool call/result or a standard schema for opaque `details`.
+
+### Cursor ACP addition
+
+Captured for #576 with the same recipe:
+
+- Server: `cargo build --features webui-server` of the `feat/provider-cursor-acp`
+  working tree (SHA-256 `5e6c1fc5aa4cd5ec01e87b44d216e6c77dcd63d30bb25828f11f31e3f653066c`).
+- Store: a fresh isolated HOME holding `~/.cursor/acp-sessions/00000000-0000-4000-8000-00000000000a/`
+  (`meta.json` cwd `/work/app`, `store.db`) seeded as `providers/cursor_acp.rs`
+  `seed_tool_session` does (system prompt, `<user_info>` context, prompt,
+  reasoning + `Glob` call, `tool` result, answer; turn and tool-step records for
+  the times). Not a live Cursor ACP capture.
+- Session path `cursor-acp:///work/app#00000000-0000-4000-8000-00000000000a`,
+  served with `--serve --no-auth --no-watch --host 127.0.0.1`. Decoded HTTP
+  bodies: `load_provider_messages` SHA-256
+  `49f9aede36d31b21211b59a77366dc7307d0cfd20b3365ebd5d2678356fc26f5`,
+  `load_provider_messages_paginated` SHA-256
+  `564b5797f153dbf294e54eee32382ca5b8658eb00589cbe585a37f5a23d99c20`.
+- Five stored messages come back as four: the `<user_info>` context is dropped
+  and the public loader folds the tool result into the assistant message that
+  made the call. No exit code is stored, so the process verdict is `unknown`.
