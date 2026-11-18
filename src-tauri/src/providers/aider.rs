@@ -80,7 +80,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
 
                 projects.push(ClaudeProject {
                     name: project_name,
-                    path: format!("aider://{}", project_dir.to_string_lossy()),
+                    path: project_path_for(project_dir),
                     actual_path: project_dir.to_string_lossy().to_string(),
                     session_count,
                     message_count,
@@ -199,12 +199,13 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                     Err(_) => continue,
                 };
 
-                let project_name = history_path
-                    .parent()
-                    .and_then(|p| p.file_name())
+                let project_dir = history_path.parent().unwrap_or_else(|| Path::new(""));
+                let project_name = project_dir
+                    .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string();
+                let project_path = project_path_for(project_dir);
 
                 for (index, session) in split_sessions(&content).iter().enumerate() {
                     let base_ts = session.timestamp.clone().unwrap_or_default();
@@ -214,6 +215,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                         if let Some(ref c) = msg.content {
                             if search_json_value_case_insensitive(c, &query_lower) {
                                 msg.project_name = Some(project_name.clone());
+                                msg.project_path = Some(project_path.clone());
                                 results.push(msg);
                                 if results.len() >= limit {
                                     return Ok(results);
@@ -232,6 +234,11 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // ============================================================================
 // Private helpers
 // ============================================================================
+
+/// Opaque project identity shared by `scan_projects` and `search`.
+fn project_path_for(project_dir: &Path) -> String {
+    format!("aider://{}", project_dir.to_string_lossy())
+}
 
 fn get_search_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
@@ -702,5 +709,26 @@ def fix():
         assert!(via_link.is_file(), "fixture: {} missing", file.display());
 
         assert!(load_messages(&format!("aider://{}#0", via_link.display())).is_err());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let home = crate::test_utils::SandboxHome::new();
+        write_history(&home.path().join("client").join("client-a").join("app"));
+        write_history(&home.path().join("work").join("client-b").join("app"));
+
+        let projects = scan_projects().unwrap();
+        let paths: std::collections::HashSet<String> =
+            projects.iter().map(|p| p.path.clone()).collect();
+        assert_eq!(paths.len(), 2, "two distinct app projects: {paths:?}");
+        assert!(projects.iter().all(|p| p.name == "app"));
+
+        let hits = search("fibonacci", 100).unwrap();
+        let hit_paths: std::collections::HashSet<String> = hits
+            .iter()
+            .map(|m| m.project_path.clone().expect("hit has project_path"))
+            .collect();
+        assert_eq!(hit_paths, paths);
     }
 }

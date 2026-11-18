@@ -83,8 +83,11 @@ export interface ClaudeSession {
   relevance?: number;
   /** Provider identifier (claude, codex, opencode) */
   provider?: ProviderId;
-  /** Storage type (json, jsonl, sqlite) */
-  storage_type?: "json" | "jsonl" | "sqlite";
+  /**
+   * Storage type (json, jsonl, sqlite). `prompt_history`: a Claude Code
+   * session whose transcript is gone, only its prompts left (#764).
+   */
+  storage_type?: "json" | "jsonl" | "sqlite" | "prompt_history";
   /**
    * Originating client/surface for the session. Raw value from the JSONL
    * `entrypoint` field. Known values:

@@ -116,6 +116,12 @@ pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeP
     }
 }
 
+/// Identity of the single synthetic project — shared by scan and search so
+/// search hits group under the scanned project (#672).
+fn project_path() -> String {
+    format!("{SCHEME}{PROJECT_KEY}")
+}
+
 fn scan_in_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     scan_in_conn_reporting(conn, Path::new(""), &ScanReport::default())
 }
@@ -131,7 +137,7 @@ fn scan_in_conn_reporting(
     }
     Ok(vec![ClaudeProject {
         name: "llm".to_string(),
-        path: format!("{SCHEME}{PROJECT_KEY}"),
+        path: project_path(),
         actual_path: "llm".to_string(),
         session_count,
         message_count,
@@ -388,6 +394,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
         })
         .map_err(|e| e.to_string())?;
 
+    let project_path = project_path();
     let mut results = Vec::new();
     for row in rows.flatten() {
         if results.len() >= limit {
@@ -419,6 +426,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
                 model,
             );
             msg.project_name = Some("llm".to_string());
+            msg.project_path = Some(project_path.clone());
             results.push(msg);
             if results.len() >= limit {
                 break;
@@ -537,6 +545,17 @@ mod tests {
         let resp = search_conn(&conn, "one-shot answer", 10).unwrap();
         assert_eq!(resp.len(), 1);
         assert_eq!(resp[0].role.as_deref(), Some("assistant"));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path() {
+        let conn = fixture_db();
+        let projects = scan_in_conn(&conn).unwrap();
+        let results = search_conn(&conn, "one-shot", 10).unwrap();
+        assert_eq!(results.len(), 2);
+        for hit in &results {
+            assert_eq!(hit.project_path.as_ref(), Some(&projects[0].path));
+        }
     }
 
     #[test]

@@ -42,7 +42,7 @@
 |----------|----------|
 | macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 | Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (포터블)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.deb`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.rpm`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS):
 
@@ -308,6 +308,17 @@ brew uninstall --cask claude-code-history-viewer
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
+
+### Flatpak (Linux)
+
+릴리스마다 `.flatpak` 번들이 포함됩니다. [릴리스 페이지](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest)에서 내려받은 뒤 다음을 실행하세요.
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+필요한 GNOME 런타임은 Flathub에서 설치됩니다. 번들은 스스로 업데이트하지 않으므로, 앱이 새 버전을 알리면 해당 릴리스의 `.flatpak`을 같은 방법으로 설치하세요. 샌드박스는 홈 폴더를 읽을 수 있지만 쓰기는 각 어시스턴트의 기록 폴더, 앱 자체 설정, 다운로드 폴더에만 합니다. 이름 변경·삭제·설정 편집에 미치는 영향은 [LINUX_BUILD.md](LINUX_BUILD.md#flatpak)를 참고하세요.
 
 ## 소스에서 빌드
 

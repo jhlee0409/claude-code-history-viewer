@@ -1171,14 +1171,20 @@ fn load_project_sessions_page_blocking(
         return Err("project_path must be an absolute path".to_string());
     }
 
+    // Prompt-history sessions (#764) are listed beside the files; a project
+    // whose folder is gone has nothing else to list.
+    let prompt_sessions = super::prompt_history::project_sessions(project_root);
+
     // The canonical root is only used to reject symlinked files that escape
     // the project directory. Cache keys and the cache file location keep the
     // caller-provided path form so they match the entries written by
     // `load_project_sessions` (canonicalizing here would orphan that cache,
     // e.g. `/var` vs `/private/var` on macOS).
-    let canonical_project_root = project_root
-        .canonicalize()
-        .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
+    let canonical_project_root = match project_root.canonicalize() {
+        Ok(root) => root,
+        Err(_) if !prompt_sessions.is_empty() => project_root.to_path_buf(),
+        Err(error) => return Err(format!("Failed to resolve project_path: {error}")),
+    };
 
     let exclude = exclude_sidechain.unwrap_or(false);
     let offset = offset.unwrap_or(0);
@@ -1195,7 +1201,13 @@ fn load_project_sessions_page_blocking(
     // history) instead of one entry per file.
     let superseded = super::chain::superseded_chain_paths(project_root);
 
-    let mut candidates: Vec<SessionPageCandidate> = Vec::new();
+    let mut candidates: Vec<SessionPageCandidate> = prompt_sessions
+        .into_iter()
+        .map(|session| SessionPageCandidate {
+            sort_key: session_sort_key(&session),
+            source: SessionPageCandidateSource::Cached(Box::new(session), 0),
+        })
+        .collect();
     let mut known_dropped_candidates = 0usize;
 
     // Regular files only, no symlink below the project followed
@@ -1447,6 +1459,16 @@ pub fn find_project_session_by_path(
     if !project_root.is_absolute() {
         return Err("project_path must be an absolute path".to_string());
     }
+    // A prompt-history session (#764) names no file: it is looked up in the
+    // prompt log of the project's Claude root.
+    if super::prompt_history::is_session_path(file_path) {
+        let in_project = Path::new(file_path).parent() == Some(project_root);
+        return if in_project {
+            Ok(super::prompt_history::find_session(file_path))
+        } else {
+            Err("file_path is outside the project".to_string())
+        };
+    }
     let path = PathBuf::from(file_path);
     if !path.is_absolute() || path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
         return Err("file_path must be an absolute .jsonl path".to_string());
@@ -1553,13 +1575,17 @@ fn load_project_sessions_blocking(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
+    // Prompt-history sessions (#764) are listed beside the files; a project
+    // whose folder is gone has nothing else to list.
+    let prompt_sessions = super::prompt_history::project_sessions(Path::new(&project_path));
+
     // 2. Collect the session files: regular files only, no symlink below the
     // project followed (`session_files`). A linked file would be read
     // wherever it points; a directory named like a session used to stall
     // this load, and a FIFO would block it.
     // Each is read inside the project folder, resolved before the walk.
     let Ok(canonical_project_root) = fs::canonicalize(&project_path) else {
-        return Vec::new();
+        return prompt_sessions;
     };
     let file_paths: Vec<PathBuf> = session_files::regular_session_files(Path::new(&project_path));
 
@@ -1665,7 +1691,9 @@ fn load_project_sessions_blocking(
         .collect();
 
     // 5. Process results and update cache
-    let mut sessions: Vec<ClaudeSession> = Vec::with_capacity(results.len());
+    let mut sessions: Vec<ClaudeSession> =
+        Vec::with_capacity(results.len() + prompt_sessions.len());
+    sessions.extend(prompt_sessions);
 
     for (strategy, result_opt) in results {
         match strategy {
@@ -1995,6 +2023,10 @@ fn parse_line_simd(
 pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
+    // A prompt-history session (#764) is read from the prompt log.
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::load_messages(&session_path);
+    }
 
     // Resolve any cross-file continuation chain (see `chain.rs`) and load
     // every file in it, oldest first, so a session that Claude Code split
@@ -2259,7 +2291,11 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
         return zcode_subagents(&session_path);
     }
 
-    if is_other_provider_session_file(&session_path) {
+    // Other providers' files, and prompt-history sessions (#764): only the
+    // prompts survive, no subagent run.
+    if is_other_provider_session_file(&session_path)
+        || super::prompt_history::is_session_path(&session_path)
+    {
         return Ok(Vec::new());
     }
 
@@ -2552,6 +2588,9 @@ pub fn get_session_message_offset(
     message_uuid: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Option<usize>, String> {
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::message_offset(&session_path, &message_uuid);
+    }
     let file = session_files::open_history_file(Path::new(&session_path))
         .map_err(|e| format!("Failed to open session file: {e}"))?;
 
@@ -2697,6 +2736,11 @@ pub async fn load_session_messages_paginated(
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
+    // A prompt-history session (#764): no sidechain to exclude.
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::message_page(&session_path, offset, limit);
+    }
+
     let exclude = exclude_sidechain.unwrap_or(false);
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
 
@@ -2791,6 +2835,9 @@ pub async fn get_session_message_count(
     session_path: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<usize, String> {
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::load_messages(&session_path).map(|messages| messages.len());
+    }
     let exclude = exclude_sidechain.unwrap_or(false);
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
 

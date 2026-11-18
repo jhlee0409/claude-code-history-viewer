@@ -26,7 +26,6 @@ import {
   hasNonDefaultProvider,
   getWslSearchableProviderIds,
 } from "@/utils/providers";
-import { getPathLeaf } from "@/utils/pathUtils";
 import { isMessageSearchable, MIN_MESSAGE_QUERY, type PaletteScope } from "@/commands/paletteSources";
 import type { ProviderId } from "@/types";
 import { isResultInScope, type SidebarSearchScope } from "./searchScope";
@@ -88,16 +87,12 @@ export function buildMessageSearchRequest(
   const scoped = input.scope === "project" ? input.project : null;
   const restrict = scoped ? null : (input.restrict ?? null);
   const filters: Record<string, unknown> = {};
-  if (scoped) {
-    const provider = scoped.provider ?? "claude";
-    // These search adapters emit the same opaque path as the project list.
-    // Other adapters still return name-only results and match a project by
-    // its folder name (the path's last segment).
-    if (provider === "claude" || provider === "codex") filters.projectPaths = [scoped.path];
-    else filters.projects = [getPathLeaf(scoped.path) || scoped.path];
-  }
+  // Every search adapter tags its hits with the same opaque path as the
+  // project list, so both scopes select projects by exact path: two projects
+  // sharing a folder name stay apart.
+  if (scoped) filters.projectPaths = [scoped.path];
   if (restrict) {
-    filters.projects = restrict.projectDirs;
+    filters.projectPaths = restrict.projects.map((project) => project.path);
     if (restrict.sessionIds) filters.sessionIds = restrict.sessionIds;
   }
   if (input.messageType !== "all") filters.messageType = input.messageType;
@@ -208,8 +203,8 @@ export function usePaletteMessageSearch(input: MessageSearchInput): {
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  // The backend narrows Claude and Codex; every result is checked here too,
-  // per project (see `searchScope`).
+  // The backend narrows by project path and session id; every result is
+  // checked here too, per project (see `searchScope`).
   const restrict = input.scope === "all" ? (input.restrict ?? null) : null;
   const results = useMemo(() => {
     if (!settled || "failed" in settled) return [];

@@ -147,6 +147,22 @@ fn workspace_folder(db_path: &Path) -> Option<String> {
     Some(folder.strip_prefix("file://").unwrap_or(folder).to_string())
 }
 
+/// Project identity for a workspace `<hash>` — shared by scan and search so
+/// search hits group under the scanned project (#672).
+fn project_path_for(hash: &str) -> String {
+    format!("{SCHEME}{hash}")
+}
+
+/// Display name for a workspace folder (or hash fallback): its leaf, else
+/// the whole value.
+fn project_name_for(folder: &str) -> String {
+    Path::new(folder)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| folder.to_string())
+}
+
 /// Scan Trae projects — one per workspace that has parseable chat sessions.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let Some(storage) = workspace_storage() else {
@@ -177,15 +193,11 @@ fn scan_workspace(hash: &str, db_path: &Path) -> Option<ClaudeProject> {
         return None;
     }
     let folder = workspace_folder(db_path).unwrap_or_else(|| hash.to_string());
-    let name = Path::new(&folder)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| folder.clone());
+    let name = project_name_for(&folder);
     let message_count: usize = sessions.iter().map(|s| s.messages.len()).sum();
     Some(ClaudeProject {
         name,
-        path: format!("{SCHEME}{hash}"),
+        path: project_path_for(hash),
         actual_path: folder,
         session_count: sessions.len(),
         message_count,
@@ -285,17 +297,16 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let Some(storage) = workspace_storage() else {
         return Ok(vec![]);
     };
+    Ok(search_in(&storage, query, limit))
+}
+
+fn search_in(storage: &Path, query: &str, limit: usize) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
-    for (_hash, db_path) in workspace_dbs(&storage) {
-        let project_name = workspace_folder(&db_path)
-            .map(|f| {
-                Path::new(&f)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or(f)
-            })
-            .unwrap_or_default();
+    for (hash, db_path) in workspace_dbs(storage) {
+        let folder = workspace_folder(&db_path).unwrap_or_else(|| hash.clone());
+        let project_name = project_name_for(&folder);
+        let project_path = project_path_for(&hash);
         let Ok(conn) = open_db(&db_path) else {
             continue;
         };
@@ -305,7 +316,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         for session in extract_sessions(&value) {
             for mut msg in session.to_messages() {
                 if results.len() >= limit {
-                    return Ok(results);
+                    return results;
                 }
                 let matched = msg
                     .content
@@ -314,12 +325,13 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some(project_name.clone());
+                    msg.project_path = Some(project_path.clone());
                     results.push(msg);
                 }
             }
         }
     }
-    Ok(results)
+    results
 }
 
 // ============================================================================
@@ -655,5 +667,54 @@ mod tests {
         assert_eq!(projects.len(), 1, "only the valid workspace: {projects:?}");
         assert_eq!(projects[0].name, "ok-proj");
         assert_eq!(projects[0].session_count, 1);
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_folders() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        for (hash, folder) in [
+            ("hash-a", "/work/client-a/app"),
+            ("hash-b", "/work/client-b/app"),
+        ] {
+            let ws = tmp.path().join(hash);
+            std::fs::create_dir_all(&ws).unwrap();
+            let conn = Connection::open(ws.join("state.vscdb")).unwrap();
+            conn.execute("CREATE TABLE ItemTable (key TEXT, value TEXT)", [])
+                .unwrap();
+            let value = json!({ "list": [{ "id": hash,
+                "messages": [{ "role": "user", "content": "needle" }] }] })
+            .to_string();
+            conn.execute(
+                "INSERT INTO ItemTable VALUES ('memento/icube-ai-agent-storage', ?1)",
+                [&value],
+            )
+            .unwrap();
+            std::fs::write(
+                ws.join("workspace.json"),
+                json!({ "folder": format!("file://{folder}") }).to_string(),
+            )
+            .unwrap();
+        }
+
+        let projects = scan_projects_in(tmp.path());
+        let path_of = |folder: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == folder)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search_in(tmp.path(), "needle", 10);
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            // Each fixture session id is its workspace hash.
+            let expected = if hit.session_id == "hash-a" { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 }

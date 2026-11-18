@@ -363,6 +363,7 @@ pub fn search_from_base_path(
                 if let Some(content) = &message.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
                         message.project_name = Some(project.name.clone());
+                        message.project_path = Some(project.path.clone());
                         results.push(message);
                         if results.len() >= limit {
                             return Ok(results);
@@ -1047,6 +1048,56 @@ mod tests {
 
         let results = search("Hello grok", 10).unwrap();
         assert!(!results.is_empty());
+        assert!(results
+            .iter()
+            .all(|m| m.project_path.as_deref() == Some(projects[0].path.as_str())));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let temp = TempDir::new().unwrap();
+        for (id, cwd) in [
+            ("sess-a", "/work/client-a/app"),
+            ("sess-b", "/work/client-b/app"),
+        ] {
+            let session_dir = temp
+                .path()
+                .join(SESSIONS_DIR)
+                .join(cwd.replace('/', "%2F"))
+                .join(id);
+            fs::create_dir_all(&session_dir).unwrap();
+            let summary = json!({
+                "info": {"id": id, "cwd": cwd},
+                "created_at": "2026-07-27T20:47:50Z"
+            });
+            fs::write(session_dir.join(SUMMARY_FILE), summary.to_string()).unwrap();
+            fs::write(
+                session_dir.join(CHAT_HISTORY_FILE),
+                r#"{"type":"user","content":[{"type":"text","text":"shared needle"}]}"#,
+            )
+            .unwrap();
+        }
+        let base = temp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_path(&base).unwrap();
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search_from_base_path(&base, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let project = projects
+                .iter()
+                .find(|p| {
+                    load_sessions_from_base_path(&base, &p.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.actual_session_id == hit.session_id)
+                })
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
     }
 
     #[test]

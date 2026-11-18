@@ -221,6 +221,12 @@ fn desktop_project_name(workspace: Option<&str>) -> String {
     )
 }
 
+/// The project key a desktop session is listed (and searched, and counted)
+/// under: `antigravity://<workspace>`, or the bare scheme without one.
+fn desktop_project_path(workspace: Option<&str>) -> String {
+    format!("{DESKTOP_SCHEME}{}", workspace.unwrap_or_default())
+}
+
 /// The workspace folder a desktop session belongs to: the one
 /// `conversation_summaries.db` records, else the one Antigravity's editor
 /// storage records. Both are normalized the same way, so a session grouped by
@@ -285,7 +291,7 @@ fn scan_desktop_projects(report: &ScanReport) -> Result<Vec<ClaudeProject>, Stri
         .into_iter()
         .map(|(ws_opt, acc)| ClaudeProject {
             name: desktop_project_name(ws_opt.as_deref()),
-            path: format!("{DESKTOP_SCHEME}{}", ws_opt.as_deref().unwrap_or_default()),
+            path: desktop_project_path(ws_opt.as_deref()),
             actual_path: ws_opt.unwrap_or_else(|| root_str.clone()),
             session_count: acc.session_count,
             message_count: acc.message_count,
@@ -469,8 +475,36 @@ pub(crate) fn load_sessions_reporting(
         };
         (root, None)
     };
-    let state = load_antigravity_state_reporting(&root, report)?;
-    let summaries = crate::commands::antigravity::load_conversation_summaries_map(&root);
+    Ok(desktop_sessions(&root, workspace_filter, report)?
+        .into_iter()
+        .map(|desktop| desktop.session)
+        .collect())
+}
+
+/// A desktop session with the key of the project it is listed under.
+pub(crate) struct DesktopSession {
+    /// `desktop_project_path` of the session's workspace, as `scan_projects`
+    /// lists it.
+    pub project_path: String,
+    pub session: ClaudeSession,
+}
+
+/// Every desktop session under the store `root`, with its project key, so a
+/// caller walking the whole store (global stats) keeps the workspace
+/// projects apart instead of attributing them all to the root.
+pub(crate) fn load_desktop_sessions(root: &Path) -> Result<Vec<DesktopSession>, String> {
+    desktop_sessions(root, None, &ScanReport::default())
+}
+
+/// Desktop sessions under `root`, newest first: those of one workspace
+/// (`workspace_filter`, empty for the sessions without one) or all of them.
+fn desktop_sessions(
+    root: &Path,
+    workspace_filter: Option<&str>,
+    report: &ScanReport,
+) -> Result<Vec<DesktopSession>, String> {
+    let state = load_antigravity_state_reporting(root, report)?;
+    let summaries = crate::commands::antigravity::load_conversation_summaries_map(root);
     // Titles, step counts and the latest agent message come from Antigravity's
     // own editor storage; the rpc-cache knows only token counters, which is why
     // sessions used to render as bare UUIDs (#564).
@@ -536,29 +570,32 @@ pub(crate) fn load_sessions_reporting(
             fmt_tokens(session_state.latest.total_tokens),
         );
 
-        sessions.push(ClaudeSession {
-            session_id: session_id.clone(),
-            actual_session_id: session_id,
-            file_path: session_dir.to_string_lossy().to_string(),
-            project_name,
-            message_count: session_state
-                .latest
-                .message_count
-                .unwrap_or(summary.call_count as u32) as usize,
-            first_message_time: first_ts.clone(),
-            last_message_time: last_ts.clone(),
-            last_modified: last_ts,
-            has_tool_use: false,
-            has_errors: false,
-            summary: Some(display_label),
-            is_renamed: false,
-            provider: Some("antigravity".to_string()),
-            storage_type: None,
-            entrypoint: None,
+        sessions.push(DesktopSession {
+            project_path: desktop_project_path(session_ws.as_deref()),
+            session: ClaudeSession {
+                session_id: session_id.clone(),
+                actual_session_id: session_id,
+                file_path: session_dir.to_string_lossy().to_string(),
+                project_name,
+                message_count: session_state
+                    .latest
+                    .message_count
+                    .unwrap_or(summary.call_count as u32) as usize,
+                first_message_time: first_ts.clone(),
+                last_message_time: last_ts.clone(),
+                last_modified: last_ts,
+                has_tool_use: false,
+                has_errors: false,
+                summary: Some(display_label),
+                is_renamed: false,
+                provider: Some("antigravity".to_string()),
+                storage_type: None,
+                entrypoint: None,
+            },
         });
     }
 
-    sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
+    sessions.sort_by(|a, b| b.session.last_modified.cmp(&a.session.last_modified));
     Ok(sessions)
 }
 
@@ -1655,8 +1692,9 @@ fn message_text_matches(message: &ClaudeMessage, query_lower: &str) -> bool {
 /// used matches instead. Matching messages rank ahead of those metadata
 /// entries, newest first within each, and only then is the list cut to
 /// `max_results` — so metadata hits can neither crowd out message hits nor
-/// give one session two slots. Each hit carries the project name the session
-/// is listed under, so a project-scoped search keeps it.
+/// give one session two slots. Each hit carries the project name and key
+/// (`desktop_project_path`) the session is listed under, so a project-scoped
+/// search keeps it and same-named workspaces stay apart.
 pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, String> {
     let root = match resolve_antigravity_root() {
         Some(root) => root,
@@ -1672,9 +1710,9 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
 
     for session in state.sessions.values() {
         let session_id = &session.latest.session_id;
-        let project_name = desktop_project_name(
-            resolve_desktop_session_workspace(session_id, &summaries, &trajectories).as_deref(),
-        );
+        let workspace = resolve_desktop_session_workspace(session_id, &summaries, &trajectories);
+        let project_name = desktop_project_name(workspace.as_deref());
+        let project_path = desktop_project_path(workspace.as_deref());
 
         if !query_lower.is_empty() {
             let mut messages = recovered_desktop_messages(&session.latest.file_path, session_id);
@@ -1685,6 +1723,7 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
             for mut message in messages {
                 if message_text_matches(&message, &query_lower) {
                     message.project_name = Some(project_name.clone());
+                    message.project_path = Some(project_path.clone());
                     message_hits.push(message);
                 }
             }
@@ -1718,6 +1757,7 @@ pub fn search(query: &str, max_results: usize) -> Result<Vec<ClaudeMessage>, Str
             content: Some(json!([{ "type": "text", "text": content_text }])),
             provider: Some("antigravity".to_string()),
             project_name: Some(project_name),
+            project_path: Some(project_path),
             role: Some("assistant".to_string()),
             ..Default::default()
         });
@@ -2516,9 +2556,92 @@ mod tests {
         let search_hits = search("Second answer", 10).unwrap();
         assert_eq!(search_hits.len(), 1, "{search_hits:?}");
         assert_eq!(search_hits[0].session_id, "sess-fts-only");
-        // Named after the workspace project the session is listed under, so
-        // a project-scoped search keeps it.
+        // Named and keyed after the workspace project the session is listed
+        // under, so a project-scoped search keeps it.
         assert_eq!(search_hits[0].project_name.as_deref(), Some("demo-proj"));
+        assert_eq!(
+            search_hits[0].project_path.as_deref(),
+            Some(projects[0].path.as_str())
+        );
+    }
+
+    /// Two workspaces sharing a folder name are two projects in the list,
+    /// in search hits and in the whole-store session walk global stats use.
+    #[test]
+    #[serial]
+    fn same_named_workspaces_keep_their_project_keys() {
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let ag_root = sandbox.path().join(".gemini").join("antigravity");
+        std::fs::create_dir_all(ag_root.join("brain")).unwrap();
+        let conn = rusqlite::Connection::open(ag_root.join("conversation_summaries.db")).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conversation_summaries (
+                conversation_id TEXT PRIMARY KEY, title TEXT, preview TEXT,
+                step_count INTEGER, last_modified_time TEXT,
+                last_user_input_time TEXT, workspace_uris TEXT
+            );
+            CREATE TABLE conversations_fts (
+                conversation_id TEXT, chunk_index TEXT, title TEXT,
+                step_count TEXT, last_modified_time TEXT, user_body TEXT,
+                agent_body TEXT, user_step_byte_offsets BLOB,
+                agent_step_byte_offsets BLOB, workspace TEXT
+            );",
+        )
+        .unwrap();
+        for (id, workspace) in [("sess-a", "/client-a/app"), ("sess-b", "/client-b/app")] {
+            conn.execute(
+                "INSERT INTO conversation_summaries VALUES (?1, '', 'Preview', 2, ?2, ?2, ?3)",
+                rusqlite::params![
+                    id,
+                    "2026-11-04T15:08:50Z",
+                    format!("[\"file://{workspace}\"]")
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO conversations_fts VALUES (?1, '0', '', '2', '1793804930000000000', \
+                 'Prompt', 'shared needle', ?2, ?3, ?4)",
+                rusqlite::params![id, b"[[0,0]]".to_vec(), b"[[1,0]]".to_vec(), workspace],
+            )
+            .unwrap();
+        }
+        drop(conn);
+
+        let projects = scan_projects().unwrap();
+        let mut paths: Vec<&str> = projects.iter().map(|p| p.path.as_str()).collect();
+        paths.sort_unstable();
+        assert_eq!(
+            paths,
+            ["antigravity:///client-a/app", "antigravity:///client-b/app"]
+        );
+        assert!(projects.iter().all(|p| p.name == "app"));
+        let path_of_session = |session_id: &str| {
+            projects
+                .iter()
+                .find(|p| {
+                    load_sessions(&p.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.session_id == session_id)
+                })
+                .map(|p| p.path.clone())
+        };
+
+        let hits = search("shared needle", 10).unwrap();
+        assert_eq!(hits.len(), 2, "{hits:?}");
+        for hit in &hits {
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+            assert_eq!(hit.project_path, path_of_session(&hit.session_id));
+        }
+
+        let walked = load_desktop_sessions(&ag_root).unwrap();
+        assert_eq!(walked.len(), 2);
+        for desktop in &walked {
+            assert_eq!(
+                Some(desktop.project_path.clone()),
+                path_of_session(&desktop.session.session_id)
+            );
+        }
     }
 
     /// Protobuf wire-format helpers for `conversations/<id>.db` fixtures.
