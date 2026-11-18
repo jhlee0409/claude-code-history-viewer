@@ -317,9 +317,9 @@ export const SessionItem: React.FC<SessionItemProps> = ({
           <span
             data-session-disclosure
             title={branchLabel}
-            className="inline-flex h-6 shrink-0 items-center gap-0.5 rounded bg-muted/60 px-1 text-caption tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-row bg-muted/60 px-1 text-caption tabular-nums text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            {isBranchExpanded ? <ChevronDown className="size-3" aria-hidden="true" /> : <ChevronRight className="size-3" aria-hidden="true" />}
+            {isBranchExpanded ? <ChevronDown className="size-3.5" aria-hidden="true" /> : <ChevronRight className="size-3.5" aria-hidden="true" />}
             <span aria-hidden="true">{subagentCount}</span>
             <span className="sr-only">{branchLabel}</span>
           </span>
