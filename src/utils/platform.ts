@@ -32,6 +32,26 @@ export const isTauri = (): boolean =>
 /** True when running in the browser against the Axum WebUI server. */
 export const isWebUI = (): boolean => !isTauri();
 
+/** The desktop window created at launch; the WebUI page counts as it. */
+export const MAIN_WINDOW_LABEL = "main";
+
+interface TauriWindowMetadata {
+  metadata?: { currentWindow?: { label?: string } };
+}
+
+/**
+ * This page's window: `main`, or `window-<n>` for a window opened later
+ * (issue #656). Read synchronously from what Tauri injects before the page
+ * runs (the field `getCurrentWindow().label` reads), so module-level state
+ * can depend on it. The WebUI is always `main`.
+ */
+export const currentWindowLabel = (): string =>
+  (isTauri() ? (window.__TAURI_INTERNALS__ as TauriWindowMetadata).metadata?.currentWindow?.label : undefined) ??
+  MAIN_WINDOW_LABEL;
+
+/** True in the window created at launch (and in the WebUI). */
+export const isMainWindow = (): boolean => currentWindowLabel() === MAIN_WINDOW_LABEL;
+
 const normalizeWebUIBasePath = (value?: string): string => {
   if (!value) return "";
 

@@ -18,7 +18,9 @@ import {
   loadStoredTabs,
   type ScrollAnchor,
   type TabDocument,
+  type TabsParseResult,
 } from "@/navigation/documents";
+import { isMainWindow } from "@/utils/platform";
 import { INITIAL_PAGINATION } from "./messageSlice";
 
 /** A scroll position to restore once the tab's transcript has loaded. */
@@ -70,9 +72,13 @@ export interface DocumentSliceActions {
 
 export type DocumentSlice = DocumentSliceState & DocumentSliceActions;
 
-/** The initial tabs: those stored in `tabs.v2`, or one empty tab. */
+/**
+ * The initial tabs: those stored in `tabs.v2`, or one empty tab. Only the
+ * window created at launch restores (and saves, `startTabsPersistence`) the
+ * stored tabs; a window opened later starts with one empty tab (issue #656).
+ */
 export function initialDocumentState(): DocumentSliceState {
-  const stored = loadStoredTabs();
+  const stored: TabsParseResult = isMainWindow() ? loadStoredTabs() : { kind: "none" };
   if (stored.kind === "ok") {
     return {
       documents: stored.tabs.documents,
