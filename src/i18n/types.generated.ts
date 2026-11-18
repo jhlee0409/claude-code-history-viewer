@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T10:14:16.996Z
- * 총 키 개수: 2458
+ * 생성 시간: 2026-11-18T11:11:50.148Z
+ * 총 키 개수: 2482
  * Namespace 수: 13
  */
 
@@ -581,7 +581,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (336개)
+ * session namespace의 번역 키 (355개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -593,6 +593,25 @@ export type SessionKeys =
   | 'project.a11y.keyboardHelp'
   | 'project.a11y.selectedState'
   | 'project.addPattern'
+  | 'project.clearUnavailable.acknowledge'
+  | 'project.clearUnavailable.clearing'
+  | 'project.clearUnavailable.confirm'
+  | 'project.clearUnavailable.description'
+  | 'project.clearUnavailable.failed'
+  | 'project.clearUnavailable.loading'
+  | 'project.clearUnavailable.menu'
+  | 'project.clearUnavailable.moved'
+  | 'project.clearUnavailable.notCleared'
+  | 'project.clearUnavailable.notMoved'
+  | 'project.clearUnavailable.nothing'
+  | 'project.clearUnavailable.reason.invalidProject'
+  | 'project.clearUnavailable.reason.locationAvailable'
+  | 'project.clearUnavailable.reason.permanentDelete'
+  | 'project.clearUnavailable.reason.unsupported'
+  | 'project.clearUnavailable.refreshFailed'
+  | 'project.clearUnavailable.targets'
+  | 'project.clearUnavailable.title'
+  | 'project.clearUnavailable.warning'
   | 'project.collapseSidebar'
   | 'project.copyLastKnownPath'
   | 'project.copyPath'
@@ -1610,7 +1629,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (173개)
+ * message namespace의 번역 키 (178개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1695,6 +1714,11 @@ export type MessageKeys =
   | 'messageViewer.claude'
   | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
+  | 'messageViewer.conversationBranch.group'
+  | 'messageViewer.conversationBranch.hint'
+  | 'messageViewer.conversationBranch.label'
+  | 'messageViewer.conversationBranch.next'
+  | 'messageViewer.conversationBranch.previous'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
   | 'messageViewer.debugInfo.hasMore'
@@ -3655,6 +3679,11 @@ export type TranslationKey =
   | 'messageViewer.claude'
   | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
+  | 'messageViewer.conversationBranch.group'
+  | 'messageViewer.conversationBranch.hint'
+  | 'messageViewer.conversationBranch.label'
+  | 'messageViewer.conversationBranch.next'
+  | 'messageViewer.conversationBranch.previous'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
   | 'messageViewer.debugInfo.hasMore'
@@ -3771,6 +3800,25 @@ export type TranslationKey =
   | 'project.a11y.keyboardHelp'
   | 'project.a11y.selectedState'
   | 'project.addPattern'
+  | 'project.clearUnavailable.acknowledge'
+  | 'project.clearUnavailable.clearing'
+  | 'project.clearUnavailable.confirm'
+  | 'project.clearUnavailable.description'
+  | 'project.clearUnavailable.failed'
+  | 'project.clearUnavailable.loading'
+  | 'project.clearUnavailable.menu'
+  | 'project.clearUnavailable.moved'
+  | 'project.clearUnavailable.notCleared'
+  | 'project.clearUnavailable.notMoved'
+  | 'project.clearUnavailable.nothing'
+  | 'project.clearUnavailable.reason.invalidProject'
+  | 'project.clearUnavailable.reason.locationAvailable'
+  | 'project.clearUnavailable.reason.permanentDelete'
+  | 'project.clearUnavailable.reason.unsupported'
+  | 'project.clearUnavailable.refreshFailed'
+  | 'project.clearUnavailable.targets'
+  | 'project.clearUnavailable.title'
+  | 'project.clearUnavailable.warning'
   | 'project.collapseSidebar'
   | 'project.copyLastKnownPath'
   | 'project.copyPath'

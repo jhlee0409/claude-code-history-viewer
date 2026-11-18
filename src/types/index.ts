@@ -37,6 +37,9 @@ export type {
   MessageNode,
   MessagePage,
   PaginationState,
+  ConversationBranchPoint,
+  ConversationBranchOption,
+  ConversationBranches,
 } from "./core/message";
 
 // Content Types
@@ -113,6 +116,10 @@ export type {
   ClaudeSession,
   SessionPage,
   SearchFilters,
+  CleanupExclusion,
+  CleanupTarget,
+  UnavailableCleanupPreview,
+  ClearedSession,
 } from "./core/session";
 
 // Project & Metadata Types

@@ -50,6 +50,7 @@ function resetStoreState() {
   Object.assign(storeState, {
     isCaptureMode: false,
     isMinimapOpen: false,
+    messages: [PROMPT],
     hiddenMessageIds: [] as string[],
     selectedMessageIds: [] as string[],
     enterCaptureMode: vi.fn(),

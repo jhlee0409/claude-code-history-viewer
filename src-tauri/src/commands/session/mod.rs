@@ -6,10 +6,13 @@
 //! - `edits`: File edit tracking and restore functions
 //! - `rename`: Native session renaming functions
 //! - `delete`: Session deletion
+//! - `clear_unavailable`: Clearing the sessions of a project whose location is gone
 //! - `move_session`: Moving a Claude Code session to another project
 
 mod api_view;
+mod branches;
 mod chain;
+mod clear_unavailable;
 mod delete;
 mod edits;
 mod load;
@@ -26,7 +29,17 @@ mod timestamp_fill;
 
 // Re-export all commands
 pub use api_view::load_session_api_view;
+pub use branches::{
+    claude_conversation_branches, conversation_branches_from_messages, BranchOption, BranchPoint,
+    ConversationBranches,
+};
 pub use chain::{resolve_session_chain, superseded_chain_paths};
+#[cfg(feature = "webui-server")]
+pub use clear_unavailable::is_trash_cleanup_provider;
+pub use clear_unavailable::{
+    clear_unavailable_sessions, preview_unavailable_session_cleanup, ConfirmedCleanup,
+    UnavailableProjectRef,
+};
 pub use delete::*;
 pub use edits::*;
 pub use load::*;

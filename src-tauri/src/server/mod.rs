@@ -59,6 +59,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/get_archive_sessions",
     "/get_claude_folder_path",
     "/get_claude_json_config",
+    "/get_conversation_branches",
     "/get_expiring_sessions",
     "/get_git_log",
     "/get_global_stats_summary",
@@ -99,6 +100,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_user_metadata",
     "/menu_journal",
     "/open_github_issues",
+    "/preview_unavailable_session_cleanup",
     "/read_restore_target",
     "/read_text_file",
     "/scan_all_projects",
@@ -117,6 +119,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
 /// and never reaches the POST check.
 #[cfg(test)]
 const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
+    "/clear_unavailable_sessions",
     "/create_archive",
     "/delete_archive",
     "/delete_mcp_preset",
@@ -227,6 +230,14 @@ pub fn build_router(
         .route("/restore_file", post(h::restore_file))
         .route("/read_restore_target", post(h::read_restore_target))
         .route("/delete_session", post(h::delete_session))
+        .route(
+            "/preview_unavailable_session_cleanup",
+            post(h::preview_unavailable_session_cleanup),
+        )
+        .route(
+            "/clear_unavailable_sessions",
+            post(h::clear_unavailable_sessions),
+        )
         .route("/move_session_to_project", post(h::move_session_to_project))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
@@ -326,6 +337,10 @@ pub fn build_router(
         .route(
             "/get_provider_message_offset",
             post(h::get_provider_message_offset),
+        )
+        .route(
+            "/get_conversation_branches",
+            post(h::get_conversation_branches),
         )
         .route("/search_all_providers", post(h::search_all_providers))
         // Archive commands
@@ -1823,6 +1838,10 @@ mod tests {
                 }),
             ),
             (
+                "get_conversation_branches",
+                serde_json::json!({ "provider": "claude", "sessionPath": fifo_path }),
+            ),
+            (
                 "get_session_token_stats",
                 serde_json::json!({ "sessionPath": fifo_path }),
             ),
@@ -1862,6 +1881,7 @@ mod tests {
                 ("load_provider_messages", refused.clone()),
                 ("load_provider_messages_paginated", refused.clone()),
                 ("get_provider_message_offset", refused.clone()),
+                ("get_conversation_branches", refused.clone()),
                 ("get_session_token_stats", refused.clone()),
                 ("get_recent_edits", refused),
             ]
@@ -2155,6 +2175,7 @@ mod tests {
         for path in [
             "/delete_session",
             "/api/delete_session",
+            "/api/clear_unavailable_sessions",
             "/api/rename_session_native",
             "/api/update_user_settings",
             "/api/save_settings",

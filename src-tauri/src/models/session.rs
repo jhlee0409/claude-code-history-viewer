@@ -96,7 +96,7 @@ impl Serialize for ClaudeProject {
 /// missing worktree does not mean the conversation is gone; it only means
 /// path-dependent actions such as opening the folder or resuming in that cwd
 /// need to be disabled.
-fn project_path_status(actual_path: &str) -> Option<&'static str> {
+pub(crate) fn project_path_status(actual_path: &str) -> Option<&'static str> {
     let path = actual_path.trim();
     if path.is_empty() || path.contains("://") || !Path::new(path).is_absolute() {
         return None;

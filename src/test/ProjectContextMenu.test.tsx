@@ -3,7 +3,7 @@
  * Verifies scroll-close, resize-close, rAF arm guard, and cleanup symmetry.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import { ProjectContextMenu } from "../components/ProjectContextMenu";
 import type { ClaudeProject } from "../types";
 
@@ -82,5 +82,18 @@ describe("ProjectContextMenu listener wiring", () => {
     document.dispatchEvent(new Event("scroll"));
     window.dispatchEvent(new Event("resize"));
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("offers the unavailable-location clear only when the tree passes a handler", () => {
+    const { unmount } = render(<ProjectContextMenu {...makeProps()} />);
+    expect(screen.queryByText("project.clearUnavailable.menu")).not.toBeInTheDocument();
+    unmount();
+
+    const onClose = vi.fn();
+    const onClearUnavailable = vi.fn();
+    render(<ProjectContextMenu {...makeProps({ onClose, onClearUnavailable })} />);
+    fireEvent.click(screen.getByText("project.clearUnavailable.menu"));
+    expect(onClearUnavailable).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

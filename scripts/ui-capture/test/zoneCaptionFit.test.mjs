@@ -74,6 +74,8 @@ function plant(fixture) {
   calls.forEach(([name, input], i) => {
     const a = structuredClone(use);
     a.uuid = `fit-a-${i}`;
+    // These are consecutive calls, not alternatives replying to the same parent.
+    a.parentUuid = records.at(-1).uuid;
     a.message.id = `fit-msg-${i}`;
     a.message.content = [{ type: "tool_use", id: `toolu_fit_${i}`, name, input }];
     const r = structuredClone(result);
