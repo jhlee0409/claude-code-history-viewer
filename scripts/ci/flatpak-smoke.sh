@@ -83,16 +83,18 @@ done
 
 # --- 3. trash through the portal --------------------------------------------
 TRASH=${XDG_DATA_HOME:-$HOME/.local/share}/Trash
-rm -rf "$TRASH/files/flatpak-smoke-probe" "$TRASH/info/flatpak-smoke-probe.trashinfo"
+rm -rf "$TRASH"/files/flatpak-smoke-probe* "$TRASH"/info/flatpak-smoke-probe*
 in_sandbox "gio trash \"\$HOME/.claude/flatpak-smoke-probe\"" >"$OUT/trash.log" 2>&1 ||
   fail "gio trash failed inside the sandbox"
 [ ! -e "$HOME/.claude/flatpak-smoke-probe" ] || fail "the trashed file is still in ~/.claude"
-if [ ! -f "$TRASH/files/flatpak-smoke-probe" ]; then
+# The portal names trashed files `<name>.<n>`.
+TRASHED=$(find "$TRASH/files" -maxdepth 1 -name 'flatpak-smoke-probe*' 2>/dev/null | head -1)
+if [ -z "$TRASHED" ]; then
   log "probe found at: $(find "$HOME" /tmp /var/tmp -name 'flatpak-smoke-probe*' 2>/dev/null | paste -sd' ' || true)"
   fail "the trashed file is not in the host trash ($TRASH)"
 fi
 [ ! -e "$HOME/.claude/.Trash-$(id -u)" ] || fail "a .Trash-$(id -u) folder was created inside ~/.claude"
-log "trash: ~/.claude/flatpak-smoke-probe moved to $TRASH/files through the Trash portal"
+log "trash: ~/.claude/flatpak-smoke-probe moved to $TRASHED through the Trash portal"
 
 # --- 4. window shows; its state is saved to the host config folder ----------
 export DISPLAY=:99

@@ -38,8 +38,9 @@ finish-args:
   #   providers/crush.rs search_dirs);
   # - Claude Code's project settings and .mcp.json are read from the project
   #   folders (commands/claude_settings.rs get_all_settings,
-  #   get_all_mcp_servers), and so is their git log (commands/project.rs
-  #   get_git_log).
+  #   get_all_mcp_servers).
+  # (The project git log, commands/project.rs get_git_log, needs a `git`
+  # binary, which the GNOME runtime does not ship, so it is empty here.)
   - --filesystem=home:ro
 
   # Read-write only where the app writes. Each entry names the code that

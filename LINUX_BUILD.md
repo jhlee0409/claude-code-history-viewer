@@ -139,7 +139,7 @@ Run the workflow by hand from the Actions tab (**Flatpak → Run workflow**) to 
 
 The app reads history that other tools write all over the home folder, so the sandbox is shaped around what the code reads and writes (each permission is explained next to it in the manifest):
 
-- **Read: the whole home folder (`--filesystem=home:ro`).** Per-assistant folders would not be enough. Every session records the project folder it ran in, and a project whose folder the app cannot see is listed under unavailable projects with its resume command disabled. Aider and Crush are found by scanning the home folder and code folders under it. Claude Code's project settings, `.mcp.json` and the project's git log are read from the project folder.
+- **Read: the whole home folder (`--filesystem=home:ro`).** Per-assistant folders would not be enough. Every session records the project folder it ran in, and a project whose folder the app cannot see is listed under unavailable projects with its resume command disabled. Aider and Crush are found by scanning the home folder and code folders under it. Claude Code's project settings and `.mcp.json` are read from the project folder.
 - **Write: only where the app writes.** `~/.claude` (Claude Code session rename, delete and move; the settings editor), `~/.codex` (Codex rename and delete), `~/.cursor` (Cursor Agent CLI delete), `~/.forge` (ForgeCode rename and delete), `~/.local/share/opencode` (OpenCode rename), `~/.claude-history-viewer` (the app's metadata, archives and presets), the app's settings folders, and Downloads (exports and screenshots).
 - **Network:** the update check against GitHub releases.
 
@@ -150,6 +150,7 @@ The app's settings live in `~/.config/com.claude.history-viewer` and `~/.local/s
 - **Deleting a session** moves it to the system trash through the desktop's Trash portal, as on the other builds; Claude Code sessions still fall back to a permanent delete when the trash fails, other assistants report the error.
 - **Cursor conversations cannot be deleted.** Cursor must be closed for that, and the sandbox cannot see whether it is running, so the app refuses with an explanation and Cursor's data stays read-only. Delete them in Cursor, or with another build.
 - **Files outside those folders are read-only:** saving project-scoped Claude Code settings (`<project>/.claude/settings.local.json`, `<project>/.mcp.json`) or MCP servers kept in `~/.claude.json`, and restoring a file from Recent Edits, fail with a read-only file system error. Exports can only be saved to Downloads.
+- **No project git log:** the GNOME runtime has no `git` binary, so the project's commit list stays empty.
 - **History in a custom location** outside the home folder (for example `CLAUDE_CONFIG_DIR` or `CODEX_HOME` on another disk) is not visible until you grant it.
 
 To lift these limits, grant more with `flatpak override`, e.g. write access to the whole home folder (this gives up most of the sandbox's protection):
