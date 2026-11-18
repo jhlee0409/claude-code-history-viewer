@@ -113,6 +113,10 @@ export type {
   ClaudeSession,
   SessionPage,
   SearchFilters,
+  CleanupExclusion,
+  CleanupTarget,
+  UnavailableCleanupPreview,
+  ClearedSession,
 } from "./core/session";
 
 // Project & Metadata Types

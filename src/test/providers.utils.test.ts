@@ -15,6 +15,7 @@ import {
   supportsRecentEdits,
   supportsSessionDeletion,
   supportsSubagents,
+  supportsTrashCleanup,
 } from "@/utils/providers";
 
 describe("providers utils", () => {
@@ -115,6 +116,18 @@ describe("providers utils", () => {
     // history files, and monitor-state regeneration (Antigravity) keep these off.
     for (const provider of ["antigravity", "cline", "continue", "aider", "gemini"] as const) {
       expect(supportsSessionDeletion(provider)).toBe(false);
+    }
+  });
+
+  it("clears unavailable locations only for providers whose delete goes to the trash", () => {
+    expect(supportsTrashCleanup(undefined)).toBe(true);
+    for (const provider of ["claude", "codex", "cursor-agent"] as const) {
+      expect(supportsTrashCleanup(provider)).toBe(true);
+    }
+    // Cursor and ForgeCode delete database rows permanently; the rest have no
+    // verified delete at all.
+    for (const provider of ["cursor", "forgecode", "gemini", "cline"] as const) {
+      expect(supportsTrashCleanup(provider)).toBe(false);
     }
   });
 

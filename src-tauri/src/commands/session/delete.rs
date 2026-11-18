@@ -23,9 +23,9 @@ fn remove_path(path: &Path) -> Result<(), String> {
 }
 
 /// Moves `path` to the system trash, with no permanent-delete fallback: for
-/// provider stores other than Claude's a failed trash is an error the user
-/// sees, never a silent irreversible delete.
-fn trash_only(path: &Path) -> Result<(), String> {
+/// provider stores other than Claude's, and for every bulk clear, a failed
+/// trash is an error the user sees, never a silent irreversible delete.
+pub(super) fn trash_only(path: &Path) -> Result<(), String> {
     trash::delete(path).map_err(|e| format!("Could not move to the trash: {e}"))
 }
 
@@ -72,18 +72,27 @@ fn is_safe_session_id(id: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
 }
 
+/// What deleting one Cursor Agent CLI session removes.
+pub(super) struct CursorAgentTargets {
+    /// The `<projects>/<project>/agent-transcripts/<id>/` folder.
+    pub session_dir: PathBuf,
+    /// The `<project>` folder name the transcript sits in.
+    pub project: String,
+    /// The CLI's `<chats>/<workspace-hash>/<id>/` metadata folders.
+    pub metadata_dirs: Vec<PathBuf>,
+}
+
 /// Cursor Agent CLI session: `<projects>/<project>/agent-transcripts/<id>/<id>.jsonl`
 /// plus the CLI's chat metadata at `<chats>/<workspace-hash>/<id>/`.
 ///
 /// The delete target is resolved here from the transcript path and must be the
 /// `<id>/` transcript folder strictly inside `projects_root`; the metadata
-/// folders must be strictly inside `chats_root`. Everything goes to the trash
-/// or the delete fails.
-fn delete_cursor_agent_session(
+/// folders must be strictly inside `chats_root`.
+pub(super) fn resolve_cursor_agent_targets(
     projects_root: &Path,
     chats_root: Option<&Path>,
     transcript: &Path,
-) -> Result<(), String> {
+) -> Result<CursorAgentTargets, String> {
     let metadata = fs::symlink_metadata(transcript)
         .map_err(|_| format!("Session file not found: {}", transcript.display()))?;
     if metadata.file_type().is_symlink() || !metadata.is_file() {
@@ -116,13 +125,74 @@ fn delete_cursor_agent_session(
         _ => Vec::new(),
     };
 
-    trash_only(&session_dir).map_err(|e| format!("Failed to delete session: {e}"))?;
-    for dir in metadata_dirs {
+    Ok(CursorAgentTargets {
+        session_dir,
+        project: project.clone(),
+        metadata_dirs,
+    })
+}
+
+/// Resolves a Cursor Agent session with [`resolve_cursor_agent_targets`] and
+/// moves everything to the trash, or the delete fails.
+fn delete_cursor_agent_session(
+    projects_root: &Path,
+    chats_root: Option<&Path>,
+    transcript: &Path,
+) -> Result<(), String> {
+    let targets = resolve_cursor_agent_targets(projects_root, chats_root, transcript)?;
+    trash_only(&targets.session_dir).map_err(|e| format!("Failed to delete session: {e}"))?;
+    for dir in targets.metadata_dirs {
         trash_only(&dir).map_err(|e| {
             format!("The transcript was moved to the trash, but its Cursor Agent chat data was not: {e}")
         })?;
     }
     Ok(())
+}
+
+/// What deleting one Claude Code / Codex transcript removes.
+pub(super) struct TranscriptTargets {
+    /// The `<uuid>.jsonl` session file.
+    pub file: PathBuf,
+    /// Its `<dir>/<uuid>/` folder (subagents, tool-results), when one exists
+    /// as a real directory.
+    pub folder: Option<PathBuf>,
+}
+
+/// A Claude Code / Codex `<uuid>.jsonl`: the target must be an absolute,
+/// plain `.jsonl` file (not a symlink) with a well-formed session ID.
+pub(super) fn resolve_transcript_targets(path: &Path) -> Result<TranscriptTargets, String> {
+    if !path.is_absolute() {
+        return Err("Session path must be absolute".to_string());
+    }
+    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
+        return Err("Only .jsonl session files can be deleted".to_string());
+    }
+
+    let session_id = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| "Invalid session filename".to_string())?;
+    if !is_safe_session_id(session_id) {
+        return Err("Invalid session ID format".to_string());
+    }
+
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|_| format!("Session file not found: {}", path.display()))?;
+    if metadata.file_type().is_symlink() {
+        return Err("Session file cannot be a symlink".to_string());
+    }
+    if !metadata.file_type().is_file() {
+        return Err("Session target must be a regular .jsonl file".to_string());
+    }
+
+    let folder = path.with_extension("");
+    let folder = fs::symlink_metadata(&folder)
+        .is_ok_and(|m| !m.file_type().is_symlink() && m.is_dir())
+        .then_some(folder);
+    Ok(TranscriptTargets {
+        file: path.to_path_buf(),
+        folder,
+    })
 }
 
 /// Deletes one session.
@@ -131,12 +201,11 @@ fn delete_cursor_agent_session(
 ///   and are deleted there.
 /// - A path under the Cursor Agent CLI's `~/.cursor/projects` is resolved by
 ///   [`delete_cursor_agent_session`].
-/// - Anything else is a Claude Code / Codex `<uuid>.jsonl`: the file and its
-///   `<dir>/<uuid>/` folder (subagents, tool-results) are moved to the trash.
-///   The target must be an absolute, plain `.jsonl` file (not a symlink) with
-///   a well-formed session ID. If the system trash is unavailable (e.g. a
-///   disabled Recycle Bin on Windows), it falls back to permanent deletion so
-///   the operation does not fail outright (#256).
+/// - Anything else is a Claude Code / Codex `<uuid>.jsonl` resolved by
+///   [`resolve_transcript_targets`]: the file and its `<dir>/<uuid>/` folder
+///   (subagents, tool-results) are moved to the trash. If the system trash is
+///   unavailable (e.g. a disabled Recycle Bin on Windows), it falls back to
+///   permanent deletion so the operation does not fail outright (#256).
 #[command]
 pub async fn delete_session(file_path: String) -> Result<(), String> {
     if file_path.starts_with("forgecode://") || file_path.starts_with("forgecode-db://") {
@@ -148,47 +217,20 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
 
     let path = Path::new(&file_path);
 
-    if !path.is_absolute() {
-        return Err("Session path must be absolute".to_string());
-    }
-
-    if path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
-        return Err("Only .jsonl session files can be deleted".to_string());
-    }
-
-    if let Some(root) = crate::providers::cursor_agent::get_base_path() {
-        let root = Path::new(&root);
-        if is_under(root, path) {
-            return delete_cursor_agent_session(
-                root,
-                crate::providers::cursor_agent::chats_root().as_deref(),
-                path,
-            );
+    if path.is_absolute() && path.extension().and_then(|e| e.to_str()) == Some("jsonl") {
+        if let Some(root) = crate::providers::cursor_agent::get_base_path() {
+            let root = Path::new(&root);
+            if is_under(root, path) {
+                return delete_cursor_agent_session(
+                    root,
+                    crate::providers::cursor_agent::chats_root().as_deref(),
+                    path,
+                );
+            }
         }
     }
 
-    let session_id = path
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .ok_or_else(|| "Invalid session filename".to_string())?;
-
-    if !session_id
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
-    {
-        return Err("Invalid session ID format".to_string());
-    }
-
-    let metadata =
-        fs::symlink_metadata(path).map_err(|_| format!("Session file not found: {file_path}"))?;
-
-    if metadata.file_type().is_symlink() {
-        return Err("Session file cannot be a symlink".to_string());
-    }
-
-    if !metadata.file_type().is_file() {
-        return Err("Session target must be a regular .jsonl file".to_string());
-    }
+    let targets = resolve_transcript_targets(path)?;
 
     // If this is a Codex rollout, clean up its native-rename row in
     // `state_5.sqlite` before the transcript is trashed (the session id is read
@@ -201,15 +243,12 @@ pub async fn delete_session(file_path: String) -> Result<(), String> {
 
     // Delete the .jsonl first (authoritative artifact), then the associated folder.
     // Tries the system trash first, falls back to permanent deletion on failure.
-    remove_path(path).map_err(|e| format!("Failed to delete session file: {e}"))?;
+    remove_path(&targets.file).map_err(|e| format!("Failed to delete session file: {e}"))?;
 
     // Best-effort removal of associated folder — don't fail if it can't be removed
     // since the primary .jsonl file is already gone
-    let associated_dir = path.with_extension("");
-    if let Ok(dir_meta) = fs::symlink_metadata(&associated_dir) {
-        if !dir_meta.file_type().is_symlink() && dir_meta.is_dir() {
-            let _ = remove_path(&associated_dir);
-        }
+    if let Some(folder) = targets.folder {
+        let _ = remove_path(&folder);
     }
 
     Ok(())

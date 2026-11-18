@@ -1,7 +1,7 @@
 // src/components/ProjectContextMenu.tsx
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { EyeOff, Eye, Copy, ArrowRightLeft } from "lucide-react";
+import { EyeOff, Eye, Copy, ArrowRightLeft, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,11 @@ interface ProjectContextMenuProps {
   /** Same folder as seen by other providers; keyboard-reachable switch. */
   providerSiblings?: ClaudeProject[];
   onSelectProject?: (project: ClaudeProject) => void;
+  /**
+   * Opens the clear dialog for this project's unavailable location (#780).
+   * Absent when the location is available or nothing there can be cleared.
+   */
+  onClearUnavailable?: () => void;
 }
 
 export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
@@ -31,6 +36,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   isHidden,
   providerSiblings = [],
   onSelectProject,
+  onClearUnavailable,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -206,6 +212,19 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
             </>
           )}
         </button>
+
+        {onClearUnavailable && (
+          <button
+            onClick={() => {
+              onClearUnavailable();
+              onClose();
+            }}
+            className={cn(menuItemClass, "text-destructive hover:text-destructive")}
+          >
+            <Trash className="w-4 h-4" />
+            <span>{t("project.clearUnavailable.menu")}</span>
+          </button>
+        )}
       </div>
     </div>,
     document.body

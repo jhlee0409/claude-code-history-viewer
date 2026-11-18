@@ -64,11 +64,12 @@ use crate::commands::{
         validate_claude_folder, validate_custom_claude_dir,
     },
     session::{
-        delete_session, get_recent_edits, get_session_message_count, get_session_subagents,
-        load_project_sessions, load_project_sessions_page, load_session_api_view,
-        load_session_messages, load_session_messages_paginated, move_session_to_project,
-        open_resume_in_terminal, read_restore_target, rename_opencode_session_title,
-        rename_session_native, reset_session_native_name, restore_file, search_messages,
+        clear_unavailable_sessions, delete_session, get_recent_edits, get_session_message_count,
+        get_session_subagents, load_project_sessions, load_project_sessions_page,
+        load_session_api_view, load_session_messages, load_session_messages_paginated,
+        move_session_to_project, open_resume_in_terminal, preview_unavailable_session_cleanup,
+        read_restore_target, rename_opencode_session_title, rename_session_native,
+        reset_session_native_name, restore_file, search_messages,
     },
     settings::{delete_preset, get_preset, load_presets, save_preset},
     stats::{
@@ -278,6 +279,8 @@ fn run_tauri() {
             read_text_file,
             save_screenshot,
             delete_session,
+            preview_unavailable_session_cleanup,
+            clear_unavailable_sessions,
             move_session_to_project,
             open_resume_in_terminal,
             // Native session rename commands

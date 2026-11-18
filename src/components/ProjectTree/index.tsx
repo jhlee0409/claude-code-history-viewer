@@ -17,8 +17,9 @@ import { useTranslation } from "react-i18next";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { isProjectTemporary } from "../../utils/pathUtils";
+import { isProjectPathUnavailable, isProjectTemporary } from "../../utils/pathUtils";
 import { ProjectContextMenu } from "../ProjectContextMenu";
+import { ClearUnavailableSessionsDialog } from "./components/ClearUnavailableSessionsDialog";
 import { useProjectTreeState } from "./hooks/useProjectTreeState";
 import { GroupedProjectList } from "./components/GroupedProjectList";
 import { LibrarySection } from "./components/LibrarySection";
@@ -46,6 +47,7 @@ import {
   getProviderLabel,
   normalizeProviderIds,
   PROVIDER_IDS,
+  supportsTrashCleanup,
 } from "../../utils/providers";
 import { useFormat } from "@/lib/format/useFormat";
 
@@ -127,6 +129,12 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
   const setActiveProviders = useAppStore((state) => state.setActiveProviders);
   const loadGlobalStats = useAppStore((state) => state.loadGlobalStats);
   const navigate = useAppStore((state) => state.navigate);
+  const isServerReadOnly = useAppStore((state) => state.isServerReadOnly);
+  // The unavailable location whose sessions the clear dialog is open for.
+  const [clearLocation, setClearLocation] = useState<{
+    location: string;
+    projects: ClaudeProject[];
+  } | null>(null);
 
   const {
     expandedProjects,
@@ -827,6 +835,22 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
     );
   }
 
+  // The clear is offered per unavailable location: every provider's project
+  // listed there, when at least one of them can be cleared to the trash
+  // (#780). Never in read-only WebUI mode.
+  const menuProject = contextMenu?.project;
+  const projectsAtMenuLocation =
+    menuProject && !isServerReadOnly && isProjectPathUnavailable(menuProject)
+      ? projects.filter(
+          (p) => isProjectPathUnavailable(p) && p.actual_path === menuProject.actual_path
+        )
+      : [];
+  const openClearForMenuLocation =
+    menuProject && projectsAtMenuLocation.some((p) => supportsTrashCleanup(p.provider))
+      ? () =>
+          setClearLocation({ location: menuProject.actual_path, projects: projectsAtMenuLocation })
+      : undefined;
+
   return (
     <aside
       id={asideId}
@@ -1060,6 +1084,15 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
           isHidden={isProjectHidden(contextMenu.project.actual_path)}
           providerSiblings={contextMenu.providerSiblings}
           onSelectProject={handleProjectClick}
+          onClearUnavailable={openClearForMenuLocation}
+        />
+      )}
+
+      {clearLocation && (
+        <ClearUnavailableSessionsDialog
+          location={clearLocation.location}
+          projects={clearLocation.projects}
+          onClose={() => setClearLocation(null)}
         />
       )}
     </aside>

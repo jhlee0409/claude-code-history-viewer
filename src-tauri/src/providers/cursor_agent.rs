@@ -139,24 +139,7 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
             continue;
         }
 
-        let dir_name = project_dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("Unknown");
-
-        let (display_name, actual_path) = match decode_with_filesystem_check(dir_name) {
-            Some(real_path) => {
-                let leaf = Path::new(&real_path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| dir_name.to_string());
-                (leaf, real_path)
-            }
-            None => (
-                dir_name.to_string(),
-                project_dir.to_string_lossy().to_string(),
-            ),
-        };
+        let (display_name, actual_path) = decode_project_dir(&project_dir);
 
         projects.push(ClaudeProject {
             name: display_name,
@@ -174,6 +157,37 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
 
     projects.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
     Ok(projects)
+}
+
+/// A project folder's display name and last-known location: the decoded
+/// folder name when it resolves on disk, else the folder itself.
+pub(crate) fn decode_project_dir(project_dir: &Path) -> (String, String) {
+    let dir_name = project_dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown");
+
+    match decode_with_filesystem_check(dir_name) {
+        Some(real_path) => {
+            let leaf = Path::new(&real_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| dir_name.to_string());
+            (leaf, real_path)
+        }
+        None => (
+            dir_name.to_string(),
+            project_dir.to_string_lossy().to_string(),
+        ),
+    }
+}
+
+/// The transcript files [`load_sessions`] lists for a project folder.
+pub(crate) fn transcript_paths(project_dir: &Path) -> Vec<PathBuf> {
+    transcript_files(&project_dir.join("agent-transcripts"))
+        .into_iter()
+        .map(DirEntry::into_path)
+        .collect()
 }
 
 /// Load the sessions (transcripts) for a Cursor Agent project.
