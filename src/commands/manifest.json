@@ -230,6 +230,21 @@
       "menu": "go"
     },
     {
+      "id": "go.previousStep",
+      "labelKey": "common.command.previousStep",
+      "shortcut": { "mac": "Cmd+Alt+ArrowUp", "win": "Alt+Shift+ArrowUp", "linux": "Alt+Shift+ArrowUp", "web": "Alt+Shift+ArrowUp" },
+      "source": "frontend",
+      "menu": "go",
+      "separatorBefore": true
+    },
+    {
+      "id": "go.nextStep",
+      "labelKey": "common.command.nextStep",
+      "shortcut": { "mac": "Cmd+Alt+ArrowDown", "win": "Alt+Shift+ArrowDown", "linux": "Alt+Shift+ArrowDown", "web": "Alt+Shift+ArrowDown" },
+      "source": "frontend",
+      "menu": "go"
+    },
+    {
       "id": "go.settingsManager",
       "labelKey": "common.command.openSettingsManager",
       "shortcut": null,

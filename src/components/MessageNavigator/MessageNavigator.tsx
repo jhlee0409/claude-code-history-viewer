@@ -11,6 +11,7 @@ import {
   getMessageUuidsByCategory,
 } from "../MessageViewer/helpers";
 import { getPromptJumpKeysLabel } from "../MessageViewer/helpers/promptJump";
+import { getStepKeysLabel } from "@/commands/stepTarget";
 import { getFilteredClassifiedMessages } from "./classifiedRows";
 import { getKindLabelKey } from "./kindLabels";
 import { NavigatorEntry } from "./NavigatorEntry";
@@ -59,8 +60,9 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
 }) => {
   const { t } = useTranslation();
   const keyboardHelpId = `${asideId}-keyboard-help`;
-  // The shortcut acts on the message list, so the panel only describes it.
+  // The shortcuts act on the message list, so the panel only describes them.
   const promptJumpHint = t("navigator.promptJumpHint", { keys: getPromptJumpKeysLabel() });
+  const stepJumpHint = t("navigator.stepJumpHint", { keys: getStepKeysLabel() });
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const entryRefs = useRef(new Map<string, HTMLButtonElement>());
   const [filterText, setFilterText] = useState("");
@@ -514,7 +516,7 @@ export const MessageNavigator: React.FC<MessageNavigatorProps> = ({
           "navigator.a11y.keyboardHelp",
           "Keyboard: use arrow keys to move between messages, Home and End to jump, and Enter or Space to open the focused message."
         )}{" "}
-        {promptJumpHint}
+        {promptJumpHint} {stepJumpHint}
       </p>
     </>
   );

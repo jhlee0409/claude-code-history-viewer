@@ -216,6 +216,8 @@
   "common.command.openPalette": "검색 및 명령",
   "common.command.back": "뒤로",
   "common.command.forward": "앞으로",
+  "common.command.previousStep": "턴의 이전 단계",
+  "common.command.nextStep": "턴의 다음 단계",
   "common.command.find": "대화에서 찾기",
   "common.command.toggleInspector": "인스펙터 보기/숨기기",
   "common.command.toggleMinimap": "세션 미니맵 보기/숨기기",
