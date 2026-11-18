@@ -199,14 +199,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends flatpak
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder \
+            org.gnome.Platform//51 org.gnome.Sdk//51
 
       - name: build the bundle
         env:
           BUNDLE: ${{ steps.names.outputs.bundle }}
         run: |
           set -euo pipefail
-          flatpak run org.flatpak.Builder --user --install-deps-from=flathub \
+          # The sandboxed builder reaches the host flatpak through
+          # flatpak-spawn, which needs a session bus.
+          dbus-run-session -- flatpak run org.flatpak.Builder --user --install-deps-from=flathub \
             --disable-rofiles-fuse --force-clean --default-branch=master \
             --repo=repo build-dir "$MANIFEST"
           flatpak build-bundle --runtime-repo=https://flathub.org/repo/flathub.flatpakrepo \
