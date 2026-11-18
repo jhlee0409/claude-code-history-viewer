@@ -19,6 +19,7 @@ import {
   supportsSessionDeletion as providerSupportsSessionDeletion,
 } from "@/utils/providers";
 import { parseResumeArgs } from "@/utils/resumeArgs";
+import { isPromptHistorySession } from "@/utils/promptHistory";
 import type { ClaudeProject, ClaudeSession } from "@/types";
 import { copyTextToClipboard } from "@/utils/clipboard";
 import { projectListing } from "@/navigation/library";
@@ -71,15 +72,20 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
   const selectedProject = useAppStore((state) => state.selectedProject);
   const loadedSessions = useAppStore((state) => state.sessions);
   const projects = useAppStore((state) => state.projects);
+  // A prompt-history session (#764) is no file: its prompts are read from
+  // Claude Code's `history.jsonl`, and nothing about it can be changed.
+  const isPromptHistory = isPromptHistorySession(session);
+  const isReadOnly = isServerReadOnly || isPromptHistory;
   const supportsNativeRename =
-    !isServerReadOnly && providerSupportsNativeRename(providerId);
+    !isReadOnly && providerSupportsNativeRename(providerId);
   const supportsSessionDeletion =
-    !isServerReadOnly && providerSupportsSessionDeletion(providerId);
-  const supportsRevealInFinder = isAbsolutePath(session.file_path);
+    !isReadOnly && providerSupportsSessionDeletion(providerId);
+  const supportsRevealInFinder = !isPromptHistory && isAbsolutePath(session.file_path);
+  const supportsCopyFilePath = !isPromptHistory;
   // Moving relocates `<projects>/<project>/<id>.jsonl`, which only Claude Code
   // sessions have; the backend re-validates the layout.
   const supportsSessionMove =
-    !isServerReadOnly &&
+    !isReadOnly &&
     providerId === "claude" &&
     supportsRevealInFinder &&
     session.file_path.endsWith(".jsonl");
@@ -135,13 +141,13 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
   const isNamed = hasCustomName || hasClaudeCodeName || !!session.is_renamed;
 
   const startEditing = useCallback(() => {
-    if (isServerReadOnly) return;
+    if (isReadOnly) return;
     setEditValue(displayName || "");
     setIsEditing(true);
-  }, [displayName, isServerReadOnly]);
+  }, [displayName, isReadOnly]);
 
   const saveCustomName = useCallback(async () => {
-    if (isServerReadOnly) {
+    if (isReadOnly) {
       setIsEditing(false);
       return;
     }
@@ -158,7 +164,7 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
     } finally {
       setIsEditing(false);
     }
-  }, [editValue, isServerReadOnly, localSummary, setCustomName, t]);
+  }, [editValue, isReadOnly, localSummary, setCustomName, t]);
 
   const cancelEditing = useCallback(() => {
     setIsEditing(false);
@@ -166,7 +172,7 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
   }, []);
 
   const resetCustomName = useCallback(async () => {
-    if (isServerReadOnly) {
+    if (isReadOnly) {
       setIsContextMenuOpen(false);
       return;
     }
@@ -178,7 +184,7 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
     } finally {
       setIsContextMenuOpen(false);
     }
-  }, [isServerReadOnly, setCustomName, t]);
+  }, [isReadOnly, setCustomName, t]);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -253,6 +259,7 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
   const projectPathUnavailable = projectForSession?.path_status === "unavailable";
   const projectCwd = projectPathUnavailable ? undefined : projectForSession?.actual_path;
   const supportsResumeCommand =
+    !isPromptHistory &&
     supportsResumeCommandForSession(providerId, session.entrypoint) &&
     !projectPathUnavailable;
 
@@ -583,9 +590,10 @@ export function useSessionEditing(session: ClaudeSession, owner?: ClaudeProject)
     supportsResumeCommand,
     supportsSessionDeletion,
     supportsRevealInFinder,
+    supportsCopyFilePath,
     supportsSessionMove,
     isArchivedCodexSession,
-    isServerReadOnly,
+    isReadOnly,
     deleteDialogTitle,
     deleteDialogDescription,
     deleteDialogTargetLabel,

@@ -198,6 +198,9 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
 
     let mut projects = Vec::new();
     let mut seen_canonical = std::collections::HashSet::new();
+    // Prompts whose transcript is gone (#764): listed as sessions of their
+    // project, which keeps a project whose transcripts are all gone listed.
+    let mut prompt_history = crate::commands::session::prompt_history::load(&claude_base);
 
     let mut entries: Vec<_> = WalkDir::new(&projects_path)
         .min_depth(1)
@@ -286,6 +289,15 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
                 }
             }
         }
+        let prompts = prompt_history.take_project(&raw_project_name);
+        if let Some(prompts) = &prompts {
+            session_count += prompts.session_count();
+            message_count += prompts.prompt_count();
+            let prompted = prompts.last_prompt_at();
+            if last_modified.map_or(true, |modified| prompted > modified) {
+                last_modified = Some(prompted);
+            }
+        }
 
         // Skip empty project containers (e.g. temp workdirs with only memory files).
         if session_count == 0 {
@@ -319,13 +331,16 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
         //    subagent JSONL files can run in narrower cwd values (for example
         //    `/home/cym/paseo`) while the parent project remains `/home/cym`,
         //    so nested files are only a secondary fallback here.
-        // 3. A lossy heuristic decode of the folder name, as a last resort.
+        // 3. The directory the prompt log records for the project's orphaned
+        //    prompts (#764), exact like (2), when no transcript is left.
+        // 4. A lossy heuristic decode of the folder name, as a last resort.
         let actual_path = crate::utils::decode_project_path_verified(&project_path)
             .or_else(|| {
                 direct_cwd_candidate
                     .or(nested_cwd_candidate)
                     .map(|(_, cwd)| cwd)
             })
+            .or_else(|| prompts.map(|prompts| prompts.cwd))
             .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
         let project_name = project_display_name_from_path(&actual_path)
             .unwrap_or_else(|| extract_project_name(&raw_project_name));
@@ -341,6 +356,29 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
             message_count,
             last_modified: last_modified_str,
             git_info,
+            provider: None,
+            storage_type: None,
+            custom_directory_label: None,
+        });
+    }
+
+    // Projects whose folder holds no transcript any more, or is gone, but
+    // whose prompts are still in the log. The folder they would have is
+    // their path; the log records their directory exactly.
+    for prompts in prompt_history.into_projects() {
+        let last_modified: DateTime<Utc> = prompts.last_prompt_at().into();
+        projects.push(ClaudeProject {
+            name: project_display_name_from_path(&prompts.cwd)
+                .unwrap_or_else(|| extract_project_name(&prompts.dir_name)),
+            path: projects_path
+                .join(&prompts.dir_name)
+                .to_string_lossy()
+                .into_owned(),
+            session_count: prompts.session_count(),
+            message_count: prompts.prompt_count(),
+            last_modified: last_modified.to_rfc3339(),
+            git_info: detect_git_worktree_info(&prompts.cwd),
+            actual_path: prompts.cwd,
             provider: None,
             storage_type: None,
             custom_directory_label: None,

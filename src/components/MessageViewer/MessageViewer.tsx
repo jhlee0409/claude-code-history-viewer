@@ -8,7 +8,7 @@
 import { CodexFileChangeProvider } from "../transcript/CodexFileChanges";
 import { useRef, useCallback, useMemo, useState, useEffect, useLayoutEffect, memo } from "react";
 import { OverlayScrollbarsComponent, type OverlayScrollbarsComponentRef } from "overlayscrollbars-react";
-import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight } from "lucide-react";
+import { MessageCircle, ChevronDown, ChevronUp, Search, X, Camera, Download, ArrowLeft, Bot, ChevronRight, RotateCcwClock } from "lucide-react";
 import { Icon } from "@/components/icon/Icon";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -58,6 +58,7 @@ import type { SubagentSession } from "@/types";
 import { useFindTarget } from "@/commands/findTarget";
 import { scrollBehavior } from "@/utils/motion";
 import { supportsApiRequestView } from "@/utils/providers";
+import { isPromptHistorySession } from "@/utils/promptHistory";
 import { useFilterReadingPosition } from "./hooks/useFilterReadingPosition";
 
 // max-height 계산: 버튼 1행 높이 × 3행 + 여유
@@ -164,6 +165,26 @@ const SubagentBreadcrumb = memo(function SubagentBreadcrumb({
   );
 });
 
+/**
+ * The open session's transcript is gone (#764): what it shows are the
+ * prompts Claude Code's prompt log kept, without any reply.
+ */
+const PromptHistoryNotice = memo(function PromptHistoryNotice() {
+  const { t } = useTranslation();
+  return (
+    <div
+      role="note"
+      className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 text-list text-muted-foreground"
+    >
+      <RotateCcwClock className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+      <p>
+        <span className="font-medium text-foreground">{t("session.promptHistory.label")}</span>{" "}
+        {t("session.promptHistory.description")}
+      </p>
+    </div>
+  );
+});
+
 export const MessageViewer: React.FC<MessageViewerProps> = ({
   messages,
   isLoading,
@@ -257,7 +278,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   // The tab on screen: switching tabs starts the find field empty.
   const activeDocumentId = useAppStore((s) => s.activeDocumentId);
   const isApiViewOpen = useAppStore((s) => s.isApiViewOpen);
-  const apiViewAvailable = supportsApiRequestView(selectedSession?.provider);
+  const isPromptHistory = isPromptHistorySession(selectedSession);
+  // A prompt-history session has no API records: its transcript is gone.
+  const apiViewAvailable = supportsApiRequestView(selectedSession?.provider) && !isPromptHistory;
   const sessionPath = selectedSession?.file_path ?? null;
   const anchorHere = pendingAnchor && pendingAnchor.sessionPath === sessionPath ? pendingAnchor : null;
   const setVisibleMessageUuid = useAppStore((s) => s.setVisibleMessageUuid);
@@ -1326,6 +1349,8 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
           onToggle={toggleSubagentPanel}
         />
       )}
+
+      {isPromptHistory && <PromptHistoryNotice />}
 
       {/* Current date — its own row above the list, never over a message. */}
       {flattenedMessages.length > 0 && (

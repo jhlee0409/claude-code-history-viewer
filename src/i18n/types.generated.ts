@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T04:11:56.292Z
- * 총 키 개수: 2446
+ * 생성 시간: 2026-11-18T04:58:10.679Z
+ * 총 키 개수: 2449
  * Namespace 수: 13
  */
 
@@ -576,7 +576,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (331개)
+ * session namespace의 번역 키 (334개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -797,6 +797,7 @@ export type SessionKeys =
   | 'session.item.session'
   | 'session.item.storageType.json'
   | 'session.item.storageType.jsonl'
+  | 'session.item.storageType.prompt_history'
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
@@ -851,6 +852,8 @@ export type SessionKeys =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
+  | 'session.promptHistory.description'
+  | 'session.promptHistory.label'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
@@ -4065,6 +4068,7 @@ export type TranslationKey =
   | 'session.item.session'
   | 'session.item.storageType.json'
   | 'session.item.storageType.jsonl'
+  | 'session.item.storageType.prompt_history'
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
@@ -4119,6 +4123,8 @@ export type TranslationKey =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
+  | 'session.promptHistory.description'
+  | 'session.promptHistory.label'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
