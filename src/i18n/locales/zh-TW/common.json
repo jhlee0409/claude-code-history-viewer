@@ -216,6 +216,8 @@
   "common.command.openPalette": "搜尋與命令",
   "common.command.back": "上一頁",
   "common.command.forward": "下一頁",
+  "common.command.previousStep": "本輪上一步",
+  "common.command.nextStep": "本輪下一步",
   "common.command.find": "在對話中尋找",
   "common.command.toggleInspector": "顯示/隱藏檢閱器",
   "common.command.toggleMinimap": "顯示/隱藏會話小地圖",

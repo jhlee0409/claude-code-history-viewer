@@ -16,10 +16,11 @@ use super::{ProviderScanStatus, UsageScope};
 use crate::commands::stats::session_files::{claude_project_dirs, walk_session_files};
 use crate::commands::stats::{
     all_stats_providers, claude_session_heads, detect_project_provider,
-    load_antigravity_usage_records_checked, load_stats_messages, load_stats_sessions,
-    scan_stats_projects, stats_provider_id, StatsMode, StatsProvider,
+    load_antigravity_usage_records_checked, load_stats_session_messages, load_stats_session_tree,
+    load_stats_sessions, scan_stats_projects, stats_provider_id, StatsMode, StatsProvider,
 };
 use crate::models::{ClaudeProject, ClaudeSession};
+use crate::providers::opencode::SessionTree;
 use crate::providers::scan_report::ScanReport;
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
@@ -72,9 +73,16 @@ pub(super) fn reports_token_usage(provider: StatsProvider) -> bool {
 }
 
 /// Whether the provider marks sidechain (subagent) rows, so that
-/// `conversation_only` can exclude anything.
+/// `conversation_only` can exclude anything. `OpenCode` and Kilo subagent
+/// runs are sessions of their own, read as their parent's sidechain (#577).
 pub(super) fn records_sidechains(provider: StatsProvider) -> bool {
-    matches!(provider, StatsProvider::Claude | StatsProvider::Zcode)
+    matches!(
+        provider,
+        StatsProvider::Claude
+            | StatsProvider::Zcode
+            | StatsProvider::OpenCode
+            | StatsProvider::Kilo
+    )
 }
 
 /// Strict provider id parse: an unknown id is a request error.
@@ -742,17 +750,33 @@ fn collect_provider_sessions(
     mode: StatsMode,
     scan: &mut ProviderScan,
 ) -> Vec<SessionInput> {
-    let results: Vec<(String, ClaudeSession, Result<FileContributions, String>)> = tasks
+    // One subagent tree per project, for the providers that list subagent
+    // runs as sessions of their own (#577).
+    let mut trees: HashMap<String, Option<SessionTree>> = HashMap::new();
+    for (project_path, _) in &tasks {
+        if !trees.contains_key(project_path) {
+            trees.insert(
+                project_path.clone(),
+                load_stats_session_tree(provider, project_path),
+            );
+        }
+    }
+    let results: Vec<(
+        String,
+        ClaudeSession,
+        Result<Option<FileContributions>, String>,
+    )> = tasks
         .into_par_iter()
         .map(|(project_path, session)| {
-            let result = load_provider_session(provider, &session, mode);
+            let tree = trees.get(&project_path).and_then(Option::as_ref);
+            let result = load_provider_session(provider, &session, tree, mode);
             (project_path, session, result)
         })
         .collect();
     let mut sessions = Vec::new();
     for (project_path, session, result) in results {
         match result {
-            Ok(file) => {
+            Ok(Some(file)) => {
                 scan.sessions_scanned += 1;
                 sessions.push(SessionInput {
                     provider,
@@ -763,6 +787,8 @@ fn collect_provider_sessions(
                     title: session.summary,
                 });
             }
+            // A subagent run, read with the session that spawned it.
+            Ok(None) => {}
             Err(error) => {
                 log::warn!("usage breakdown: {}: {error}", session.file_path);
                 scan.sessions_failed += 1;
@@ -775,17 +801,18 @@ fn collect_provider_sessions(
 fn load_provider_session(
     provider: StatsProvider,
     session: &ClaudeSession,
+    tree: Option<&SessionTree>,
     mode: StatsMode,
-) -> Result<FileContributions, String> {
+) -> Result<Option<FileContributions>, String> {
     if provider == StatsProvider::Antigravity {
         let records = load_antigravity_usage_records_checked(&session.file_path)?;
-        return Ok(from_antigravity_records(
+        return Ok(Some(from_antigravity_records(
             &records,
             mode,
             &session.actual_session_id,
             session.summary.clone(),
-        ));
+        )));
     }
-    let messages = load_stats_messages(provider, &session.file_path)?;
-    Ok(from_messages(&messages, mode, session.summary.clone()))
+    Ok(load_stats_session_messages(provider, tree, session, mode)?
+        .map(|messages| from_messages(&messages, mode, session.summary.clone())))
 }

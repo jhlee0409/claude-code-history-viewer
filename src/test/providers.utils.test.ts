@@ -89,9 +89,12 @@ describe("providers utils", () => {
     expect(supportsConversationBreakdown("claude")).toBe(true);
     expect(supportsConversationBreakdown("antigravity")).toBe(true);
     expect(supportsConversationBreakdown("forgecode")).toBe(true);
+    // Their subagent runs are counted as sidechain usage (#577).
+    expect(supportsConversationBreakdown("opencode")).toBe(true);
+    expect(supportsConversationBreakdown("kilo")).toBe(true);
+    expect(supportsConversationBreakdown("zcode")).toBe(true);
     expect(supportsConversationBreakdown("codex")).toBe(false);
     expect(supportsConversationBreakdown("kimi")).toBe(false);
-    expect(supportsConversationBreakdown("opencode")).toBe(false);
     expect(supportsConversationBreakdown("unknown")).toBe(false);
   });
 
@@ -278,8 +281,9 @@ describe("providers utils", () => {
     expect(hasAnyConversationBreakdownProvider(["claude"])).toBe(true);
     expect(hasAnyConversationBreakdownProvider(["antigravity"])).toBe(true);
     expect(hasAnyConversationBreakdownProvider(["forgecode"])).toBe(true);
+    expect(hasAnyConversationBreakdownProvider(["codex", "kimi"])).toBe(false);
     expect(hasAnyConversationBreakdownProvider(["codex", "opencode"])).toBe(
-      false
+      true
     );
     expect(hasAnyConversationBreakdownProvider(["kimi"])).toBe(false);
     expect(hasAnyConversationBreakdownProvider([])).toBe(false);
