@@ -49,7 +49,8 @@ import {
   type SessionRef,
   type View,
 } from "@/navigation/place";
-import { INITIAL_PAGINATION } from "./messageSlice";
+import { INITIAL_PAGINATION, selectDisplayedMessages } from "./messageSlice";
+import { selectionsShowing } from "@/utils/conversationBranches";
 import type { PendingAnchor } from "./documentSlice";
 import {
   loadRecent,
@@ -413,12 +414,16 @@ export const createNavigationSlice: StateCreator<
   },
 
   navigateToMessage: (uuid, options) => {
-    // An explicit target outranks a saved scroll position (plan §4.3).
+    // An explicit target outranks a saved scroll position (plan §4.3), and
+    // a message in an alternative not shown at a fork switches it in (#782).
+    const previousSelections = get().branchSelections;
+    const branchSelections = selectionsShowing(uuid, get().conversationBranches, previousSelections);
     set({
       targetMessageUuid: uuid,
       shouldHighlightTarget: true,
       targetRequest: get().targetRequest + 1,
       pendingAnchor: null,
+      branchSelections,
     });
 
     const session = get().selectedSession;
@@ -428,6 +433,16 @@ export const createNavigationSlice: StateCreator<
         { sessionId, messageId: uuid },
         options?.history ?? "push",
       );
+    }
+
+    // The switched-in alternative can lie wholly before the loaded window:
+    // the transcript then has no rows to look the target up from.
+    if (
+      branchSelections !== previousSelections &&
+      get().pagination.hasMore &&
+      selectDisplayedMessages(get()).length === 0
+    ) {
+      void get().lookUpTargetMessage();
     }
   },
 

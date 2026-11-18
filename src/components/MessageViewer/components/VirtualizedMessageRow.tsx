@@ -15,6 +15,8 @@ import { ClaudeMessageNode } from "./ClaudeMessageNode";
 import { DateDivider } from "./DateDivider";
 import { HiddenBlocksIndicator } from "./HiddenBlocksIndicator";
 import { isZeroHeightMessageRow } from "../helpers/heightEstimation";
+import { BranchSwitcher } from "./BranchSwitcher";
+import type { BranchSwitch } from "@/utils/conversationBranches";
 
 interface VirtualizedMessageRowProps {
   virtualRow: VirtualItem;
@@ -34,6 +36,9 @@ interface VirtualizedMessageRowProps {
   isSelected?: boolean;
   onRangeSelect?: (uuid: string, modifiers: { shift: boolean; cmdOrCtrl: boolean }) => void;
   isInSubagent?: boolean;
+  /** Conversation forks drawn on this row (#782): above or below the message. */
+  branchSwitches?: readonly BranchSwitch[];
+  onSelectBranch?: (parentUuid: string, headUuid: string) => void;
 }
 
 /**
@@ -59,6 +64,8 @@ export const VirtualizedMessageRow = forwardRef<
     isSelected,
     onRangeSelect,
     isInSubagent = false,
+    branchSwitches,
+    onSelectBranch,
   },
   ref
 ) {
@@ -140,6 +147,15 @@ export const VirtualizedMessageRow = forwardRef<
     );
   }
 
+  const switchesAt = (placement: BranchSwitch["placement"]) =>
+    onSelectBranch
+      ? branchSwitches
+          ?.filter((branch) => branch.placement === placement)
+          .map((branch) => (
+            <BranchSwitcher key={branch.parentUuid} branch={branch} onSelect={onSelectBranch} />
+          ))
+      : null;
+
   return (
     <div
       ref={ref}
@@ -153,6 +169,7 @@ export const VirtualizedMessageRow = forwardRef<
         transform: `translateY(${translateY}px)`,
       }}
     >
+      {switchesAt("before")}
       <ClaudeMessageNode
         message={message}
         depth={depth}
@@ -174,6 +191,7 @@ export const VirtualizedMessageRow = forwardRef<
         isSelected={isSelected}
         onRangeSelect={onRangeSelect}
       />
+      {switchesAt("after")}
     </div>
   );
 });

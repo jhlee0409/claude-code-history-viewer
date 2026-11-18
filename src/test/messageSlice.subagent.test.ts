@@ -384,7 +384,8 @@ describe("messageSlice.selectSession — async race & subagent intent", () => {
     expect(store.getState().messages).toEqual([existingMessage]);
     expect(store.getState().messages[0]).toBe(existingMessage);
     expect(mockBuildSearchIndex).not.toHaveBeenCalled();
-    expect(mockApi).toHaveBeenCalledTimes(1);
+    // One window fetch (the fork lookup beside it is not a window).
+    expect(mockApi.mock.calls.filter(([cmd]) => cmd === "load_provider_messages_paginated")).toHaveLength(1);
   });
 
   it("top-level reselection clears parentSessionStack", async () => {

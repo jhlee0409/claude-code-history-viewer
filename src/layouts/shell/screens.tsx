@@ -20,6 +20,7 @@ import { useProviderDiscovery } from "@/hooks/useProviderDiscovery";
 import { cn } from "@/lib/utils";
 import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@/store/useAppStore";
+import { selectDisplayedMessages } from "@/store/slices/messageSlice";
 import { numberCopyBoundary } from "@/lib/format/copyNumbers";
 import { selectTokenStats } from "@/navigation/screenOwner";
 import { MessageViewer } from "@/components/MessageViewer";
@@ -188,7 +189,8 @@ export const EmptyScreen = () => {
  */
 export const ConversationScreen = ({ analyticsActions }: ViewScreenProps) => {
   const selectedSession = useAppStore((s) => s.selectedSession);
-  const messages = useAppStore((s) => s.messages);
+  // The branch path being read: forks show one alternative at a time (#782).
+  const messages = useAppStore(selectDisplayedMessages);
   const isLoading = useAppStore((s) => s.isLoading);
   const sessionSearch = useAppStore((s) => s.sessionSearch);
   const setSessionSearchQuery = useAppStore((s) => s.setSessionSearchQuery);

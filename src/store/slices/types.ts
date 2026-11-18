@@ -24,8 +24,10 @@ import type {
   StatsMode,
   MetricMode,
   SubagentSession,
+  ConversationBranches,
 } from "../../types";
 import type { ProjectTokenStatsPagination } from "./messageSlice";
+import type { BranchSelections } from "../../utils/conversationBranches";
 import type { AnalyticsState } from "../../types/analytics";
 import type { OwnedSetter } from "./analyticsSlice";
 import type { UpdateSettings } from "../../types/updateSettings";
@@ -137,6 +139,8 @@ export interface AppStoreState {
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
   toolUseToSubagentMap: Map<string, string>;
+  conversationBranches: ConversationBranches | null;
+  branchSelections: BranchSelections;
 
   // Search state
   searchQuery: string;
@@ -333,6 +337,7 @@ export interface AppStoreActions {
   loadMoreMessages: () => Promise<void>;
   ensureMessageLoaded: (uuid: string) => Promise<boolean>;
   fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
+  selectConversationBranch: (parentUuid: string, headUuid: string) => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
