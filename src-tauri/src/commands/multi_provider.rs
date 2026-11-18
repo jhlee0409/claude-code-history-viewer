@@ -95,6 +95,7 @@ pub async fn scan_all_projects(
             "openinterpreter".to_string(),
             "pi".to_string(),
             "ompi".to_string(),
+            "qoder".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -187,6 +188,7 @@ pub async fn scan_all_projects(
         ("openinterpreter", providers::openinterpreter::scan_projects),
         ("pi", providers::pi::scan_projects),
         ("ompi", providers::ompi::scan_projects),
+        ("qoder", providers::qoder::scan_projects),
         ("qwen", providers::qwen::scan_projects),
         ("zed", providers::zed::scan_projects),
         ("openhands", providers::openhands::scan_projects),
@@ -387,6 +389,7 @@ pub async fn load_provider_sessions(
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
         "pi" => providers::pi::load_sessions(&project_path, exclude),
         "ompi" => providers::ompi::load_sessions(&project_path, exclude),
+        "qoder" => providers::qoder::load_sessions(&project_path, exclude),
         "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
@@ -539,6 +542,7 @@ fn load_non_claude_messages(
         "openinterpreter" => providers::openinterpreter::load_messages(session_path),
         "pi" => providers::pi::load_messages(session_path),
         "ompi" => providers::ompi::load_messages(session_path),
+        "qoder" => providers::qoder::load_messages(session_path),
         "qwen" => providers::qwen::load_messages(session_path),
         "cline" => providers::cline::load_messages(session_path),
         "crush" => providers::crush::load_messages(session_path),
@@ -751,6 +755,7 @@ pub async fn search_all_providers(
             "openinterpreter".to_string(),
             "pi".to_string(),
             "ompi".to_string(),
+            "qoder".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -992,6 +997,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Z Code search failed: {e}");
+            }
+        }
+    }
+
+    // Qoder
+    if providers_to_search.iter().any(|p| p == "qoder") {
+        match providers::qoder::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Qoder search failed: {e}");
             }
         }
     }

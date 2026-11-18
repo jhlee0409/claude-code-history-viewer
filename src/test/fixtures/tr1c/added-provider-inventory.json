@@ -1012,6 +1012,32 @@
     "responseSha256": "c0fd85d19094f11c5c7702ed2ebc1937a1c71fab6e2876944ecfc3a8b270134c"
   },
   {
+    "id": "qoder",
+    "messageCount": 6,
+    "resultCount": 1,
+    "callCount": 1,
+    "recordedNames": [
+      "Bash"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/tests/fixtures/qoder/cli-session-1.1.84.jsonl",
+        "line": 1,
+        "sha256": "a62d8b716d7eab9f0d86a1946ebf1265b6cf5763392f78a979f6fe74b9ff3c43",
+        "kind": "committed raw fixture file"
+      }
+    ],
+    "limitations": [
+      "Repository-authored transcript that mirrors, record for record, a sanitized Qoder CLI 1.1.84 sample (junhoyeo/tokscale#1609); not a live Qoder capture. The Bash result fails by its source is_error flag; Qoder records no exit code, so none is shown."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "0a505005cc5334ef688f0fa746961aa705cef30d020412402122d6378dbe7c87"
+  },
+  {
     "id": "cursor-acp",
     "messageCount": 4,
     "resultCount": 1,

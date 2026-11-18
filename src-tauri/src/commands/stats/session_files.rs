@@ -532,6 +532,7 @@ mod raw_open_guard {
         "src/commands/project.rs",
         "src/commands/watcher.rs",
         "src/export.rs",
+        "src/providers/qoder.rs",
         "src/providers/cursor_acp.rs",
     ];
 

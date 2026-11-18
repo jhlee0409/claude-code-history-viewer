@@ -46,6 +46,7 @@ enum StatsProvider {
     OpenHands,
     OpenInterpreter,
     PearAI,
+    Qoder,
     Qwen,
     Trae,
     Vibe,
@@ -109,6 +110,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::OpenHands => "openhands",
         StatsProvider::OpenInterpreter => "openinterpreter",
         StatsProvider::PearAI => "pearai",
+        StatsProvider::Qoder => "qoder",
         StatsProvider::Qwen => "qwen",
         StatsProvider::Trae => "trae",
         StatsProvider::Vibe => "vibe",
@@ -320,6 +322,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::OpenHands,
         StatsProvider::OpenInterpreter,
         StatsProvider::PearAI,
+        StatsProvider::Qoder,
         StatsProvider::Qwen,
         StatsProvider::Trae,
         StatsProvider::Vibe,
@@ -368,6 +371,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "openhands" => Some(StatsProvider::OpenHands),
             "openinterpreter" => Some(StatsProvider::OpenInterpreter),
             "pearai" => Some(StatsProvider::PearAI),
+            "qoder" => Some(StatsProvider::Qoder),
             "qwen" => Some(StatsProvider::Qwen),
             "zcode" => Some(StatsProvider::Zcode),
             "hermes" => Some(StatsProvider::Hermes),
@@ -429,6 +433,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::OpenInterpreter
     } else if project_path.starts_with("pearai://") {
         StatsProvider::PearAI
+    } else if project_path.starts_with("qoder://") {
+        StatsProvider::Qoder
     } else if project_path.starts_with("qwen://") {
         StatsProvider::Qwen
     } else if project_path.starts_with("trae://") {
@@ -535,6 +541,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     if session_path.starts_with("pearai://") {
         return StatsProvider::PearAI;
     }
+    if session_path.starts_with("qoder://") {
+        return StatsProvider::Qoder;
+    }
     if session_path.starts_with("qwen://") {
         return StatsProvider::Qwen;
     }
@@ -627,6 +636,13 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
             .is_some_and(|ext| ext.eq_ignore_ascii_case("jsonl"))
     {
         return StatsProvider::Copilot;
+    }
+
+    // Qoder: anchored under one of its transcript stores (`~/.qoder/projects`,
+    // `~/.qoder-cn/projects`, the IDE's store). Its files are Claude-format
+    // JSONL, so without this they would fall through to Claude.
+    if providers::qoder::is_session_path(session_path) {
+        return StatsProvider::Qoder;
     }
 
     // CodeBuddy: path is anchored under ~/.codebuddy/projects (not just substring
@@ -1629,6 +1645,7 @@ fn scan_stats_projects(
         StatsProvider::OpenHands => providers::openhands::scan_projects(),
         StatsProvider::OpenInterpreter => providers::openinterpreter::scan_projects(),
         StatsProvider::PearAI => providers::pearai::scan_projects(),
+        StatsProvider::Qoder => providers::qoder::scan_projects(),
         StatsProvider::Qwen => providers::qwen::scan_projects(),
         StatsProvider::Zcode => providers::zcode::scan_projects(),
         StatsProvider::Hermes => providers::hermes::scan_projects(),
@@ -1672,6 +1689,7 @@ fn load_stats_sessions(
             providers::openinterpreter::load_sessions(project_path, false)
         }
         StatsProvider::PearAI => providers::pearai::load_sessions(project_path, false),
+        StatsProvider::Qoder => providers::qoder::load_sessions(project_path, false),
         StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
         StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
         StatsProvider::Hermes => providers::hermes::load_sessions(project_path, false),
@@ -1715,6 +1733,7 @@ fn stats_provider_store(provider: StatsProvider) -> Option<providers::ProviderIn
         StatsProvider::OpenHands => providers::openhands::detect(),
         StatsProvider::OpenInterpreter => providers::openinterpreter::detect(),
         StatsProvider::PearAI => providers::pearai::detect(),
+        StatsProvider::Qoder => providers::qoder::detect(),
         StatsProvider::Qwen => providers::qwen::detect(),
         StatsProvider::Zcode => providers::zcode::detect(),
         StatsProvider::Trae => providers::trae::detect(),
@@ -1756,6 +1775,8 @@ fn load_stats_messages(
         StatsProvider::OpenHands => providers::openhands::load_messages(session_path),
         StatsProvider::OpenInterpreter => providers::openinterpreter::load_messages(session_path),
         StatsProvider::PearAI => providers::pearai::load_messages(session_path),
+        // Rolls subagent transcripts into their parent as sidechain usage.
+        StatsProvider::Qoder => providers::qoder::load_messages_with_subagents(session_path),
         StatsProvider::Qwen => providers::qwen::load_messages(session_path),
         // Rolls subagent runs into their parent as sidechain usage (#577).
         StatsProvider::Zcode => providers::zcode::load_messages_with_subagents(session_path),
@@ -3306,6 +3327,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, project_path),
         StatsProvider::Hermes => providers::hermes::project_name(project_path),
+        StatsProvider::Qoder => providers::qoder::project_name(project_path),
         StatsProvider::CursorAcp => providers::cursor_acp::project_name(project_path),
     }
 }
@@ -3486,6 +3508,7 @@ fn resolve_provider_project_name_from_session(
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, session_path),
         StatsProvider::Hermes => providers::hermes::project_name_for_session(session_path),
+        StatsProvider::Qoder => providers::qoder::project_name_for_session(session_path),
         StatsProvider::CursorAcp => providers::cursor_acp::project_name_for_session(session_path),
         StatsProvider::Claude => "unknown".to_string(),
     }
@@ -5847,6 +5870,7 @@ pub async fn get_global_stats_summary(
         StatsProvider::OpenHands,
         StatsProvider::OpenInterpreter,
         StatsProvider::PearAI,
+        StatsProvider::Qoder,
         StatsProvider::Qwen,
         StatsProvider::Trae,
         StatsProvider::Vibe,
@@ -6992,7 +7016,8 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 33);
+        assert!(parsed.contains(&StatsProvider::Qoder));
+        assert!(parsed.contains(&StatsProvider::CursorAcp));
     }
 
     #[test]
@@ -9894,6 +9919,24 @@ mod tests {
         assert_eq!(
             detect_project_provider("hermes://profile.coder::source:telegram"),
             StatsProvider::Hermes
+        );
+        // Qoder transcripts are Claude-format JSONL: they route by the store
+        // they lie in (CLI and Qoder CN), Qoder projects by scheme.
+        for dot_dir in [".qoder", ".qoder-cn"] {
+            let transcript = temp
+                .path()
+                .join(dot_dir)
+                .join("projects")
+                .join("-u")
+                .join("s.jsonl");
+            assert_eq!(
+                detect_session_provider(&transcript.to_string_lossy()),
+                StatsProvider::Qoder
+            );
+        }
+        assert_eq!(
+            detect_project_provider("qoder:///work/app"),
+            StatsProvider::Qoder
         );
         // Cursor ACP pseudo-paths too, Windows workspaces included.
         assert_eq!(

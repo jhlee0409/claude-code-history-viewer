@@ -47,6 +47,7 @@ pub use move_session::move_session_to_project;
 pub use rename::*;
 pub use resume::*;
 pub use search::*;
+pub(crate) use timestamp_fill::fill_missing_timestamps;
 
 /// Split a provider URI into its scheme and remainder, or `None` if the value
 /// is an ordinary path.
@@ -198,6 +199,10 @@ pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), St
     if let Some(trae_base) = crate::providers::trae::get_base_path() {
         allowed.push(PathBuf::from(trae_base));
     }
+    // Qoder's transcript stores (CLI, Qoder CN, the IDE's embedded agent):
+    // each `projects/` folder holds only session transcripts, their sidecars
+    // and subagent transcripts, never the app's credentials.
+    allowed.extend(crate::providers::qoder::store_dirs());
     // Claude directories the user configured (Settings → Custom Claude
     // Directories, `CLAUDE_CONFIG_DIR`) — the same sources `scan_all_projects`
     // reads. Each must pass the custom-directory validator, which already
