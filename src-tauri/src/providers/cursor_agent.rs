@@ -139,28 +139,11 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
             continue;
         }
 
-        let dir_name = project_dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("Unknown");
-
-        let (display_name, actual_path) = match decode_with_filesystem_check(dir_name) {
-            Some(real_path) => {
-                let leaf = Path::new(&real_path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| dir_name.to_string());
-                (leaf, real_path)
-            }
-            None => (
-                dir_name.to_string(),
-                project_dir.to_string_lossy().to_string(),
-            ),
-        };
+        let (display_name, actual_path) = project_display(&project_dir);
 
         projects.push(ClaudeProject {
             name: display_name,
-            path: project_dir.to_string_lossy().to_string(),
+            path: project_path(&project_dir),
             actual_path,
             session_count,
             message_count,
@@ -275,10 +258,15 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let Some(base) = get_base_path() else {
         return Ok(vec![]);
     };
+    Ok(search_in(Path::new(&base), query, limit))
+}
+
+/// Implementation of [`search`] parameterised by the projects root.
+fn search_in(base: &Path, query: &str, limit: usize) -> Vec<ClaudeMessage> {
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for project_dir in project_dirs(Path::new(&base)) {
+    for project_dir in project_dirs(base) {
         if is_symlink(&project_dir) {
             continue;
         }
@@ -286,11 +274,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         if !transcripts_dir.is_dir() {
             continue;
         }
-        let project_name = project_dir
-            .file_name()
-            .and_then(|n| n.to_str())
-            .unwrap_or("")
-            .to_string();
+        let (project_name, _) = project_display(&project_dir);
+        let project_path = project_path(&project_dir);
 
         for entry in transcript_files(&transcripts_dir) {
             let path = entry.path();
@@ -321,9 +306,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                         convert_message(&value, &session_id, &timestamp, msg_index)
                     {
                         msg.project_name = Some(project_name.clone());
+                        msg.project_path = Some(project_path.clone());
                         results.push(msg);
                         if results.len() >= limit {
-                            return Ok(results);
+                            return results;
                         }
                     }
                 }
@@ -332,7 +318,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         }
     }
 
-    Ok(results)
+    results
 }
 
 // ============================================================================
@@ -683,6 +669,33 @@ fn project_dirs(base: &Path) -> Vec<std::path::PathBuf> {
         .collect()
 }
 
+/// The `ClaudeProject.path` scan reports for a project directory; search
+/// tags hits with the same string.
+fn project_path(project_dir: &Path) -> String {
+    project_dir.to_string_lossy().to_string()
+}
+
+/// `(name, actual_path)` scan reports for a project directory: the decoded
+/// workspace leaf and path when the encoded name resolves on disk, else the
+/// encoded name and the directory itself.
+fn project_display(project_dir: &Path) -> (String, String) {
+    let dir_name = project_dir
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("Unknown");
+
+    match decode_with_filesystem_check(dir_name) {
+        Some(real_path) => {
+            let leaf = Path::new(&real_path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| dir_name.to_string());
+            (leaf, real_path)
+        }
+        None => (dir_name.to_string(), project_path(project_dir)),
+    }
+}
+
 /// Non-symlinked `*.jsonl` files under an `agent-transcripts` directory
 /// (`<uuid>/<uuid>.jsonl`, depth 2).
 fn transcript_files(transcripts_dir: &Path) -> Vec<DirEntry> {
@@ -777,6 +790,44 @@ mod tests {
     // ---------------------------------------------------------------------------
     // Existing tests (all must still pass)
     // ---------------------------------------------------------------------------
+
+    /// #672: hits carry the scanned project's path (and its decoded name), so
+    /// two workspaces whose leaf is `app` stay apart in search.
+    #[cfg(unix)]
+    #[test]
+    fn search_hits_carry_scanned_project_path() {
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().canonicalize().unwrap();
+        let workspaces = root.join("ws");
+        let projects_root = root.join("projects");
+        let encoded_ws = workspaces
+            .to_string_lossy()
+            .trim_start_matches('/')
+            .replace('/', "-");
+        for client in ["client-a", "client-b"] {
+            fs::create_dir_all(workspaces.join(client).join("app")).unwrap();
+            let encoded = format!("{encoded_ws}-{client}-app");
+            write_transcript(&projects_root, &encoded, &format!("uuid-{client}"), SAMPLE);
+        }
+
+        let projects = scan_projects_in(&projects_root).unwrap();
+        let results = search_in(&projects_root, "zmagictoken", 10);
+        assert_eq!(results.len(), 2);
+        for client in ["client-a", "client-b"] {
+            let project = projects
+                .iter()
+                .find(|p| p.actual_path.ends_with(&format!("{client}/app")))
+                .unwrap();
+            assert_eq!(project.name, "app");
+            let hit = results
+                .iter()
+                .find(|m| m.session_id == format!("uuid-{client}"))
+                .unwrap();
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
+        assert_ne!(results[0].project_path, results[1].project_path);
+    }
 
     #[test]
     fn scan_lists_only_projects_with_transcripts() {

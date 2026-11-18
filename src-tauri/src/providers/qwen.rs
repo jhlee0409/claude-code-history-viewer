@@ -101,6 +101,21 @@ fn session_files(projects: &Path, report: &ScanReport) -> Vec<PathBuf> {
     files
 }
 
+/// Project identity for a session `cwd` — shared by scan and search so
+/// search hits group under the scanned project (#672).
+fn project_path_for(cwd: &str) -> String {
+    format!("{SCHEME}{cwd}")
+}
+
+/// Display name for a session `cwd` (its folder leaf, else the cwd itself).
+fn project_name_for(cwd: &str) -> String {
+    Path::new(cwd)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| cwd.to_string())
+}
+
 /// Scan Qwen projects (sessions grouped by the real `cwd`).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_projects_reporting(&ScanReport::default())
@@ -148,14 +163,10 @@ pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeP
     let mut projects: Vec<ClaudeProject> = by_cwd
         .into_iter()
         .map(|(cwd, agg)| {
-            let name = Path::new(&cwd)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| cwd.clone());
+            let name = project_name_for(&cwd);
             ClaudeProject {
                 name,
-                path: format!("{SCHEME}{cwd}"),
+                path: project_path_for(&cwd),
                 actual_path: cwd,
                 session_count: agg.session_count,
                 message_count: agg.message_count,
@@ -259,16 +270,12 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         let Ok(data) = fs::read_to_string(&file) else {
             continue;
         };
-        let cwd = session_meta(&data).and_then(|m| m.cwd);
-        let project_name = cwd
-            .as_deref()
-            .map(|c| {
-                Path::new(c)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| c.to_string())
-            })
-            .unwrap_or_default();
+        // Same cwd source (and "unknown" fallback) as the scan groups by.
+        let cwd = session_meta(&data)
+            .and_then(|m| m.cwd)
+            .unwrap_or_else(|| "unknown".to_string());
+        let project_name = project_name_for(&cwd);
+        let project_path = project_path_for(&cwd);
         for mut msg in parse_messages(&data) {
             if results.len() >= limit {
                 return Ok(results);
@@ -280,6 +287,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 .unwrap_or(false);
             if matched {
                 msg.project_name = Some(project_name.clone());
+                msg.project_path = Some(project_path.clone());
                 results.push(msg);
             }
         }
@@ -698,5 +706,52 @@ mod tests {
         assert!(res
             .expect_err("path should be rejected")
             .contains("outside"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_cwds() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let qwen_home = tempfile::TempDir::new().unwrap();
+        for (dir, cwd) in [("a", "/work/client-a/app"), ("b", "/work/client-b/app")] {
+            let chats = qwen_home.path().join("projects").join(dir).join("chats");
+            fs::create_dir_all(&chats).unwrap();
+            let line = json!({ "uuid": format!("u-{dir}"), "sessionId": dir,
+                "timestamp": "2026-06-20T10:00:00Z", "type": "user", "cwd": cwd,
+                "message": { "role": "user", "parts": [{ "text": "needle" }] } });
+            fs::write(chats.join(format!("{dir}.jsonl")), format!("{line}\n")).unwrap();
+        }
+        let previous_runtime = std::env::var_os("QWEN_RUNTIME_DIR");
+        let previous = std::env::var_os("QWEN_HOME");
+        std::env::remove_var("QWEN_RUNTIME_DIR");
+        std::env::set_var("QWEN_HOME", qwen_home.path());
+
+        let projects = scan_projects().unwrap();
+        let hits = search("needle", 10).unwrap();
+
+        if let Some(v) = previous_runtime {
+            std::env::set_var("QWEN_RUNTIME_DIR", v);
+        }
+        match previous {
+            Some(v) => std::env::set_var("QWEN_HOME", v),
+            None => std::env::remove_var("QWEN_HOME"),
+        }
+
+        let path_of = |cwd: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == cwd)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let expected = if hit.uuid == "u-a" { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 }

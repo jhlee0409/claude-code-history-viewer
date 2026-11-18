@@ -123,6 +123,21 @@ pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeP
     }
 }
 
+/// Project identity for a session `directory` — shared by scan and search
+/// so search hits group under the scanned project (#672).
+fn project_path_for(directory: &str) -> String {
+    format!("{SCHEME}{directory}")
+}
+
+/// Display name for a session `directory` (its leaf, else the directory).
+fn project_name_for(directory: &str) -> String {
+    Path::new(directory)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| directory.to_string())
+}
+
 /// Projects (one row per session `directory`) with session/message counts.
 fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     scan_projects_conn_reporting(conn, Path::new(""), &ScanReport::default())
@@ -158,14 +173,10 @@ fn scan_projects_conn_reporting(
         .map_err(|e| e.to_string())?
         .filter_map(|row| report.db(db, row))
         .map(|(dir, sessions, messages, updated)| {
-            let name = Path::new(&dir)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| dir.clone());
+            let name = project_name_for(&dir);
             ClaudeProject {
                 name,
-                path: format!("{SCHEME}{dir}"),
+                path: project_path_for(&dir),
                 actual_path: dir,
                 session_count: sessions.max(0) as usize,
                 message_count: messages.unwrap_or(0).max(0) as usize,
@@ -709,10 +720,8 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
         if results.len() >= limit {
             break;
         }
-        let project_name = Path::new(&directory)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| directory.clone());
+        let project_name = project_name_for(&directory);
+        let project_path = project_path_for(&directory);
         for mut msg in load_messages_conn(conn, &session_id)? {
             if results.len() >= limit {
                 break;
@@ -724,6 +733,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
                 .unwrap_or(false);
             if matched {
                 msg.project_name = Some(project_name.clone());
+                msg.project_path = Some(project_path.clone());
                 results.push(msg);
             }
         }
@@ -1037,6 +1047,45 @@ mod tests {
         let hits = search_conn(&conn, "login", 10).unwrap();
         assert!(!hits.is_empty());
         assert!(hits.iter().all(|m| m.provider.as_deref() == Some("zcode")));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_directories() {
+        let conn = test_db();
+        for (sid, dir) in [("sa", "/work/client-a/app"), ("sb", "/work/client-b/app")] {
+            insert_session(&conn, sid, dir, "t", "interactive");
+            let mid = format!("m-{sid}");
+            insert_message(
+                &conn,
+                &mid,
+                sid,
+                0,
+                r#"{"role":"user","time":{"created":1}}"#,
+            );
+            let text = format!(r#"{{"type":"text","text":"needle {sid}"}}"#);
+            insert_part(&conn, &format!("p-{sid}"), &mid, sid, 0, &text);
+        }
+
+        let projects = scan_projects_conn(&conn).unwrap();
+        let path_of = |dir: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == dir)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search_conn(&conn, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let text = hit.content.as_ref().unwrap().to_string();
+            let expected = if text.contains("needle sa") { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 
     #[test]

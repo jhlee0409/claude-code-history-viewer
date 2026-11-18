@@ -83,6 +83,20 @@ fn rollout_files(report: &ScanReport) -> Vec<PathBuf> {
     files
 }
 
+/// Project identity for a rollout `cwd` — shared by scan and search so
+/// search hits group under the scanned project (#672).
+fn project_path_for(cwd: &str) -> String {
+    format!("{SCHEME}{cwd}")
+}
+
+/// Display name for a rollout `cwd` (its folder leaf, else the cwd itself).
+fn project_name_for(cwd: &str) -> String {
+    Path::new(cwd)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| cwd.to_string())
+}
+
 /// Scan Open Interpreter projects (rollouts grouped by `cwd`).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_projects_reporting(&ScanReport::default())
@@ -117,13 +131,10 @@ pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeP
     let mut projects: Vec<ClaudeProject> = by_cwd
         .into_iter()
         .map(|(cwd, agg)| {
-            let name = Path::new(&cwd)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| cwd.clone());
+            let name = project_name_for(&cwd);
             ClaudeProject {
                 name,
-                path: format!("{SCHEME}{cwd}"),
+                path: project_path_for(&cwd),
                 actual_path: cwd,
                 session_count: agg.session_count,
                 message_count: agg.message_count,
@@ -222,12 +233,21 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         let Ok(messages) = load_messages(&path.to_string_lossy()) else {
             continue;
         };
-        for msg in messages {
+        // Same cwd source (and "unknown" fallback) as the scan groups by.
+        let cwd = codex::extract_session_cwd(&path)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "unknown".to_string());
+        let project_name = project_name_for(&cwd);
+        let project_path = project_path_for(&cwd);
+        for mut msg in messages {
             if results.len() >= limit {
                 return Ok(results);
             }
             if let Some(content) = &msg.content {
                 if codex::rollout_content_matches(content, &query_lower) {
+                    msg.project_name = Some(project_name.clone());
+                    msg.project_path = Some(project_path.clone());
                     results.push(msg);
                 }
             }
@@ -372,5 +392,49 @@ mod tests {
         let outside = TempDir::new().unwrap();
         let stray = write_rollout(outside.path(), "rollout-x.jsonl", "x", "/c", "hi");
         assert!(load_messages(&stray.to_string_lossy()).is_err());
+    }
+
+    #[test]
+    #[serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_cwds() {
+        let tmp = TempDir::new().unwrap();
+        let sessions = tmp.path().join("sessions");
+        fs::create_dir_all(&sessions).unwrap();
+        write_rollout(
+            &sessions,
+            "rollout-2026-02-21T10-00-00-a.jsonl",
+            "a",
+            "/work/client-a/app",
+            "needle a",
+        );
+        write_rollout(
+            &sessions,
+            "rollout-2026-02-21T10-00-01-b.jsonl",
+            "b",
+            "/work/client-b/app",
+            "needle b",
+        );
+        let _guard = HomeGuard::set(tmp.path());
+
+        let projects = scan_projects().unwrap();
+        let path_of = |cwd: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == cwd)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search("needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let text = hit.content.as_ref().unwrap().to_string();
+            let expected = if text.contains("needle a") { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 }
