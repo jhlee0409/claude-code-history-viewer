@@ -217,6 +217,8 @@
   "common.command.openPalette": "検索とコマンド",
   "common.command.back": "戻る",
   "common.command.forward": "進む",
+  "common.command.previousStep": "ターン内の前のステップ",
+  "common.command.nextStep": "ターン内の次のステップ",
   "common.command.find": "会話内を検索",
   "common.command.toggleInspector": "インスペクタを表示/非表示",
   "common.command.toggleMinimap": "セッションミニマップを表示/非表示",

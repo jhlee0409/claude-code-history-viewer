@@ -217,6 +217,8 @@
   "common.command.openPalette": "搜索和命令",
   "common.command.back": "后退",
   "common.command.forward": "前进",
+  "common.command.previousStep": "本轮上一步",
+  "common.command.nextStep": "本轮下一步",
   "common.command.find": "在对话中查找",
   "common.command.toggleInspector": "显示/隐藏检查器",
   "common.command.toggleMinimap": "显示/隐藏会话小地图",

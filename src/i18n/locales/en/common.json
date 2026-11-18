@@ -217,6 +217,8 @@
   "common.command.openPalette": "Search and Commands",
   "common.command.back": "Back",
   "common.command.forward": "Forward",
+  "common.command.previousStep": "Previous Step in Turn",
+  "common.command.nextStep": "Next Step in Turn",
   "common.command.find": "Find in Conversation",
   "common.command.toggleInspector": "Show or Hide Inspector",
   "common.command.toggleMinimap": "Show or Hide Session Minimap",

@@ -354,13 +354,16 @@ mod tests {
     }
 
     #[test]
-    fn go_menu_has_back_forward_settings_manager_and_archive() {
+    fn go_menu_has_back_forward_steps_settings_manager_and_archive() {
         let built = spec(Os::Mac, "en");
         assert_eq!(
             ids(built.submenu(MenuId::Go).unwrap()),
             vec![
                 "go.back",
                 "go.forward",
+                "-",
+                "go.previousStep",
+                "go.nextStep",
                 "-",
                 "go.settingsManager",
                 "go.archive",
@@ -373,6 +376,12 @@ mod tests {
             id: "go.back".into(),
             label: "Back".into(),
             accelerator: Some("Cmd+[".into()),
+            toggle: false,
+        }));
+        assert!(go.contains(&ItemSpec::Command {
+            id: "go.nextStep".into(),
+            label: "Next Step in Turn".into(),
+            accelerator: Some("Cmd+Alt+ArrowDown".into()),
             toggle: false,
         }));
         assert!(go.contains(&ItemSpec::Command {
