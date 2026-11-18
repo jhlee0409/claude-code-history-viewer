@@ -81,6 +81,8 @@
   --provider-pearai-surface: var(--surface-hover);
   --provider-pi: oklch(0.48 0.1 180);
   --provider-pi-surface: var(--surface-hover);
+  --provider-qoder: oklch(0.48 0.1 135);
+  --provider-qoder-surface: var(--surface-hover);
   --provider-qwen: oklch(0.48 0.1 285);
   --provider-qwen-surface: var(--surface-hover);
   --provider-zcode: oklch(0.48 0.1 210);
@@ -411,6 +413,7 @@
   --provider-openhands: oklch(0.78 0 0);
   --provider-pearai: oklch(0.78 0.1 95);
   --provider-pi: oklch(0.78 0.1 180);
+  --provider-qoder: oklch(0.78 0.1 135);
   --provider-qwen: oklch(0.78 0.1 285);
   --provider-zcode: oklch(0.78 0.1 210);
   --provider-trae: oklch(0.78 0.1 255);
@@ -636,6 +639,7 @@
   --provider-openhands: var(--fg);
   --provider-pearai: var(--fg);
   --provider-pi: var(--fg);
+  --provider-qoder: var(--fg);
   --provider-qwen: var(--fg);
   --provider-zcode: var(--fg);
   --provider-trae: var(--fg);
@@ -761,6 +765,7 @@
   --provider-openhands: var(--fg);
   --provider-pearai: var(--fg);
   --provider-pi: var(--fg);
+  --provider-qoder: var(--fg);
   --provider-qwen: var(--fg);
   --provider-zcode: var(--fg);
   --provider-trae: var(--fg);
@@ -1010,6 +1015,8 @@
   --color-provider-pearai-surface: var(--provider-pearai-surface);
   --color-provider-pi: var(--provider-pi);
   --color-provider-pi-surface: var(--provider-pi-surface);
+  --color-provider-qoder: var(--provider-qoder);
+  --color-provider-qoder-surface: var(--provider-qoder-surface);
   --color-provider-qwen: var(--provider-qwen);
   --color-provider-qwen-surface: var(--provider-qwen-surface);
   --color-provider-zcode: var(--provider-zcode);

@@ -28,7 +28,7 @@ fn line_timestamp(line: &[u8]) -> Option<String> {
 /// dated line at all falls back to the current time, as before.
 ///
 /// `line_at(i)` returns the raw bytes of line `i`, for `i < line_count`.
-pub(super) fn fill_missing_timestamps<'a>(
+pub(crate) fn fill_missing_timestamps<'a>(
     line_count: usize,
     line_at: impl Fn(usize) -> &'a [u8],
     messages: &mut [(usize, ClaudeMessage)],

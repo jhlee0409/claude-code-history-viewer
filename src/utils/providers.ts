@@ -1,7 +1,7 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qoder", "qwen", "trae", "vibe", "zcode", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 // WSL provider loaders use UNC-backed paths and are not interchangeable with
@@ -45,6 +45,7 @@ const PROVIDER_TRANSLATIONS: Record<
   openinterpreter: { key: "common.provider.openinterpreter", fallback: "Open Interpreter" },
   pearai: { key: "common.provider.pearai", fallback: "PearAI" },
   pi: { key: "common.provider.pi", fallback: "Pi" },
+  qoder: { key: "common.provider.qoder", fallback: "Qoder" },
   qwen: { key: "common.provider.qwen", fallback: "Qwen Code" },
   trae: { key: "common.provider.trae", fallback: "Trae" },
   vibe: { key: "common.provider.vibe", fallback: "Mistral Vibe" },
@@ -258,6 +259,13 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
+  qoder: {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
+    supportsArchiveCreation: false,
+  },
   qwen: {
     supportsConversationBreakdown: false,
     supportsNativeRename: false,
@@ -335,6 +343,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "ompi":
     case "pi":
     case "pearai":
+    case "qoder":
     case "qwen":
     case "trae":
     case "vibe":
@@ -528,9 +537,9 @@ const RECENT_EDITS_PROVIDER_IDS: readonly ProviderId[] = [
 ];
 
 // Keep in sync with `get_session_subagents` in
-// src-tauri/src/commands/session/load.rs: Claude `<session>/subagents/` files
-// plus the OpenCode / Kilo / Z Code provider ids (#560, #643, #761).
-const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "opencode", "kilo", "zcode"];
+// src-tauri/src/commands/session/load.rs: Claude and Qoder `<session>/subagents/`
+// files plus the OpenCode / Kilo / Z Code provider ids (#560, #643, #761).
+const SUBAGENT_PROVIDER_IDS: readonly ProviderId[] = ["claude", "qoder", "opencode", "kilo", "zcode"];
 
 // Unlike the helpers above, a missing provider counts as Claude: the backend
 // leaves `provider` unset on Claude projects and sessions.
@@ -578,6 +587,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "openhands": "bg-provider-openhands-surface text-provider-openhands",
   "pearai": "bg-provider-pearai-surface text-provider-pearai",
   "pi": "bg-provider-pi-surface text-provider-pi",
+  "qoder": "bg-provider-qoder-surface text-provider-qoder",
   "qwen": "bg-provider-qwen-surface text-provider-qwen",
   "zcode": "bg-provider-zcode-surface text-provider-zcode",
   "trae": "bg-provider-trae-surface text-provider-trae",
