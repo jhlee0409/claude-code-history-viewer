@@ -100,6 +100,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
     "/load_user_metadata",
     "/menu_journal",
     "/open_github_issues",
+    "/preview_unavailable_session_cleanup",
     "/read_restore_target",
     "/read_text_file",
     "/scan_all_projects",
@@ -118,6 +119,7 @@ const READ_ONLY_ALLOWED_API_PATHS: &[&str] = &[
 /// and never reaches the POST check.
 #[cfg(test)]
 const READ_ONLY_MUTATING_API_PATHS: &[&str] = &[
+    "/clear_unavailable_sessions",
     "/create_archive",
     "/delete_archive",
     "/delete_mcp_preset",
@@ -228,6 +230,14 @@ pub fn build_router(
         .route("/restore_file", post(h::restore_file))
         .route("/read_restore_target", post(h::read_restore_target))
         .route("/delete_session", post(h::delete_session))
+        .route(
+            "/preview_unavailable_session_cleanup",
+            post(h::preview_unavailable_session_cleanup),
+        )
+        .route(
+            "/clear_unavailable_sessions",
+            post(h::clear_unavailable_sessions),
+        )
         .route("/move_session_to_project", post(h::move_session_to_project))
         // Rename commands
         .route("/rename_session_native", post(h::rename_session_native))
@@ -2165,6 +2175,7 @@ mod tests {
         for path in [
             "/delete_session",
             "/api/delete_session",
+            "/api/clear_unavailable_sessions",
             "/api/rename_session_native",
             "/api/update_user_settings",
             "/api/save_settings",

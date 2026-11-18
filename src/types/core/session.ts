@@ -98,6 +98,46 @@ export interface ClaudeSession {
   entrypoint?: string;
 }
 
+// ============================================================================
+// Unavailable-location cleanup (`preview_unavailable_session_cleanup`,
+// `clear_unavailable_sessions`, #780)
+// ============================================================================
+
+/** Why a project's sessions are not cleared. */
+export type CleanupExclusion =
+  | "permanent_delete"
+  | "unsupported"
+  | "location_available"
+  | "invalid_project";
+
+/** One session the cleanup would move to the system trash. */
+export interface CleanupTarget {
+  session_path: string;
+  /** Everything moved to the trash for this session, the session itself first. */
+  trash_paths: string[];
+}
+
+export interface UnavailableCleanupPreview {
+  provider: string;
+  project_path: string;
+  /** The last-known location, when the project was resolved. */
+  location: string | null;
+  excluded: CleanupExclusion | null;
+  /** What made the project invalid, for `invalid_project`. */
+  detail: string | null;
+  targets: CleanupTarget[];
+  /** Sessions of an eligible project that are not cleared, with the reason. */
+  skipped: { session_path: string; reason: string }[];
+}
+
+/** The outcome for one confirmed session; `error` is null when it went to the trash. */
+export interface ClearedSession {
+  provider: string;
+  project_path: string;
+  session_path: string;
+  error: string | null;
+}
+
 export interface SessionPage {
   sessions: ClaudeSession[];
   total: number;

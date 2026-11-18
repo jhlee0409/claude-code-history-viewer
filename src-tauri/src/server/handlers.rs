@@ -518,6 +518,18 @@ pub struct DeleteSessionParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PreviewUnavailableCleanupParams {
+    pub projects: Vec<commands::session::UnavailableProjectRef>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearUnavailableSessionsParams {
+    pub projects: Vec<commands::session::ConfirmedCleanup>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoveSessionParams {
     pub session_path: String,
     pub target_project_path: String,
@@ -931,6 +943,43 @@ handler_json!(
             require_history_path(&p.file_path)?;
         }
         commands::session::delete_session(p.file_path).await
+    }
+);
+
+/// Projects of a provider the cleanup opens on disk must be history paths
+/// (`codex://` ids pass as URIs); the others are only reported as excluded,
+/// never opened, so they need no root.
+fn require_cleanup_project(provider: Option<&str>, path: &str) -> Result<(), String> {
+    if commands::session::is_trash_cleanup_provider(provider) {
+        require_history_path_or_provider_uri(path)?;
+    }
+    Ok(())
+}
+
+handler_json!(
+    preview_unavailable_session_cleanup,
+    PreviewUnavailableCleanupParams,
+    |p: PreviewUnavailableCleanupParams| async move {
+        for project in &p.projects {
+            require_cleanup_project(project.provider.as_deref(), &project.path)?;
+        }
+        commands::session::preview_unavailable_session_cleanup(p.projects).await
+    }
+);
+
+handler_json!(
+    clear_unavailable_sessions,
+    ClearUnavailableSessionsParams,
+    |p: ClearUnavailableSessionsParams| async move {
+        for project in &p.projects {
+            require_cleanup_project(project.provider.as_deref(), &project.path)?;
+            if commands::session::is_trash_cleanup_provider(project.provider.as_deref()) {
+                for session in &project.session_paths {
+                    require_history_path(session)?;
+                }
+            }
+        }
+        commands::session::clear_unavailable_sessions(p.projects).await
     }
 );
 
@@ -2442,6 +2491,49 @@ mod provider_uri_scope_tests {
         }))
         .await;
         assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// The unavailable-location cleanup confines what it opens over `--serve`:
+    /// a project or session of a provider it clears must be a history path,
+    /// while a project it only reports as excluded is never opened.
+    #[tokio::test]
+    #[serial]
+    async fn unavailable_cleanup_takes_only_history_paths_it_would_open() {
+        let home = crate::test_utils::SandboxHome::new();
+        let outside = home.path().join("elsewhere").join("-gone");
+        std::fs::create_dir_all(&outside).unwrap();
+        let outside = outside.to_string_lossy().into_owned();
+        let project = |provider: Option<&str>| commands::session::UnavailableProjectRef {
+            provider: provider.map(str::to_string),
+            path: outside.clone(),
+        };
+
+        let res = preview_unavailable_session_cleanup(Json(PreviewUnavailableCleanupParams {
+            projects: vec![project(None)],
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
+
+        let res = preview_unavailable_session_cleanup(Json(PreviewUnavailableCleanupParams {
+            projects: vec![project(Some("aider"))],
+        }))
+        .await;
+        assert!(res.is_ok(), "{:?}", error_of(res));
+
+        let claude_project = home.path().join(".claude").join("projects").join("-gone");
+        std::fs::create_dir_all(&claude_project).unwrap();
+        let res = clear_unavailable_sessions(Json(ClearUnavailableSessionsParams {
+            projects: vec![commands::session::ConfirmedCleanup {
+                provider: None,
+                path: claude_project.to_string_lossy().into_owned(),
+                session_paths: vec![std::path::Path::new(&outside)
+                    .join("s.jsonl")
+                    .to_string_lossy()
+                    .into_owned()],
+            }],
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
     }
 
     /// A project the recent-edits panel does not route to a provider is read

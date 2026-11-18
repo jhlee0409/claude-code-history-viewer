@@ -575,6 +575,17 @@ export function supportsApiRequestView(provider?: ProviderId | string): boolean 
   return isAllowedProvider(["claude"], provider);
 }
 
+// Providers whose sessions the unavailable-location cleanup moves to the
+// system trash. Keep in sync with `is_trash_cleanup_provider` in
+// src-tauri/src/commands/session/clear_unavailable.rs. Cursor and ForgeCode
+// delete database rows permanently, so they stay out even though they offer
+// per-session delete (#780).
+const TRASH_CLEANUP_PROVIDER_IDS: readonly ProviderId[] = ["claude", "codex", "cursor-agent"];
+
+export function supportsTrashCleanup(provider?: ProviderId | string): boolean {
+  return isAllowedProvider(TRASH_CLEANUP_PROVIDER_IDS, provider);
+}
+
 export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "claude": "bg-provider-claude-surface text-provider-claude",
   "codebuddy": "bg-provider-codebuddy-surface text-provider-codebuddy",
