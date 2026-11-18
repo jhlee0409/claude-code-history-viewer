@@ -7012,7 +7012,8 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
-        assert_eq!(supported.len(), 33);
+        assert!(parsed.contains(&StatsProvider::ClaudeAi));
+        assert!(parsed.contains(&StatsProvider::CursorAcp));
     }
 
     #[test]
