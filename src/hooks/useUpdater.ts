@@ -1,10 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { isTauri } from '@/utils/platform';
+import { isTauri, openExternalUrl } from '@/utils/platform';
 import {
   UPDATE_DOWNLOAD_COMPLETE_RESTART_CODE,
 } from '@/utils/updateError';
 
 const CHECK_TIMEOUT_MS = 20_000; // 20 seconds
+
+const RELEASES_URL = 'https://github.com/jhlee0409/claude-code-history-viewer/releases';
+
+/** The release page that carries `version`'s `.flatpak` bundle. */
+export function releasePageUrl(version: string): string {
+  return `${RELEASES_URL}/tag/v${encodeURIComponent(version)}`;
+}
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -39,6 +46,9 @@ export interface UpdateState {
   isInstalling: boolean;
   isRestarting: boolean;
   requiresManualRestart: boolean;
+  /** Running in the Flatpak sandbox: the update is installed from the release
+   *  page's `.flatpak` bundle, never downloaded and applied in place. */
+  isFlatpak: boolean;
   downloadProgress: number;
   error: string | null;
   updateInfo: Update | null;
@@ -60,6 +70,7 @@ const WEB_INITIAL_STATE: UpdateState = {
   isInstalling: false,
   isRestarting: false,
   requiresManualRestart: false,
+  isFlatpak: false,
   downloadProgress: 0,
   error: null,
   updateInfo: null,
@@ -84,6 +95,7 @@ export function useUpdater(): UseUpdaterReturn {
     isInstalling: false,
     isRestarting: false,
     requiresManualRestart: false,
+    isFlatpak: false,
     downloadProgress: 0,
     error: null,
     updateInfo: null,
@@ -103,6 +115,25 @@ export function useUpdater(): UseUpdaterReturn {
       .catch(() => {
         /* version fetch is non-critical */
       });
+  }, [tauriMode]);
+
+  // Flatpak installs cannot be replaced in place (Tauri only)
+  useEffect(() => {
+    if (!tauriMode) return;
+    let cancelled = false;
+    import('@tauri-apps/api/core')
+      .then(({ invoke }) => invoke<boolean>('is_flatpak'))
+      .then((isFlatpak) => {
+        if (!cancelled && isFlatpak === true) {
+          setState((prev) => ({ ...prev, isFlatpak: true }));
+        }
+      })
+      .catch(() => {
+        /* an older backend without the command is never a Flatpak */
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [tauriMode]);
 
   const checkForUpdates = useCallback(async (): Promise<Update | null> => {
@@ -157,6 +188,21 @@ export function useUpdater(): UseUpdaterReturn {
 
   const downloadAndInstall = useCallback(async () => {
     if (!tauriMode || !state.updateInfo) return;
+
+    // The in-app updater cannot replace a Flatpak (its /app is read-only), so
+    // the new `.flatpak` bundle is fetched from the release page instead.
+    if (state.isFlatpak) {
+      try {
+        await openExternalUrl(releasePageUrl(state.updateInfo.version));
+        setState((prev) => ({ ...prev, error: null }));
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          error: getErrorMessage(error, 'Could not open the release page'),
+        }));
+      }
+      return;
+    }
 
     setState((prev) => ({
       ...prev,
@@ -303,7 +349,7 @@ export function useUpdater(): UseUpdaterReturn {
           : rawErrorMessage,
       }));
     }
-  }, [tauriMode, state.updateInfo]);
+  }, [tauriMode, state.updateInfo, state.isFlatpak]);
 
   const dismissUpdate = useCallback(() => {
     setState((prev) => ({

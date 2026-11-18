@@ -78,7 +78,7 @@ use crate::commands::{
     unified_presets::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
     },
-    update::force_quit_and_relaunch,
+    update::{force_quit_and_relaunch, is_flatpak},
     watcher::{start_file_watcher, stop_file_watcher},
     wsl::{detect_wsl_distros, is_wsl_available},
 };
@@ -317,6 +317,7 @@ fn run_tauri() {
             get_antigravity_project_summary,
             // Updater fallback
             force_quit_and_relaunch,
+            is_flatpak,
             // Native menu bridge (WebUI: no-op route)
             menu::native::sync_menu_state,
             menu::native::menu_journal,

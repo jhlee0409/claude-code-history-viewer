@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.jhlee0409.Omnilogue</id>
+  <launchable type="desktop-id">io.github.jhlee0409.Omnilogue.desktop</launchable>
+
+  <name>Omnilogue</name>
+  <summary>Browse and search the history of your AI coding assistants</summary>
+  <developer id="io.github.jhlee0409">
+    <name>JaeHyeok Lee</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <description>
+    <p>
+      Omnilogue (formerly Claude Code History Viewer) reads the conversation history that AI
+      coding assistants keep on your computer and lets you browse, search and analyze it in one
+      place. Everything stays on your machine.
+    </p>
+    <p>It reads the local history of:</p>
+    <ul>
+      <li>Claude Code, Codex CLI, Gemini CLI and Antigravity</li>
+      <li>Cursor, Cline, GitHub Copilot and VS Code chat</li>
+      <li>Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI and more</li>
+    </ul>
+    <p>Features:</p>
+    <ul>
+      <li>Full-text search across every session and provider</li>
+      <li>Token usage, cost and activity statistics per session, project and day</li>
+      <li>Recent file edits made by the assistants, with their diffs</li>
+      <li>Session renaming, archiving and export</li>
+    </ul>
+    <p>
+      The assistants keep their history in your home folder and every session points at the
+      project folder it ran in, so this app can read your home folder. It can only write to the
+      assistants' own history folders (to rename or delete sessions), to its own settings, and to
+      your Downloads folder for exports.
+    </p>
+  </description>
+
+  <categories>
+    <category>Development</category>
+  </categories>
+
+  <keywords>
+    <keyword>Claude</keyword>
+    <keyword>Codex</keyword>
+    <keyword>Gemini</keyword>
+    <keyword>Cursor</keyword>
+    <keyword>AI</keyword>
+    <keyword>history</keyword>
+    <keyword>transcript</keyword>
+  </keywords>
+
+  <url type="homepage">https://jhlee0409.github.io/claude-code-history-viewer/</url>
+  <url type="bugtracker">https://github.com/jhlee0409/claude-code-history-viewer/issues</url>
+  <url type="vcs-browser">https://github.com/jhlee0409/claude-code-history-viewer</url>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#9AA0F0</color>
+    <color type="primary" scheme_preference="dark">#26272B</color>
+  </branding>
+
+  <content_rating type="oars-1.1"/>
+
+  <requires>
+    <display_length compare="ge">380</display_length>
+  </requires>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <provides>
+    <binary>omnilogue</binary>
+  </provides>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e</image>
+      <caption>Conversation history</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255</image>
+      <caption>Analytics dashboard</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a</image>
+      <caption>Token statistics</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057</image>
+      <caption>Recent edits</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.32.2" date="2026-10-20">
+      <url type="details">https://github.com/jhlee0409/claude-code-history-viewer/releases/tag/v1.32.2</url>
+    </release>
+  </releases>
+</component>
