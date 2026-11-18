@@ -6,6 +6,7 @@ import { UpdateCheckingNotification } from "./UpdateCheckingNotification";
 import { UpdateErrorNotification } from "./UpdateErrorNotification";
 import { useAppStore } from "@/store/useAppStore";
 import { shouldCheckForUpdates } from "@/utils/updateSettings";
+import { isMainWindow } from "@/utils/platform";
 import { resolveUpdateErrorMessage } from "@/utils/updateError";
 import { useTranslation } from "react-i18next";
 
@@ -106,6 +107,8 @@ export function SimpleUpdateManager({ updater }: SimpleUpdateManagerProps) {
   // Auto check on app start (production only)
   useEffect(() => {
     if (import.meta.env.DEV) return;
+    // One automatic check per app run: the launch window's (issue #656).
+    if (!isMainWindow()) return;
     if (!isSettingsLoaded) return;
     if (hasAutoCheckedRef.current) return;
     if (!shouldRunAutoCheck()) return;

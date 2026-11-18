@@ -844,6 +844,11 @@ fn search_messages_blocking(
         per_file[idx] = Some(matches);
     }
 
+    // Prompts whose transcript is gone (#764), matched as a file's lines are
+    // and filtered with them. They come after the files in walk order.
+    let prompt_matches = super::prompt_history::load(&claude_base)
+        .search(&projects_path, |text| matcher.is_match(text));
+
     // Filter while flattening in walk order, borrowing from the shared match
     // sets: only the final page is cloned out. Ties on timestamp break by
     // walk order, so the selection is deterministic and a scoped walk (an
@@ -853,6 +858,7 @@ fn search_messages_blocking(
         .iter()
         .flatten()
         .flat_map(|matches| matches.iter())
+        .chain(&prompt_matches)
         .filter(|message| search_filters.matches(message))
         .enumerate()
         .collect();

@@ -1,10 +1,13 @@
 /**
  * Settings Slice
  *
- * Handles filter settings and update preferences.
+ * Handles filter settings and update preferences. Saved preferences go
+ * through `saveSetting`, which tells the app's other windows; a change made
+ * in another window arrives through `applySharedSetting` (issue #656).
  */
 
 import { storageAdapter } from "@/services/storage";
+import { saveSetting } from "@/services/settingsSync";
 import { toast } from "sonner";
 import type { UpdateSettings } from "../../types/updateSettings";
 import { DEFAULT_UPDATE_SETTINGS } from "../../types/updateSettings";
@@ -48,6 +51,12 @@ export interface SettingsSliceActions {
   setSessionEntrypointFilter: (filter: SessionEntrypointFilter) => Promise<void>;
   setShowInlineTokenUsage: (show: boolean) => Promise<void>;
   toggleInlineTokenUsage: () => void;
+  /**
+   * Apply preference `key` saved by another window (`settings.json` keys this
+   * store holds): in memory only - that window saved it. Unknown keys and
+   * malformed values change nothing.
+   */
+  applySharedSetting: (key: string, value: unknown) => void;
 }
 
 export type SettingsSlice = SettingsSliceState & SettingsSliceActions;
@@ -120,12 +129,7 @@ export const createSettingsSlice: StateCreator<
     set({ fontScale: normalizedScale });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("fontScale", normalizedScale);
-      await store.save();
+      await saveSetting("fontScale", normalizedScale);
     } catch (error) {
       // Intentionally non-blocking: font scale is already applied in-memory for current session.
       console.warn("Failed to save font scale:", error);
@@ -136,12 +140,7 @@ export const createSettingsSlice: StateCreator<
     set({ highContrast: enabled });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("highContrast", enabled);
-      await store.save();
+      await saveSetting("highContrast", enabled);
     } catch (error) {
       // Intentionally non-blocking: contrast mode is already applied in-memory for current session.
       console.warn("Failed to save high contrast setting:", error);
@@ -197,12 +196,7 @@ export const createSettingsSlice: StateCreator<
     set({ updateSettings: newSettings });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("updateSettings", newSettings);
-      await store.save();
+      await saveSetting("updateSettings", newSettings);
     } catch (error) {
       console.warn("Failed to save update settings:", error);
     }
@@ -227,12 +221,7 @@ export const createSettingsSlice: StateCreator<
     set({ sessionSortOrder: order });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("sessionSortOrder", order);
-      await store.save();
+      await saveSetting("sessionSortOrder", order);
     } catch (error) {
       console.error("Failed to save session sort order:", error);
       toast.error("Failed to save session sort order");
@@ -243,12 +232,7 @@ export const createSettingsSlice: StateCreator<
     set({ sessionEntrypointFilter: filter });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("sessionEntrypointFilter", filter);
-      await store.save();
+      await saveSetting("sessionEntrypointFilter", filter);
     } catch (error) {
       console.error("Failed to save session source filter:", error);
       toast.error("Failed to save session source filter");
@@ -259,12 +243,7 @@ export const createSettingsSlice: StateCreator<
     set({ showInlineTokenUsage: show });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("showInlineTokenUsage", show);
-      await store.save();
+      await saveSetting("showInlineTokenUsage", show);
     } catch (error) {
       // Intentionally non-blocking: the display is already applied in-memory for this session.
       console.warn("Failed to save inline token usage setting:", error);
@@ -273,5 +252,39 @@ export const createSettingsSlice: StateCreator<
 
   toggleInlineTokenUsage: () => {
     void get().setShowInlineTokenUsage(!get().showInlineTokenUsage);
+  },
+
+  applySharedSetting: (key: string, value: unknown) => {
+    switch (key) {
+      case "fontScale":
+        set({ fontScale: normalizeFontScale(value) });
+        return;
+      case "highContrast":
+        set({ highContrast: typeof value === "boolean" ? value : null });
+        return;
+      case "showInlineTokenUsage":
+        set({ showInlineTokenUsage: value === true });
+        return;
+      case "sessionSortOrder":
+        if (value === "newest" || value === "oldest") set({ sessionSortOrder: value });
+        return;
+      case "sessionEntrypointFilter":
+        if (value === "all" || value === "cli" || value === "vscode" || value === "desktop") {
+          set({ sessionEntrypointFilter: value });
+        }
+        return;
+      case "updateSettings":
+        if (value !== null && typeof value === "object") {
+          set({ updateSettings: { ...DEFAULT_UPDATE_SETTINGS, ...(value as Partial<UpdateSettings>) } });
+        }
+        return;
+      case "claudePath":
+        // Another window chose another Claude folder: list its projects here too.
+        if (typeof value === "string" && value !== get().claudePath) {
+          set({ claudePath: value });
+          void get().scanProjects();
+        }
+        return;
+    }
   },
 });

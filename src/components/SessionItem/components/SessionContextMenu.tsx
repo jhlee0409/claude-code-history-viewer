@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  AppWindow,
   Pencil,
   RotateCcw,
   SquareTerminal,
@@ -31,6 +32,8 @@ interface SessionContextMenuProps {
   supportsResumeCommand: boolean;
   supportsSessionDeletion: boolean;
   supportsRevealInFinder: boolean;
+  /** The session is a file whose path can be copied (default: it is). */
+  supportsCopyFilePath?: boolean;
   supportsSessionMove: boolean;
   providerId: string;
   onClose: () => void;
@@ -46,6 +49,8 @@ interface SessionContextMenuProps {
   /** Starred (the sidebar's favourites). Omitted: no favourite item. */
   isFavorite?: boolean;
   onToggleFavorite?: () => void;
+  /** Open the session in a new window (desktop). Omitted: no such item. */
+  onOpenInNewWindow?: () => void;
 }
 
 /**
@@ -72,6 +77,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   supportsResumeCommand,
   supportsSessionDeletion,
   supportsRevealInFinder,
+  supportsCopyFilePath = true,
   supportsSessionMove,
   providerId,
   onClose,
@@ -86,6 +92,7 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
   onDeleteSession,
   isFavorite = false,
   onToggleFavorite,
+  onOpenInNewWindow,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -271,6 +278,13 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
 
         {!readOnly && <div className="my-1 border-t border-border/50" />}
 
+        {onOpenInNewWindow && (
+          <button type="button" role="menuitem" onClick={handleAction(onOpenInNewWindow)} className={menuItemClass}>
+            <AppWindow className="w-3.5 h-3.5" />
+            <span>{t("session.openInNewWindow")}</span>
+          </button>
+        )}
+
         <button type="button" role="menuitem" onClick={handleAction(onCopySessionId)} className={menuItemClass}>
           <Copy className="w-3.5 h-3.5" />
           <span>{t("session.copySessionId", "Copy Session ID")}</span>
@@ -283,10 +297,12 @@ export const SessionContextMenu: React.FC<SessionContextMenuProps> = ({
           </button>
         )}
 
-        <button type="button" role="menuitem" onClick={handleAction(onCopyFilePath)} className={menuItemClass}>
-          <FileText className="w-3.5 h-3.5" />
-          <span>{t("session.copyFilePath", "Copy File Path")}</span>
-        </button>
+        {supportsCopyFilePath && (
+          <button type="button" role="menuitem" onClick={handleAction(onCopyFilePath)} className={menuItemClass}>
+            <FileText className="w-3.5 h-3.5" />
+            <span>{t("session.copyFilePath", "Copy File Path")}</span>
+          </button>
+        )}
 
         {supportsRevealInFinder && (
           <button type="button" role="menuitem" onClick={handleAction(onRevealInFinder)} className={menuItemClass}>

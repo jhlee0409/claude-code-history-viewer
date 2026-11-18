@@ -29,6 +29,7 @@ const getCommandContext = (): CommandContext => ({
         openArchive: vi.fn(),
         openFeedback: vi.fn(),
         checkForUpdates: vi.fn(),
+        newWindow: vi.fn(),
     },
 });
 

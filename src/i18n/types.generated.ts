@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T02:39:39.562Z
- * 총 키 개수: 2444
+ * 생성 시간: 2026-11-18T08:35:12.492Z
+ * 총 키 개수: 2454
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (313개)
+ * common namespace의 번역 키 (316개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -80,6 +80,7 @@ export type CommonKeys =
   | 'common.command.goToTab8'
   | 'common.command.groupHeading'
   | 'common.command.newTab'
+  | 'common.command.newWindow'
   | 'common.command.nextStep'
   | 'common.command.nextTab'
   | 'common.command.openArchive'
@@ -334,6 +335,8 @@ export type CommonKeys =
   | 'common.watcher.startError'
   | 'common.watcher.stopError'
   | 'common.watcher.watching'
+  | 'common.window.openFailed'
+  | 'common.window.projectNotFound'
   | 'copyButton.copied'
   | 'copyButton.copy'
   | 'copyButton.copying'
@@ -576,7 +579,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (331개)
+ * session namespace의 번역 키 (336개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -625,6 +628,7 @@ export type SessionKeys =
   | 'project.listOptions'
   | 'project.main'
   | 'project.notFound'
+  | 'project.openInNewWindow'
   | 'project.pathCopied'
   | 'project.pathUnavailable'
   | 'project.pathUnavailableDescription'
@@ -797,6 +801,7 @@ export type SessionKeys =
   | 'session.item.session'
   | 'session.item.storageType.json'
   | 'session.item.storageType.jsonl'
+  | 'session.item.storageType.prompt_history'
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
@@ -851,6 +856,9 @@ export type SessionKeys =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
+  | 'session.openInNewWindow'
+  | 'session.promptHistory.description'
+  | 'session.promptHistory.label'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
@@ -2229,7 +2237,7 @@ export type RenderersKeys =
   | 'webSearchResultRenderer.results';
 
 /**
- * update namespace의 번역 키 (73개)
+ * update namespace의 번역 키 (75개)
  * 파일: locales/{lang}/update.json
  */
 export type UpdateKeys =
@@ -2241,12 +2249,14 @@ export type UpdateKeys =
   | 'simpleUpdateModal.downloadingShort'
   | 'simpleUpdateModal.errorOccurred'
   | 'simpleUpdateModal.failureGuide'
+  | 'simpleUpdateModal.flatpakHint'
   | 'simpleUpdateModal.hideDetails'
   | 'simpleUpdateModal.important'
   | 'simpleUpdateModal.installing'
   | 'simpleUpdateModal.installingShort'
   | 'simpleUpdateModal.newUpdateAvailable'
   | 'simpleUpdateModal.newVersion'
+  | 'simpleUpdateModal.openReleasePage'
   | 'simpleUpdateModal.releaseName'
   | 'simpleUpdateModal.remindLater'
   | 'simpleUpdateModal.reportIssue'
@@ -3054,6 +3064,7 @@ export type TranslationKey =
   | 'common.command.goToTab8'
   | 'common.command.groupHeading'
   | 'common.command.newTab'
+  | 'common.command.newWindow'
   | 'common.command.nextStep'
   | 'common.command.nextTab'
   | 'common.command.openArchive'
@@ -3308,6 +3319,8 @@ export type TranslationKey =
   | 'common.watcher.startError'
   | 'common.watcher.stopError'
   | 'common.watcher.watching'
+  | 'common.window.openFailed'
+  | 'common.window.projectNotFound'
   | 'contentArray.cacheCreation'
   | 'contentArray.cacheRead'
   | 'contentArray.claudeApiResponse'
@@ -3789,6 +3802,7 @@ export type TranslationKey =
   | 'project.listOptions'
   | 'project.main'
   | 'project.notFound'
+  | 'project.openInNewWindow'
   | 'project.pathCopied'
   | 'project.pathUnavailable'
   | 'project.pathUnavailableDescription'
@@ -4063,6 +4077,7 @@ export type TranslationKey =
   | 'session.item.session'
   | 'session.item.storageType.json'
   | 'session.item.storageType.jsonl'
+  | 'session.item.storageType.prompt_history'
   | 'session.item.storageType.sqlite'
   | 'session.loadMore'
   | 'session.loading'
@@ -4117,6 +4132,9 @@ export type TranslationKey =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
+  | 'session.openInNewWindow'
+  | 'session.promptHistory.description'
+  | 'session.promptHistory.label'
   | 'session.refreshAllConversations'
   | 'session.rename'
   | 'session.renameAction'
@@ -4741,12 +4759,14 @@ export type TranslationKey =
   | 'simpleUpdateModal.downloadingShort'
   | 'simpleUpdateModal.errorOccurred'
   | 'simpleUpdateModal.failureGuide'
+  | 'simpleUpdateModal.flatpakHint'
   | 'simpleUpdateModal.hideDetails'
   | 'simpleUpdateModal.important'
   | 'simpleUpdateModal.installing'
   | 'simpleUpdateModal.installingShort'
   | 'simpleUpdateModal.newUpdateAvailable'
   | 'simpleUpdateModal.newVersion'
+  | 'simpleUpdateModal.openReleasePage'
   | 'simpleUpdateModal.releaseName'
   | 'simpleUpdateModal.remindLater'
   | 'simpleUpdateModal.reportIssue'

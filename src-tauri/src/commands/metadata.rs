@@ -9,7 +9,7 @@ use crate::models::{
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, State};
 
 /// Validate a metadata project key.
@@ -43,6 +43,14 @@ pub(crate) fn validate_project_metadata_key(project_path: &str) -> Result<(), St
     Ok(())
 }
 
+/// The event every desktop window hears after user metadata was saved, with
+/// the whole saved metadata (`USER_METADATA_CHANGED_EVENT` in
+/// `src/services/settingsSync.ts`).
+pub const USER_METADATA_CHANGED_EVENT: &str = "user-metadata-changed";
+
+/// Called with the saved metadata after each save, under the write lock.
+type SaveObserver = Box<dyn Fn(&UserMetadata) + Send + Sync>;
+
 /// Application state for metadata management
 pub struct MetadataState {
     /// Cached metadata with mutex for thread-safe access
@@ -51,6 +59,10 @@ pub struct MetadataState {
     /// writers cannot overwrite each other's changes. Async so it may be held
     /// across `.await`; readers only take the `metadata` lock.
     pub(crate) write_lock: tauri::async_runtime::Mutex<()>,
+    /// Told of every save (the desktop app: announce it to every window).
+    /// Called under `write_lock`, so saves are announced in the order they
+    /// were made. Unset in the `WebUI` server.
+    on_saved: OnceLock<SaveObserver>,
 }
 
 impl Default for MetadataState {
@@ -58,13 +70,25 @@ impl Default for MetadataState {
         Self {
             metadata: Mutex::new(None),
             write_lock: tauri::async_runtime::Mutex::new(()),
+            on_saved: OnceLock::new(),
         }
     }
 }
 
-/// Apply `mutate` to the current metadata, persist it, then update the cache,
-/// all under `write_lock`. Every metadata writer goes through here. The cache
-/// is only replaced once the disk write succeeded.
+impl MetadataState {
+    /// Calls `observer` with the metadata after each save from now on. Set
+    /// once; a second observer is ignored.
+    pub fn observe_saves(&self, observer: impl Fn(&UserMetadata) + Send + Sync + 'static) {
+        if self.on_saved.set(Box::new(observer)).is_err() {
+            log::warn!("metadata: a save observer is already set");
+        }
+    }
+}
+
+/// Apply `mutate` to the current metadata, persist it, then update the cache
+/// and tell the save observer, all under `write_lock`. Every metadata writer
+/// goes through here. The cache is only replaced once the disk write
+/// succeeded.
 pub(crate) async fn mutate_and_save<F>(
     state: &MetadataState,
     mutate: F,
@@ -91,6 +115,9 @@ where
         .metadata
         .lock()
         .map_err(|e| format!("Failed to lock metadata: {e}"))? = Some(saved.clone());
+    if let Some(observer) = state.on_saved.get() {
+        observer(&saved);
+    }
     Ok(saved)
 }
 
@@ -477,6 +504,53 @@ mod tests {
                 .unwrap();
         assert_eq!(raw["sessions"]["s1"]["ref"]["filePath"], "/p/a/s1.jsonl");
         assert_eq!(raw["sessions"]["s1"]["ref"]["provider"], "claude");
+    }
+
+    /// Issue #656: every window hears of each save, in the order the saves
+    /// were made, with what was saved; a failed save announces nothing.
+    #[test]
+    #[serial_test::serial]
+    fn each_save_is_announced_in_order_with_the_saved_metadata() {
+        let home = crate::test_utils::SandboxHome::new();
+        let state = MetadataState::default();
+        let heard = std::sync::Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+        let sink = std::sync::Arc::clone(&heard);
+        state.observe_saves(move |metadata| {
+            let mut ids: Vec<String> = metadata.sessions.keys().cloned().collect();
+            ids.sort();
+            sink.lock().unwrap().push(ids);
+        });
+        for id in ["a", "b"] {
+            let update = SessionMetadata {
+                custom_name: Some(id.to_string()),
+                ..Default::default()
+            };
+            tauri::async_runtime::block_on(update_session_metadata_in(
+                &state,
+                id.to_string(),
+                update,
+            ))
+            .unwrap();
+        }
+        assert_eq!(
+            *heard.lock().unwrap(),
+            vec![
+                vec!["a".to_string()],
+                vec!["a".to_string(), "b".to_string()]
+            ]
+        );
+
+        // The metadata folder is a file: the save fails and nobody hears of it.
+        let folder = home.path().join(".claude-history-viewer");
+        fs::remove_dir_all(&folder).unwrap();
+        fs::write(&folder, b"not a folder").unwrap();
+        let failed = tauri::async_runtime::block_on(update_session_metadata_in(
+            &state,
+            "c".to_string(),
+            SessionMetadata::default(),
+        ));
+        assert!(failed.is_err());
+        assert_eq!(heard.lock().unwrap().len(), 2);
     }
 
     #[test]

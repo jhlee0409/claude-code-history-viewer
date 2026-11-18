@@ -197,4 +197,51 @@ mod tests {
         assert_eq!(auxiliary.usage.as_ref().unwrap().input_tokens, Some(255));
         assert_eq!(auxiliary.cost_usd, Some(0.0003));
     }
+
+    /// Search hits carry the scanned `path` of their own project, so two
+    /// projects whose cwds share a leaf name stay apart.
+    #[test]
+    #[serial]
+    fn search_hits_carry_the_scanned_project_path_of_same_named_projects() {
+        let home = crate::test_utils::SandboxHome::new();
+        let root = home.path().join(".omp").join("agent").join("sessions");
+        for (dir, id, cwd) in [
+            ("-work-client-a-app", "omp-a", "/work/client-a/app"),
+            ("-work-client-b-app", "omp-b", "/work/client-b/app"),
+        ] {
+            let dir = root.join(dir);
+            fs::create_dir_all(&dir).expect("create fixture dir");
+            let data = SESSION
+                .replace("\"omp-1\"", &format!("\"{id}\""))
+                .replace("/Users/ac/dev/omp-fixture", cwd);
+            fs::write(
+                dir.join(format!("2026-06-03T14-57-13-623Z_{id}.jsonl")),
+                data,
+            )
+            .expect("write fixture session");
+        }
+
+        let projects = scan_projects().expect("scan succeeds");
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+        let mut session_project = std::collections::HashMap::new();
+        for project in &projects {
+            for session in load_sessions(&project.path, false).expect("sessions load") {
+                session_project.insert(session.actual_session_id, project.path.clone());
+            }
+        }
+
+        let results = search("hello omp", 50).expect("search succeeds");
+        assert_eq!(results.len(), 2);
+        let mut hit_paths = std::collections::HashSet::new();
+        for hit in &results {
+            let expected = session_project
+                .get(&hit.session_id)
+                .expect("scanned session");
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            hit_paths.insert(expected.clone());
+        }
+        assert_eq!(hit_paths.len(), 2, "both projects have hits");
+    }
 }

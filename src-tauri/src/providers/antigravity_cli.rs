@@ -147,7 +147,7 @@ pub(crate) fn scan_projects_from_root(root: &Path) -> Vec<ClaudeProject> {
         .into_iter()
         .map(|(workspace, acc)| ClaudeProject {
             name: project_name_for_workspace(&workspace),
-            path: format!("{SCHEME}{workspace}"),
+            path: project_path_for_workspace(&workspace),
             actual_path: workspace,
             session_count: acc.session_count,
             message_count: acc.message_count,
@@ -208,7 +208,7 @@ pub(crate) fn project_path_for_conversation(root: &Path, conversation_id: &str) 
         .remove(conversation_id)
         .and_then(|entry| entry.workspace)
         .unwrap_or_else(|| UNKNOWN_WORKSPACE.to_string());
-    format!("{SCHEME}{workspace}")
+    project_path_for_workspace(&workspace)
 }
 
 pub(crate) fn search_from_root(root: &Path, query: &str, limit: usize) -> Vec<ClaudeMessage> {
@@ -217,6 +217,7 @@ pub(crate) fn search_from_root(root: &Path, query: &str, limit: usize) -> Vec<Cl
 
     for session in collect_sessions(root) {
         let project_name = project_name_for_workspace(&session.workspace);
+        let project_path = project_path_for_workspace(&session.workspace);
         for mut message in session.messages {
             let matches = message
                 .content
@@ -224,6 +225,7 @@ pub(crate) fn search_from_root(root: &Path, query: &str, limit: usize) -> Vec<Cl
                 .is_some_and(|content| search_json_value_case_insensitive(content, &query_lower));
             if matches {
                 message.project_name = Some(project_name.clone());
+                message.project_path = Some(project_path.clone());
                 results.push(message);
                 if results.len() >= limit {
                     return results;
@@ -425,6 +427,12 @@ fn project_name_for_workspace(workspace: &str) -> String {
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| workspace.to_string())
+}
+
+/// The opaque project identity (`ClaudeProject.path`) of a workspace, shared
+/// by scan, search and the file watcher so they all name the same project.
+fn project_path_for_workspace(workspace: &str) -> String {
+    format!("{SCHEME}{workspace}")
 }
 
 /// Parse `transcript_full.jsonl` into viewer messages. Best-effort:
@@ -875,5 +883,47 @@ mod tests {
 
         let limited = search_from_root(&root, "e", 2);
         assert_eq!(limited.len(), 2, "limit respected");
+    }
+
+    #[test]
+    fn search_hits_carry_the_scanned_project_path_of_same_named_workspaces() {
+        let temp = TempDir::new().expect("temp dir");
+        let root = cli_root(&temp);
+        write_history(
+            &root,
+            &[
+                r#"{"display": "needle a", "timestamp": 1750500000000, "workspace": "/work/client-a/app", "conversationId": "conv-a"}"#,
+                r#"{"display": "needle b", "timestamp": 1750500100000, "workspace": "/work/client-b/app", "conversationId": "conv-b"}"#,
+            ],
+        );
+        for conversation_id in ["conv-a", "conv-b"] {
+            write_transcript(
+                &root,
+                conversation_id,
+                &[
+                    r#"{"step_index": 0, "source": "USER_EXPLICIT", "type": "USER_INPUT", "status": "DONE", "content": "needle", "created_at": "2026-06-21T10:00:00Z"}"#,
+                ],
+            );
+        }
+
+        let projects = scan_projects_from_root(&root);
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+        let mut session_project = HashMap::new();
+        for project in &projects {
+            for session in load_sessions_from_root(&root, &project.actual_path) {
+                session_project.insert(session.session_id, project.path.clone());
+            }
+        }
+
+        let results = search_from_root(&root, "needle", 10);
+        assert_eq!(results.len(), 2);
+        for hit in &results {
+            let expected = session_project
+                .get(&hit.session_id)
+                .expect("scanned session");
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+        }
     }
 }

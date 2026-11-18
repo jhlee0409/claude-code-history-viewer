@@ -106,6 +106,7 @@ const actions: CommandActions = {
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
     checkForUpdates: vi.fn(),
+    newWindow: vi.fn(),
     newTab: vi.fn(),
     closeTab: vi.fn(),
     cycleTab: vi.fn(),
@@ -592,7 +593,7 @@ describe("⌘K palette: the sidebar filter's scope", () => {
         fireEvent.change(input(), { target: { value: "deploy" } });
         await waitFor(() => expect(searches()).toHaveLength(1));
         expect(searches()[0]?.[1]).toMatchObject({
-            filters: { projects: ["alpha", "beta-login"], sessionIds: ["s1", "s2", "b1"] },
+            filters: { projectPaths: [ALPHA.path, BETA.path], sessionIds: ["s1", "s2", "b1"] },
         });
 
         fireEvent.click(screen.getByRole("button", { name: "globalSearch.scope.all" }));

@@ -45,6 +45,7 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
   supportsResumeCommand,
   supportsSessionDeletion,
   supportsRevealInFinder,
+  supportsCopyFilePath = true,
   supportsSessionMove,
   inputRef,
   ignoreBlurRef,
@@ -252,10 +253,12 @@ export const SessionNameEditor: React.FC<SessionNameEditorProps> = ({
               {t("session.copyResumeCommand", "Copy Resume Command")}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={onCopyFilePath}>
-            <FileText className="w-3.5 h-3.5 mr-2" />
-            {t("session.copyFilePath", "Copy File Path")}
-          </DropdownMenuItem>
+          {supportsCopyFilePath && (
+            <DropdownMenuItem onClick={onCopyFilePath}>
+              <FileText className="w-3.5 h-3.5 mr-2" />
+              {t("session.copyFilePath", "Copy File Path")}
+            </DropdownMenuItem>
+          )}
           {supportsRevealInFinder && (
             <DropdownMenuItem onClick={onRevealInFinder}>
               <FolderOpen className="w-3.5 h-3.5 mr-2" />

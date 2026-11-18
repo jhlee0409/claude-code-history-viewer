@@ -86,6 +86,7 @@ function createUpdater(
       isInstalling: false,
       isRestarting: false,
       requiresManualRestart: false,
+      isFlatpak: false,
       downloadProgress: 0,
       error: null,
       updateInfo: null,

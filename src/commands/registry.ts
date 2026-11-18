@@ -17,6 +17,7 @@
  * decision 6).
  */
 import {
+  AppWindow,
   ArrowLeft,
   ArrowRight,
   ChevronDown,
@@ -89,6 +90,8 @@ export interface CommandActions {
   openArchive: () => unknown;
   openFeedback: () => void;
   checkForUpdates: () => void;
+  /** Open another app window (desktop). */
+  newWindow: () => unknown;
   newTab: () => unknown;
   /** Close tab `id` (in front or not). */
   closeTab: (id: string) => unknown;
@@ -257,6 +260,15 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     target: APP_TARGET,
     available: (ctx) => ctx.runtime === "desktop",
     run: (ctx) => ctx.actions.checkForUpdates(),
+  },
+  "window.new": {
+    icon: AppWindow,
+    // A window of the app's own: the desktop has several, the WebUI is a
+    // browser tab. It opens empty, whatever is in front.
+    target: APP_TARGET,
+    available: (ctx) => ctx.runtime === "desktop",
+    run: (ctx) => ctx.actions.newWindow(),
+    keys: { inFields: true },
   },
   "tab.new": {
     icon: Plus,
