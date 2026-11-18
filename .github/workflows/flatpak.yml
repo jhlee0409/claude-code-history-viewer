@@ -1,0 +1,262 @@
+# Builds the Flatpak bundle (packaging/flatpak/) and, for a release tag,
+# attaches it to the GitHub release.
+#
+# The manifest repackages the Tauri .deb onto the GNOME runtime, so the run
+# builds that .deb first, then the bundle, then installs the bundle on a clean
+# runner and checks it in its sandbox (scripts/ci/flatpak-smoke.sh).
+name: Flatpak
+
+on:
+  push:
+    tags:
+      - "v*"
+  # A change to the packaging is built and smoke-tested before it merges.
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "packaging/flatpak/**"
+      - "scripts/ci/flatpak-smoke.sh"
+      - ".github/workflows/flatpak.yml"
+  # Test run from any branch (the bundle is kept as a workflow artifact), or
+  # rebuild an existing release's bundle by naming its tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to build and attach the bundle to (e.g. v1.33.0). Leave empty to build the selected branch without publishing."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flatpak-${{ inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_ID: io.github.jhlee0409.Omnilogue
+  MANIFEST: packaging/flatpak/io.github.jhlee0409.Omnilogue.yml
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+    steps:
+      - name: resolve ref
+        id: resolve
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="${INPUT_TAG}"
+          fi
+          if [ -n "$TAG" ]; then
+            if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              echo "::error::'$TAG' is not a vX.Y.Z tag"
+              exit 1
+            fi
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" >/dev/null \
+              || { echo "::error::tag ${TAG} does not exist on the remote"; exit 1; }
+            echo "ref=refs/tags/$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+          fi
+          echo "release_tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  validate:
+    needs: resolve
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+      - name: install validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends appstream desktop-file-utils
+      - name: validate AppStream metainfo
+        run: appstreamcli validate --no-net --explain "packaging/flatpak/${APP_ID}.metainfo.xml"
+      - name: validate desktop entry
+        run: desktop-file-validate "packaging/flatpak/${APP_ID}.desktop"
+
+  deb:
+    needs: resolve
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+
+      - name: read version
+        id: version
+        run: echo "version=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+
+      - name: install just
+        uses: extractions/setup-just@v2
+
+      - name: install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache Rust dependencies
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+          add-rust-environment-hash-key: 'false'
+          key: ${{ hashFiles('src-tauri/Cargo.toml', 'src-tauri/.cargo/config.toml') }}
+          cache-workspace-crates: 'true'
+          cache-on-failure: 'true'
+
+      - name: install frontend dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      # Only the .deb: the manifest takes the binary from it. Updater
+      # artifacts need the signing key, and the Flatpak does not use them.
+      - name: build .deb
+        run: pnpm tauri build --bundles deb --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      - name: collect .deb
+        run: |
+          set -euo pipefail
+          DEBS=(src-tauri/target/release/bundle/deb/*.deb)
+          [ "${#DEBS[@]}" -eq 1 ] && [ -f "${DEBS[0]}" ] \
+            || { echo "::error::expected one .deb, found: ${DEBS[*]}"; exit 1; }
+          cp "${DEBS[0]}" claude-code-history-viewer.deb
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-input-deb
+          path: claude-code-history-viewer.deb
+          if-no-files-found: error
+          retention-days: 3
+
+  flatpak:
+    needs: [resolve, validate, deb]
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-51
+      options: --privileged
+    outputs:
+      bundle: ${{ steps.names.outputs.bundle }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-input-deb
+          path: packaging/flatpak
+
+      - name: names
+        id: names
+        env:
+          VERSION: ${{ needs.deb.outputs.version }}
+        run: echo "bundle=Claude.Code.History.Viewer_${VERSION}_x86_64.flatpak" >> "$GITHUB_OUTPUT"
+
+      # The committed metainfo lists the last release; a build of a newer
+      # version lists itself too, so the bundle's AppStream data names the
+      # version it holds.
+      - name: stamp the release into the metainfo
+        env:
+          VERSION: ${{ needs.deb.outputs.version }}
+        run: |
+          set -eu
+          METAINFO="packaging/flatpak/${APP_ID}.metainfo.xml"
+          if ! grep -q "<release version=\"${VERSION}\"" "$METAINFO"; then
+            sed -i "s|<releases>|<releases>\n    <release version=\"${VERSION}\" date=\"$(date -u +%F)\"/>|" "$METAINFO"
+          fi
+          grep -A2 "<releases>" "$METAINFO"
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: ${{ env.MANIFEST }}
+          bundle: ${{ steps.names.outputs.bundle }}
+          artifact-name: flatpak-bundle
+          # One module that only unpacks a .deb: nothing worth caching.
+          cache: 'false'
+
+  smoke:
+    needs: flatpak
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: bundle
+
+      - name: install flatpak and the bundle
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            flatpak xdg-desktop-portal xdg-user-dirs xvfb xdotool imagemagick dbus-x11
+          xdg-user-dirs-update
+          flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive bundle/*.flatpak
+
+      - name: smoke test in the sandbox
+        timeout-minutes: 10
+        run: dbus-run-session -- bash scripts/ci/flatpak-smoke.sh flatpak-smoke
+
+      - name: upload smoke results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flatpak-smoke
+          path: flatpak-smoke/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    needs: [resolve, flatpak, smoke]
+    if: needs.resolve.outputs.release_tag != ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak-bundle
+          path: bundle
+
+      # The release workflow creates the (draft) release when the tag is
+      # pushed; wait for it rather than racing it.
+      - name: attach the bundle to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.resolve.outputs.release_tag }}
+          BUNDLE: ${{ needs.flatpak.outputs.bundle }}
+        run: |
+          set -euo pipefail
+          for _ in $(seq 1 30); do
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            echo "release $TAG not found yet; waiting"
+            sleep 20
+          done
+          gh release upload "$TAG" "bundle/$BUNDLE" --repo "$GITHUB_REPOSITORY" --clobber
+          echo "Uploaded $BUNDLE to $TAG"

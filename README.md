@@ -42,7 +42,7 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
 |----------|----------|
 | macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
 | Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.deb`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.rpm`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS):
 
@@ -307,6 +307,17 @@ brew uninstall --cask claude-code-history-viewer
 > brew tap jhlee0409/tap
 > brew install --cask claude-code-history-viewer
 > ```
+
+### Flatpak (Linux)
+
+Each release includes a `.flatpak` bundle. Download it from the [releases page](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest), then:
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+The GNOME runtime it needs is installed from Flathub. The bundle does not update itself: when the app announces a new version, install that release's `.flatpak` the same way. The sandbox can read your home folder, but writes only to the assistants' history folders, the app's own settings and Downloads. See [LINUX_BUILD.md](LINUX_BUILD.md#flatpak) for what that means for renaming, deleting and editing settings.
 
 ## Build from Source
 
