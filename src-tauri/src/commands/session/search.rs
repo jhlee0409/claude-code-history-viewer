@@ -479,7 +479,7 @@ enum DateRangeFilter {
 }
 
 /// Search filters parsed once per request instead of once per message.
-struct SearchFilters<'a> {
+pub(crate) struct SearchFilters<'a> {
     message_type: Option<&'a str>,
     projects: Option<HashSet<&'a str>>,
     project_paths: Option<HashSet<Cow<'a, str>>>,
@@ -491,7 +491,7 @@ struct SearchFilters<'a> {
 }
 
 impl<'a> SearchFilters<'a> {
-    fn parse(filters: &'a serde_json::Value) -> Self {
+    pub(crate) fn parse(filters: &'a serde_json::Value) -> Self {
         let Some(obj) = filters.as_object() else {
             return Self {
                 message_type: None,
@@ -530,35 +530,35 @@ impl<'a> SearchFilters<'a> {
         }
     }
 
-    fn matches(&self, message: &ClaudeMessage) -> bool {
+    pub(crate) fn matches_project(&self, path: Option<&str>, name: Option<&str>) -> bool {
+        // Paths are exact up to `project_path_key`'s platform normalization.
+        if let Some(paths) = &self.project_paths {
+            if !path.is_some_and(|path| paths.contains(project_path_key(path).as_ref())) {
+                return false;
+            }
+        }
+        if let Some(projects) = &self.projects {
+            if !name.is_some_and(|name| projects.contains(name)) {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub(crate) fn matches(&self, message: &ClaudeMessage) -> bool {
+        self.matches_project(
+            message.project_path.as_deref(),
+            message.project_name.as_deref(),
+        ) && self.matches_message(message)
+    }
+
+    /// Message-specific criteria, for callers that already checked the project.
+    pub(crate) fn matches_message(&self, message: &ClaudeMessage) -> bool {
         if let Some(message_type) = self.message_type {
             if message.message_type != message_type {
                 return false;
             }
         }
-
-        // Path filters are exact up to the platform's spelling of a path
-        // (`project_path_key`); the legacy name filter below keeps its old
-        // semantics. A message without a path never matches a path.
-        if let Some(project_paths) = &self.project_paths {
-            if !message
-                .project_path
-                .as_deref()
-                .is_some_and(|path| project_paths.contains(project_path_key(path).as_ref()))
-            {
-                return false;
-            }
-        }
-
-        if let Some(projects) = &self.projects {
-            let Some(project_name) = message.project_name.as_deref() else {
-                return false;
-            };
-            if !projects.contains(project_name) {
-                return false;
-            }
-        }
-
         if let Some(session_ids) = &self.session_ids {
             if !session_ids.contains(message.session_id.as_str()) {
                 return false;

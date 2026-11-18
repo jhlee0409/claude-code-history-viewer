@@ -1,6 +1,8 @@
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, is_symlink, search_json_value_case_insensitive};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -39,59 +41,33 @@ pub fn detect() -> Option<ProviderInfo> {
 /// Scan for all Aider projects
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let mut projects = Vec::new();
-    let mut seen_paths = std::collections::HashSet::new();
 
-    for search_dir in get_search_dirs() {
-        if let Some(files) = find_history_files(&search_dir, 100) {
-            for history_path in files {
-                // Deduplicate across overlapping search directories
-                let canonical = history_path
-                    .canonicalize()
-                    .unwrap_or_else(|_| history_path.clone());
-                if !seen_paths.insert(canonical) {
-                    continue;
-                }
-                let project_dir = history_path.parent().ok_or("Invalid history file path")?;
-
-                let project_name = project_dir
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
-
-                let content = match fs::read_to_string(&history_path) {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
-
-                let sessions = split_sessions(&content);
-                let session_count = sessions.len();
-                let message_count: usize =
-                    sessions.iter().map(|s| count_messages(&s.content)).sum();
-
-                let last_modified = sessions
-                    .last()
-                    .and_then(|s| s.timestamp.clone())
-                    .unwrap_or_default();
-
-                if session_count == 0 {
-                    continue;
-                }
-
-                projects.push(ClaudeProject {
-                    name: project_name,
-                    path: project_path_for(project_dir),
-                    actual_path: project_dir.to_string_lossy().to_string(),
-                    session_count,
-                    message_count,
-                    last_modified,
-                    git_info: None,
-                    provider: Some("aider".to_string()),
-                    storage_type: Some("markdown".to_string()),
-                    custom_directory_label: None,
-                });
-            }
+    for history_path in history_files() {
+        let project_dir = history_path.parent().ok_or("Invalid history file path")?;
+        let content = match fs::read_to_string(&history_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let sessions = split_sessions(&content);
+        if sessions.is_empty() {
+            continue;
         }
+
+        projects.push(ClaudeProject {
+            name: project_name_for(project_dir),
+            path: project_path_for(project_dir),
+            actual_path: project_dir.to_string_lossy().into_owned(),
+            session_count: sessions.len(),
+            message_count: sessions.iter().map(|s| count_messages(&s.content)).sum(),
+            last_modified: sessions
+                .last()
+                .and_then(|s| s.timestamp.clone())
+                .unwrap_or_default(),
+            git_info: None,
+            provider: Some("aider".to_string()),
+            storage_type: Some("markdown".to_string()),
+            custom_directory_label: None,
+        });
     }
 
     Ok(projects)
@@ -121,11 +97,8 @@ pub fn load_sessions(
     let content =
         fs::read_to_string(&history_path).map_err(|e| format!("Failed to read history: {e}"))?;
 
-    let project_name = PathBuf::from(dir)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
+    let project_name = project_name_for(&dir_path);
+    let history_file = history_path.to_string_lossy();
 
     let sessions_data = split_sessions(&content);
     let mut sessions = Vec::with_capacity(sessions_data.len());
@@ -133,11 +106,12 @@ pub fn load_sessions(
     for (index, session) in sessions_data.iter().enumerate().rev() {
         let message_count = count_messages(&session.content);
         let timestamp = session.timestamp.clone().unwrap_or_default();
+        let session_path = session_id_for(&history_file, index);
 
         sessions.push(ClaudeSession {
-            session_id: format!("aider://{}#{}", history_path.to_string_lossy(), index),
+            session_id: session_path.clone(),
             actual_session_id: format!("session-{index}"),
-            file_path: history_path.to_string_lossy().to_string(),
+            file_path: session_path,
             project_name: project_name.clone(),
             message_count,
             first_message_time: timestamp.clone(),
@@ -162,82 +136,117 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let (file_path, session_index) = parse_session_path(session_path)?;
 
     // Validate: must be absolute, must end with the expected filename
-    let path = PathBuf::from(&file_path);
+    let path = Path::new(file_path);
     if !path.is_absolute() {
         return Err("Session path must be absolute".to_string());
     }
-    validate_history_file(&path)?;
+    validate_history_file(path)?;
 
-    let content =
-        fs::read_to_string(&file_path).map_err(|e| format!("Failed to read history: {e}"))?;
+    let content = fs::read_to_string(path).map_err(|e| format!("Failed to read history: {e}"))?;
 
     let sessions = split_sessions(&content);
     let session = sessions
         .get(session_index)
         .ok_or_else(|| format!("Session index {session_index} out of range"))?;
 
-    let base_timestamp = session.timestamp.clone().unwrap_or_default();
-    let session_id = format!("aider-session-{session_index}");
+    let base_timestamp = session.timestamp.as_deref().unwrap_or_default();
+    let session_id = session_id_for(file_path, session_index);
 
     Ok(parse_messages(
         &session.content,
         &session_id,
-        &base_timestamp,
+        base_timestamp,
     ))
 }
 
 /// Search across all Aider sessions
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    Ok(search_with_filters(
+        query,
+        limit,
+        &SearchFilters::parse(&serde_json::Value::Null),
+    ))
+}
+
+pub(crate) fn search_with_filters(
+    query: &str,
+    limit: usize,
+    filters: &SearchFilters<'_>,
+) -> Vec<ClaudeMessage> {
+    if limit == 0 {
+        return Vec::new();
+    }
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
-    for search_dir in get_search_dirs() {
-        if let Some(files) = find_history_files(&search_dir, 100) {
-            for history_path in files {
-                let content = match fs::read_to_string(&history_path) {
-                    Ok(c) => c,
-                    Err(_) => continue,
-                };
+    for history_path in history_files() {
+        let Some(project_dir) = history_path.parent() else {
+            continue;
+        };
+        let project_name = project_name_for(project_dir);
+        let project_path = project_path_for(project_dir);
+        if !filters.matches_project(Some(&project_path), Some(&project_name)) {
+            continue;
+        }
+        let content = match fs::read_to_string(&history_path) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        let file_path = history_path.to_string_lossy();
 
-                let project_dir = history_path.parent().unwrap_or_else(|| Path::new(""));
-                let project_name = project_dir
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .to_string();
-                let project_path = project_path_for(project_dir);
+        for (index, session) in split_sessions(&content).iter().enumerate() {
+            let base_ts = session.timestamp.as_deref().unwrap_or_default();
+            let session_id = session_id_for(&file_path, index);
 
-                for (index, session) in split_sessions(&content).iter().enumerate() {
-                    let base_ts = session.timestamp.clone().unwrap_or_default();
-                    let session_id = format!("aider-session-{index}");
-
-                    for mut msg in parse_messages(&session.content, &session_id, &base_ts) {
-                        if let Some(ref c) = msg.content {
-                            if search_json_value_case_insensitive(c, &query_lower) {
-                                msg.project_name = Some(project_name.clone());
-                                msg.project_path = Some(project_path.clone());
-                                results.push(msg);
-                                if results.len() >= limit {
-                                    return Ok(results);
-                                }
-                            }
-                        }
+            for mut msg in parse_messages(&session.content, &session_id, base_ts) {
+                if !filters.matches_message(&msg) {
+                    continue;
+                }
+                if msg.content.as_ref().is_some_and(|content| {
+                    search_json_value_case_insensitive(content, &query_lower)
+                }) {
+                    msg.project_name = Some(project_name.clone());
+                    msg.project_path = Some(project_path.clone());
+                    results.push(msg);
+                    if results.len() >= limit {
+                        return results;
                     }
                 }
             }
         }
     }
 
-    Ok(results)
+    results
 }
 
 // ============================================================================
 // Private helpers
 // ============================================================================
 
+fn project_name_for(project_dir: &Path) -> String {
+    project_dir
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Opaque project identity shared by `scan_projects` and `search`.
 fn project_path_for(project_dir: &Path) -> String {
     format!("aider://{}", project_dir.to_string_lossy())
+}
+
+fn session_id_for(history_path: &str, index: usize) -> String {
+    format!("aider://{history_path}#{index}")
+}
+
+/// Visit each discovered history only once, even when search roots overlap.
+fn history_files() -> impl Iterator<Item = PathBuf> {
+    let mut seen = HashSet::new();
+    get_search_dirs()
+        .into_iter()
+        .flat_map(|dir| find_history_files(&dir, 100))
+        .filter(move |path| seen.insert(path.canonicalize().unwrap_or_else(|_| path.clone())))
 }
 
 fn get_search_dirs() -> Vec<PathBuf> {
@@ -305,14 +314,10 @@ fn validate_history_file(path: &Path) -> Result<(), String> {
     }
 }
 
-fn find_history_files(dir: &Path, max: usize) -> Option<Vec<PathBuf>> {
+fn find_history_files(dir: &Path, max: usize) -> Vec<PathBuf> {
     let mut files = Vec::new();
     find_history_recursive(dir, &mut files, max, 0, MAX_SCAN_DEPTH);
-    if files.is_empty() {
-        None
-    } else {
-        Some(files)
-    }
+    files
 }
 
 fn find_history_recursive(
@@ -529,7 +534,7 @@ fn parse_messages(content: &str, session_id: &str, base_timestamp: &str) -> Vec<
     messages
 }
 
-fn parse_session_path(session_path: &str) -> Result<(String, usize), String> {
+fn parse_session_path(session_path: &str) -> Result<(&str, usize), String> {
     let path = session_path
         .strip_prefix("aider://")
         .unwrap_or(session_path);
@@ -542,7 +547,7 @@ fn parse_session_path(session_path: &str) -> Result<(String, usize), String> {
         .parse()
         .map_err(|_| format!("Invalid session index: {index_str}"))?;
 
-    Ok((file_path.to_string(), index))
+    Ok((file_path, index))
 }
 
 // ============================================================================

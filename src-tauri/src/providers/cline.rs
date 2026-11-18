@@ -1,4 +1,5 @@
 use super::cline_sdk;
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
@@ -82,7 +83,7 @@ fn scan_base_path(base_path: &Path, label: &str, report: &ScanReport) -> Vec<Cla
     // Group tasks by cwd
     let mut by_cwd: HashMap<String, Vec<&Value>> = HashMap::new();
     for item in &task_history {
-        let cwd = task_cwd(item).unwrap_or(UNKNOWN_CWD);
+        let cwd = task_project_cwd(item);
         by_cwd.entry(cwd.to_string()).or_default().push(item);
     }
 
@@ -106,7 +107,7 @@ fn scan_base_path(base_path: &Path, label: &str, report: &ScanReport) -> Vec<Cla
 
         projects.push(ClaudeProject {
             name: project_name,
-            path: extension_project_path(base_path, cwd),
+            path: extension_path(base_path, cwd),
             actual_path: cwd.clone(),
             session_count,
             message_count,
@@ -143,15 +144,11 @@ pub(crate) fn load_sessions_reporting(
     require_discovered_base(&base_path)?;
     let task_history = load_task_history(&base_path, report);
 
-    let project_name = PathBuf::from(&target_cwd)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
+    let project_name = extension_project_name(&target_cwd);
 
     let mut sessions: Vec<ClaudeSession> = task_history
         .iter()
-        .filter(|item| task_cwd(item).unwrap_or("") == target_cwd)
+        .filter(|item| task_project_cwd(item) == target_cwd)
         .filter_map(|item| {
             let id = item.get("id").and_then(Value::as_str)?;
             let ts = item.get("ts").and_then(Value::as_f64).unwrap_or(0.0) as u64;
@@ -162,7 +159,7 @@ pub(crate) fn load_sessions_reporting(
                 .to_string();
             let label = task_label(item);
 
-            let ui_messages_path = base_path.join("tasks").join(id).join("ui_messages.json");
+            let ui_messages_path = task_messages_path(&base_path, id);
             // Use token counts as a proxy for message count to avoid reading full JSON
             let tokens_in = item.get("tokensIn").and_then(Value::as_u64).unwrap_or(0);
             let tokens_out = item.get("tokensOut").and_then(Value::as_u64).unwrap_or(0);
@@ -175,7 +172,7 @@ pub(crate) fn load_sessions_reporting(
             let timestamp = ms_to_iso(ts);
 
             Some(ClaudeSession {
-                session_id: format!("cline://{}:{}", base_path.to_string_lossy(), id),
+                session_id: extension_path(&base_path, id),
                 actual_session_id: id.to_string(),
                 file_path: ui_messages_path.to_string_lossy().to_string(),
                 project_name: project_name.clone(),
@@ -221,12 +218,7 @@ pub fn project_name_for_session(session_path: &str) -> Option<String> {
         SessionRef::Task { base, id } => load_task_history(&base, &ScanReport::default())
             .iter()
             .find(|item| item.get("id").and_then(Value::as_str) == Some(id.as_str()))
-            .and_then(task_cwd)
-            .and_then(|cwd| {
-                PathBuf::from(cwd)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-            }),
+            .map(|item| extension_project_name(task_project_cwd(item))),
     }
 }
 
@@ -310,10 +302,7 @@ fn resolve_listed_file(file: &Path) -> Result<SessionRef, String> {
 
 /// Messages of one task of an extension directory.
 fn load_task_messages(base_path: &Path, task_id: &str) -> Result<Vec<ClaudeMessage>, String> {
-    let ui_path = base_path
-        .join("tasks")
-        .join(task_id)
-        .join("ui_messages.json");
+    let ui_path = task_messages_path(base_path, task_id);
     if !ui_path.is_file() {
         return Err(format!("UI messages file not found for task {task_id}"));
     }
@@ -337,6 +326,21 @@ fn load_task_messages(base_path: &Path, task_id: &str) -> Result<Vec<ClaudeMessa
 
 /// Search across all Cline tasks
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    Ok(search_with_filters(
+        query,
+        limit,
+        &SearchFilters::parse(&Value::Null),
+    ))
+}
+
+pub(crate) fn search_with_filters(
+    query: &str,
+    limit: usize,
+    filters: &SearchFilters<'_>,
+) -> Vec<ClaudeMessage> {
+    if limit == 0 {
+        return Vec::new();
+    }
     let query_lower = query.to_lowercase();
     let mut results = Vec::new();
 
@@ -349,12 +353,14 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 None => continue,
             };
 
-            // Same cwd fallback, name and path as `scan_base_path`.
-            let cwd = task_cwd(item).unwrap_or(UNKNOWN_CWD);
+            let cwd = task_project_cwd(item);
             let project_name = extension_project_name(cwd);
-            let project_path = extension_project_path(&base_path, cwd);
+            let project_path = extension_path(&base_path, cwd);
+            if !filters.matches_project(Some(&project_path), Some(&project_name)) {
+                continue;
+            }
 
-            let ui_path = base_path.join("tasks").join(id).join("ui_messages.json");
+            let ui_path = task_messages_path(&base_path, id);
             let data = match fs::read_to_string(&ui_path) {
                 Ok(d) => d,
                 Err(_) => continue,
@@ -367,13 +373,16 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             let mut counter = 0u64;
             for msg in &ui_messages {
                 if let Some(mut claude_msg) = convert_cline_message(msg, id, &mut counter) {
+                    if !filters.matches_message(&claude_msg) {
+                        continue;
+                    }
                     if let Some(ref c) = claude_msg.content {
                         if search_json_value_case_insensitive(c, &query_lower) {
                             claude_msg.project_name = Some(project_name.clone());
                             claude_msg.project_path = Some(project_path.clone());
                             results.push(claude_msg);
                             if results.len() >= limit {
-                                return Ok(results);
+                                return results;
                             }
                         }
                     }
@@ -383,10 +392,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     if let Some(root) = cline_sdk::sessions_dir() {
-        cline_sdk::search_in(&root, &query_lower, limit, &mut results);
+        cline_sdk::search_in(&root, &query_lower, limit, filters, &mut results);
     }
 
-    Ok(results)
+    results
 }
 
 // ============================================================================
@@ -396,18 +405,25 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 /// Project bucket for extension tasks that record no working directory.
 const UNKNOWN_CWD: &str = "unknown";
 
-/// Display name of an extension project, shared by scan and search.
+/// Display name of an extension task's project.
 fn extension_project_name(cwd: &str) -> String {
-    PathBuf::from(cwd)
+    Path::new(cwd)
         .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .to_string()
 }
 
-/// Opaque identity of an extension project, shared by scan and search.
-fn extension_project_path(base_path: &Path, cwd: &str) -> String {
-    format!("cline://{}:{}", base_path.to_string_lossy(), cwd)
+/// Opaque path for a project (cwd) or a session (task id) in this store.
+fn extension_path(base_path: &Path, cwd_or_id: &str) -> String {
+    format!("cline://{}:{cwd_or_id}", base_path.to_string_lossy())
+}
+
+fn task_messages_path(base_path: &Path, task_id: &str) -> PathBuf {
+    base_path
+        .join("tasks")
+        .join(task_id)
+        .join("ui_messages.json")
 }
 
 /// Editor user-data roots holding `<editor>/User/globalStorage`.
@@ -482,6 +498,10 @@ fn task_cwd(item: &Value) -> Option<&str> {
     item.get("cwdOnTaskInitialization")
         .and_then(Value::as_str)
         .or_else(|| item.get("workspace").and_then(Value::as_str))
+}
+
+fn task_project_cwd(item: &Value) -> &str {
+    task_cwd(item).unwrap_or(UNKNOWN_CWD)
 }
 
 /// A short model/profile label for a task, used as the session summary when the
