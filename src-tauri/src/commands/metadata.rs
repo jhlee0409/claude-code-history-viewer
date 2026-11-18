@@ -3,12 +3,14 @@
 //! This module provides commands for loading, saving, and updating
 //! user metadata stored in ~/.claude-history-viewer/user-data.json
 
-use crate::models::{ProjectMetadata, SessionMetadata, UserMetadata, UserSettings};
+use crate::models::{
+    CustomClaudePath, ProjectMetadata, SessionMetadata, UserMetadata, UserSettings,
+};
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 /// Validate a metadata project key.
 ///
@@ -103,6 +105,27 @@ pub(crate) fn get_user_data_path() -> Result<PathBuf, String> {
     Ok(get_metadata_folder()?.join("user-data.json"))
 }
 
+/// The `path` of each custom Claude directory in the `user-data.json` at
+/// `user_data`; none when the file is missing or unreadable. Read leniently
+/// (any entry with a string `path`), as the file may be from another version.
+pub(crate) fn custom_claude_dirs_in(user_data: &Path) -> Vec<String> {
+    let Ok(content) = fs::read_to_string(user_data) else {
+        return Vec::new();
+    };
+    let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return Vec::new();
+    };
+    metadata
+        .get("settings")
+        .and_then(|s| s.get("customClaudePaths"))
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("path").and_then(|p| p.as_str()))
+        .map(str::to_string)
+        .collect()
+}
+
 /// Ensure the metadata folder exists
 fn ensure_metadata_folder() -> Result<PathBuf, String> {
     let folder = get_metadata_folder()?;
@@ -181,11 +204,37 @@ pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), Strin
 /// Save user metadata to disk with atomic write
 #[tauri::command]
 pub async fn save_user_metadata(
+    app_handle: AppHandle,
     metadata: UserMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<(), String> {
-    mutate_and_save(state.inner(), move |m| *m = metadata).await?;
+    let before = cached_custom_paths(state.inner());
+    let saved = mutate_and_save(state.inner(), move |m| *m = metadata).await?;
+    refresh_file_watcher(app_handle, before, &saved).await;
     Ok(())
+}
+
+/// The custom Claude directories in the metadata cache.
+fn cached_custom_paths(state: &MetadataState) -> Option<Vec<CustomClaudePath>> {
+    let cached = state.metadata.lock().ok()?;
+    cached
+        .as_ref()
+        .map(|metadata| metadata.settings.custom_claude_paths.clone())
+}
+
+/// Bring the shared desktop file watcher up to date when a save changed the
+/// custom Claude directories (`before` → `saved`).
+async fn refresh_file_watcher(
+    app_handle: AppHandle,
+    before: Option<Vec<CustomClaudePath>>,
+    saved: &UserMetadata,
+) {
+    if before.as_ref() == Some(&saved.settings.custom_claude_paths) {
+        return;
+    }
+    if let Err(error) = super::watcher::sync_desktop_watcher_async(app_handle).await {
+        log::error!("File watcher not updated: {error}");
+    }
 }
 
 /// Update metadata for a specific session
@@ -236,10 +285,15 @@ pub async fn update_project_metadata(
 /// Update global user settings
 #[tauri::command]
 pub async fn update_user_settings(
+    app_handle: AppHandle,
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    mutate_and_save(state.inner(), move |metadata| metadata.settings = settings).await
+    let before = cached_custom_paths(state.inner());
+    let saved =
+        mutate_and_save(state.inner(), move |metadata| metadata.settings = settings).await?;
+    refresh_file_watcher(app_handle, before, &saved).await;
+    Ok(saved)
 }
 
 /// Check if a project should be hidden based on metadata

@@ -79,7 +79,7 @@ use crate::commands::{
         delete_unified_preset, get_unified_preset, load_unified_presets, save_unified_preset,
     },
     update::force_quit_and_relaunch,
-    watcher::{start_file_watcher, stop_file_watcher},
+    watcher::{self, start_file_watcher, stop_file_watcher},
     wsl::{detect_wsl_distros, is_wsl_available},
 };
 
@@ -137,7 +137,6 @@ fn run_tauri() {
         std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
     }
 
-    use std::sync::{Arc, Mutex};
     use tauri::{Emitter, Manager};
 
     // Parse CLI args for a session preload hint (e.g. `--session <uuid>`).
@@ -199,6 +198,12 @@ fn run_tauri() {
                 log::error!("native menu not installed: {error}");
             }
             window_state::restore_and_track(app.handle());
+            // One file watcher for every window (live refresh). Priming walks
+            // the watched trees, so it starts off the main thread.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                watcher::sync_desktop_watcher(&handle);
+            });
             Ok(())
         })
         // Every menu event is journaled (numbered, kept until acknowledged):
@@ -209,10 +214,7 @@ fn run_tauri() {
     builder
         .manage(MetadataState::default())
         .manage(startup_session_hint)
-        .manage(Arc::new(Mutex::new(None))
-            as Arc<
-                Mutex<Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>>>,
-            >)
+        .manage(watcher::WatcherState::default())
         .invoke_handler(tauri::generate_handler![
             crate::cli::get_startup_session_hint,
             get_claude_folder_path,
@@ -326,6 +328,9 @@ fn run_tauri() {
         .expect("error while building tauri application")
         .run(|app, event| {
             window_state::on_run_event(app, &event);
+            if let tauri::RunEvent::Exit = event {
+                app.state::<watcher::WatcherState>().stop();
+            }
             // macOS-only: Spotlight / Dock / Finder launches don't re-exec
             // argv, so `tauri-plugin-single-instance` cannot see them. The OS
             // instead delivers the target as an Apple Event that Tauri
@@ -1004,7 +1009,7 @@ fn write_generated_token_file(token: &str) -> Option<std::path::PathBuf> {
 fn start_server_file_watcher(
     state: &std::sync::Arc<server::state::AppState>,
 ) -> Option<notify_debouncer_mini::Debouncer<notify::RecommendedWatcher>> {
-    let watch_paths = collect_watch_paths();
+    let watch_paths = crate::commands::watcher::collect_watch_paths();
     if watch_paths.is_empty() {
         eprintln!("⚠ No supported provider directories found; real-time file watcher disabled");
         return None;
@@ -1053,180 +1058,4 @@ fn start_server_file_watcher(
     }
 
     Some(debouncer)
-}
-
-/// A provider's `get_base_path`, used to build the watch-path tables below.
-#[cfg(feature = "webui-server")]
-type BasePathFn = fn() -> Option<String>;
-
-/// Collect available provider directories to watch for live session file updates.
-#[cfg(feature = "webui-server")]
-fn collect_watch_paths() -> Vec<std::path::PathBuf> {
-    use std::collections::HashSet;
-    use std::path::PathBuf;
-
-    let mut paths: Vec<PathBuf> = Vec::new();
-
-    if let Some(home) = crate::utils::home_dir() {
-        let claude_projects = home.join(".claude").join("projects");
-        if claude_projects.is_dir() {
-            paths.push(claude_projects);
-        }
-
-        // Load custom Claude paths from user-data.json
-        let user_data_path = home.join(".claude-history-viewer").join("user-data.json");
-        if let Ok(content) = std::fs::read_to_string(&user_data_path) {
-            if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
-                if let Some(custom_paths) = metadata
-                    .get("settings")
-                    .and_then(|s| s.get("customClaudePaths"))
-                    .and_then(|v| v.as_array())
-                {
-                    for entry in custom_paths {
-                        if let Some(path_str) = entry.get("path").and_then(|p| p.as_str()) {
-                            let custom_base = PathBuf::from(path_str);
-                            if let Ok(canonical_projects) =
-                                crate::utils::validate_custom_claude_path(&custom_base)
-                            {
-                                paths.push(canonical_projects);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Kimi Code (the `~/.kimi-code` rewrite) sessions. Symlinked sessions
-    // roots are not registered — `is_dir()` follows symlinks, and watching
-    // through one would observe directories outside the store.
-    if let Some(kimi_code_root) = providers::kimi_code::default_root() {
-        let sessions = kimi_code_root.join("sessions");
-        let is_real_dir = std::fs::symlink_metadata(&sessions)
-            .map(|meta| meta.file_type().is_dir())
-            .unwrap_or(false);
-        if is_real_dir {
-            paths.push(sessions);
-        }
-    }
-
-    if let Some(opencode_base) = providers::opencode::get_base_path() {
-        let base = PathBuf::from(&opencode_base);
-        let storage = base.join("storage");
-        let session = storage.join("session");
-        let message = storage.join("message");
-        if session.is_dir() {
-            paths.push(session);
-        }
-        if message.is_dir() {
-            paths.push(message);
-        }
-        // Watch opencode.db for SQLite-based storage changes
-        let db_path = base.join("opencode.db");
-        if db_path.is_file() {
-            paths.push(base);
-        }
-    }
-
-    // Kilo Code keeps its OpenCode-core sessions in kilo.db (no file-backed
-    // session/message storage dirs), so watching the store root covers it.
-    // Symlinked roots/databases are not registered — `is_file()` follows
-    // symlinks, and watching through one would observe paths outside the
-    // store (same hardening as the Kimi Code block above).
-    if let Some(kilo_base) = providers::kilo::get_base_path() {
-        let base = PathBuf::from(&kilo_base);
-        let is_real = |path: &std::path::Path, check: fn(&std::fs::FileType) -> bool| {
-            std::fs::symlink_metadata(path)
-                .map(|meta| check(&meta.file_type()))
-                .unwrap_or(false)
-        };
-        if is_real(&base, std::fs::FileType::is_dir)
-            && is_real(
-                &base.join(providers::kilo::DB_FILE),
-                std::fs::FileType::is_file,
-            )
-        {
-            paths.push(base);
-        }
-    }
-
-    // Providers whose base path is itself the directory to watch. For Pi and
-    // oh-my-pi, get_base_path() is already the sessions root.
-    let flat_bases: [BasePathFn; 14] = [
-        providers::pi::get_base_path,
-        providers::ompi::get_base_path,
-        providers::codebuddy::get_base_path,
-        providers::cursor_agent::get_base_path,
-        providers::continue_dev::get_base_path,
-        providers::pearai::get_base_path,
-        providers::goose::get_base_path,
-        providers::llm::get_base_path,
-        providers::amazon_q::get_base_path,
-        providers::qwen::get_base_path,
-        providers::zcode::get_base_path,
-        providers::zed::get_base_path,
-        providers::openhands::get_base_path,
-        providers::trae::get_base_path,
-    ];
-    paths.extend(
-        flat_bases
-            .iter()
-            .filter_map(|base| base())
-            .map(PathBuf::from)
-            .filter(|dir| dir.is_dir()),
-    );
-
-    // Providers that keep sessions in sub-directories of their base path.
-    let nested_bases: [(BasePathFn, &[&str]); 5] = [
-        (
-            providers::codex::get_base_path,
-            &["sessions", "archived_sessions"],
-        ),
-        (providers::kimi::get_base_path, &["sessions"]),
-        (
-            providers::openinterpreter::get_base_path,
-            &["sessions", "archived_sessions"],
-        ),
-        (providers::vibe::get_base_path, &["logs/session"]),
-        (providers::copilot_cli::get_base_path, &["session-state"]),
-    ];
-    for (get_base, subs) in nested_bases {
-        if let Some(base) = get_base() {
-            paths.extend(
-                subs.iter()
-                    .map(|sub| PathBuf::from(&base).join(sub))
-                    .filter(|dir| dir.is_dir()),
-            );
-        }
-    }
-
-    for vscode_base in providers::vscode::get_base_paths() {
-        let ws_storage = vscode_base.join("workspaceStorage");
-        if ws_storage.is_dir() {
-            paths.push(ws_storage);
-        }
-    }
-
-    // The whole desktop store, not just `brain/` and `conversations/`:
-    // `conversation_summaries.db` lives at its root, the rpc-cache under
-    // `.token-monitor/`, and a sub-directory created after startup is covered
-    // too. Files outside the session layout are filtered by the extractor.
-    if let Some(ag_root) = commands::antigravity::resolve_antigravity_root() {
-        if std::fs::symlink_metadata(&ag_root).is_ok_and(|m| m.file_type().is_dir()) {
-            paths.push(ag_root);
-        }
-    }
-
-    // The CLI store root, so a `brain/` created after startup is covered.
-    if let Some(ag_cli_root) = providers::antigravity_cli::default_root() {
-        if std::fs::symlink_metadata(&ag_cli_root).is_ok_and(|m| m.file_type().is_dir()) {
-            paths.push(ag_cli_root);
-        }
-    }
-
-    let mut seen = HashSet::new();
-    paths
-        .into_iter()
-        .filter(|p| seen.insert(p.clone()))
-        .collect::<Vec<_>>()
 }
