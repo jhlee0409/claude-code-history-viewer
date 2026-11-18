@@ -1,7 +1,7 @@
 import type { ProviderId } from "../types";
 import { isWindows } from "./platform";
 
-export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
+export const PROVIDER_IDS: ProviderId[] = ["aider", "amazonq", "antigravity", "claude", "cline", "codebuddy", "codex", "continue", "copilot", "crush", "cursor", "cursor-acp", "cursor-agent", "forgecode", "gemini", "goose", "grok", "hermes", "kilo", "kimi", "kiro", "llm", "ompi", "opencode", "openhands", "openinterpreter", "pearai", "pi", "qwen", "trae", "vibe", "zcode", "zed"];
 export const DEFAULT_PROVIDER_ID: ProviderId = "claude";
 
 // WSL provider loaders use UNC-backed paths and are not interchangeable with
@@ -29,6 +29,7 @@ const PROVIDER_TRANSLATIONS: Record<
   copilot: { key: "common.provider.copilot", fallback: "Copilot" },
   crush: { key: "common.provider.crush", fallback: "Crush" },
   cursor: { key: "common.provider.cursor", fallback: "Cursor" },
+  "cursor-acp": { key: "common.provider.cursorAcp", fallback: "Cursor ACP" },
   "cursor-agent": { key: "common.provider.cursorAgent", fallback: "Cursor Agent" },
   forgecode: { key: "common.provider.forgecode", fallback: "ForgeCode" },
   gemini: { key: "common.provider.gemini", fallback: "Gemini CLI" },
@@ -143,6 +144,14 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     // `cursor://<id>` rows in Cursor's state.vscdb plus the workspace index
     // entry; the backend refuses while Cursor is running.
     supportsSessionDeletion: true,
+    supportsArchiveCreation: false,
+  },
+  // Read-only: the store belongs to the IDE's ACP bridge.
+  "cursor-acp": {
+    supportsConversationBreakdown: false,
+    supportsNativeRename: false,
+    supportsResumeCommand: false,
+    supportsSessionDeletion: false,
     supportsArchiveCreation: false,
   },
   "cursor-agent": {
@@ -322,6 +331,7 @@ export function getProviderId(provider?: ProviderId | string): ProviderId {
     case "copilot":
     case "crush":
     case "cursor":
+    case "cursor-acp":
     case "cursor-agent":
     case "gemini":
     case "goose":
@@ -576,6 +586,7 @@ export const PROVIDER_BADGE_STYLES: Record<ProviderId, string> = {
   "cline": "bg-provider-cline-surface text-provider-cline",
   "crush": "bg-provider-crush-surface text-provider-crush",
   "cursor": "bg-provider-cursor-surface text-provider-cursor",
+  "cursor-acp": "bg-provider-cursor-acp-surface text-provider-cursor-acp",
   "cursor-agent": "bg-provider-cursor-agent-surface text-provider-cursor-agent",
   "forgecode": "bg-provider-forgecode-surface text-provider-forgecode",
   "gemini": "bg-provider-gemini-surface text-provider-gemini",

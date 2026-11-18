@@ -365,6 +365,8 @@ mod tests {
             "kimi-code://wd_demo/session_1",
             "forgecode-db://workspace/conv-1",
             "zed://thread-7",
+            "cursor-acp://E:\\P4\\testgo#00000000-0000-4000-8000-00000000000a",
+            "cursor-acp:///work/app#00000000-0000-4000-8000-00000000000a",
         ] {
             let res = is_safe_session_path(&std::path::PathBuf::from(uri));
             assert!(res.is_ok(), "provider URI {uri} was rejected: {res:?}");
@@ -381,6 +383,8 @@ mod tests {
         for uri in [
             "opencode://../../etc/passwd",
             "zed://thread/../../../root/.ssh/id_rsa",
+            "cursor-acp:///work/../../etc#00000000-0000-4000-8000-00000000000a",
+            "cursor-acp://E:\\work\\..\\..\\x#id",
         ] {
             let res = is_safe_session_path(&std::path::PathBuf::from(uri));
             assert!(res.is_err(), "traversal inside {uri} was accepted");

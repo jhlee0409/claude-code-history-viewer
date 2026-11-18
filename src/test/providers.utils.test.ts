@@ -61,6 +61,7 @@ describe("providers utils", () => {
       "copilot",
       "crush",
       "cursor",
+      "cursor-acp",
       "cursor-agent",
       "forgecode",
       "gemini",
@@ -115,6 +116,8 @@ describe("providers utils", () => {
   it("enables deletion only for providers whose delete removes the whole session", () => {
     expect(supportsSessionDeletion("cursor")).toBe(true);
     expect(supportsSessionDeletion("cursor-agent")).toBe(true);
+    // Cursor ACP is read-only: its store belongs to the IDE's bridge.
+    expect(supportsSessionDeletion("cursor-acp")).toBe(false);
     // Index files (Continue sessions.json, Cline taskHistory.json), shared
     // history files, and monitor-state regeneration (Antigravity) keep these off.
     for (const provider of ["antigravity", "cline", "continue", "aider", "gemini"] as const) {
