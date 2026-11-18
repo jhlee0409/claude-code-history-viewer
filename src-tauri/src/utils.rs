@@ -68,6 +68,14 @@ pub(crate) fn config_dir() -> Option<PathBuf> {
     home_dir().map(|home| home.join(".config"))
 }
 
+/// Whether this process runs inside a Flatpak sandbox.
+///
+/// Flatpak mounts `/.flatpak-info` into every sandbox; GIO and
+/// xdg-desktop-portal detect the sandbox the same way.
+pub(crate) fn is_flatpak() -> bool {
+    cfg!(target_os = "linux") && Path::new("/.flatpak-info").is_file()
+}
+
 /// Estimated average bytes per JSONL line (used for capacity pre-allocation)
 /// Based on typical Claude message sizes (800-1200 bytes average)
 const ESTIMATED_BYTES_PER_LINE: usize = 500;

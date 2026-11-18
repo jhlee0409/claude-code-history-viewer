@@ -643,10 +643,21 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 /// writes happen in one transaction across the global and workspace databases,
 /// and deletes are serialized so two concurrent requests cannot interleave
 /// their index read-modify-write.
+///
+/// Refused inside the Flatpak sandbox: it runs in its own process namespace,
+/// so `pgrep` cannot see a host Cursor and would report it closed, and the
+/// Flatpak grants Cursor's database read-only for that reason.
 pub fn delete_session(session_path: &str) -> Result<(), String> {
+    if crate::utils::is_flatpak() {
+        return Err(FLATPAK_DELETE_REFUSAL.to_string());
+    }
     let base = get_base_path().ok_or("Cursor not found")?;
     delete_session_in(&base, session_path, cursor_is_running)
 }
+
+const FLATPAK_DELETE_REFUSAL: &str = "Cursor conversations can't be deleted from the Flatpak \
+     version: the sandbox can't tell whether Cursor is running, so Cursor's data is read-only \
+     here. Delete the conversation in Cursor, or use the .deb, .rpm or AppImage version.";
 
 static DELETE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

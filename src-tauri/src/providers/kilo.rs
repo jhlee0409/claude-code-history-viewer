@@ -14,7 +14,7 @@
 //! so the two readers do not double-report the same conversations.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
-use crate::providers::opencode::{self, ChildSession};
+use crate::providers::opencode::{self, ChildSession, SessionTree};
 use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use std::path::{Path, PathBuf};
@@ -241,7 +241,38 @@ pub fn load_subagent_messages(session_path: &str) -> Vec<ClaudeMessage> {
 
 /// [`load_subagent_messages`] against an explicit store root.
 pub fn load_subagent_messages_at(base_path: &str, session_path: &str) -> Vec<ClaudeMessage> {
-    opencode::load_subagent_messages_at(base_path, DB_FILE, &to_store_scheme(session_path))
+    rebrand_messages(opencode::load_subagent_messages_at(
+        base_path,
+        DB_FILE,
+        &to_store_scheme(session_path),
+    ))
+}
+
+/// How a Kilo project's sessions nest (`kilo://<project_id>`), read from
+/// `kilo.db` like the `OpenCode` reader's (#577).
+pub fn load_session_tree(project_path: &str) -> SessionTree {
+    let Some(base_path) = get_base_path() else {
+        return SessionTree::default();
+    };
+    opencode::load_session_tree_at(&base_path, DB_FILE, &to_store_scheme(project_path))
+}
+
+/// [`load_subagent_messages`] with the project's [`SessionTree`] already
+/// loaded.
+pub fn load_tree_subagent_messages(tree: &SessionTree, session_path: &str) -> Vec<ClaudeMessage> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    rebrand_messages(opencode::load_tree_subagent_messages_at(
+        &base_path,
+        DB_FILE,
+        tree,
+        &to_store_scheme(session_path),
+    ))
+}
+
+fn rebrand_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
+    messages
         .into_iter()
         .map(|mut message| {
             message.provider = Some(PROVIDER_ID.to_string());
@@ -344,6 +375,38 @@ pub(crate) mod test_support {
              VALUES ('prt_002', 'msg_002', 'ses_001', 1700000020000, 1700000020000,
                      '{\"type\":\"text\",\"text\":\"Hi from the Kilo assistant\"}')",
             [],
+        )
+        .unwrap();
+    }
+
+    /// Add a session `id` in `proj1` whose `parent_id` is `parent` (a
+    /// subagent run), with one assistant reply carrying token usage.
+    pub(crate) fn seed_subagent_run(
+        conn: &rusqlite::Connection,
+        id: &str,
+        parent: &str,
+        input: u32,
+        output: u32,
+    ) {
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated,
+                                  parent_id)
+             VALUES (?1, 'proj1', ?1, '/tmp/kilo-project', 1700000200000, 1700000200000, ?2)",
+            rusqlite::params![id, parent],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data)
+             VALUES (?1, ?2, 1700000210000, 1700000210000, ?3)",
+            rusqlite::params![
+                format!("msg_{id}"),
+                id,
+                format!(
+                    "{{\"role\":\"assistant\",\"modelID\":\"kilo-test-model\",\
+                     \"time\":{{\"created\":1700000210000}},\
+                     \"tokens\":{{\"input\":{input},\"output\":{output}}}}}"
+                )
+            ],
         )
         .unwrap();
     }

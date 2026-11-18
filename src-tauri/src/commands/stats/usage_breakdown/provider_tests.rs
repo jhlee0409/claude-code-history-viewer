@@ -546,3 +546,156 @@ async fn interval_and_session_counts_cover_rows_without_usage() {
         .unwrap()
         .ends_with("s1.jsonl"));
 }
+
+/// #577: `OpenCode` and Kilo list a subagent run as a session of its own
+/// (`session.parent_id`). Every stats view counts it once, under the
+/// top-level session that spawned it, as that session's sidechain, so
+/// global == project == the sum of the sessions in both modes. A run whose
+/// parent is gone stays a session of its own.
+#[tokio::test]
+#[serial]
+async fn opencode_core_subagent_runs_roll_up_into_their_session_everywhere() {
+    use crate::commands::stats::get_session_comparison;
+    use crate::providers::kilo::test_support as store;
+
+    for (provider, home_var, db_file) in [
+        ("kilo", "KILO_HOME", "kilo.db"),
+        ("opencode", "OPENCODE_HOME", "opencode.db"),
+    ] {
+        let home = SandboxHome::new();
+        let store_root = home.path().join(provider);
+        fs::create_dir_all(&store_root).unwrap();
+        {
+            let conn = store::create_db(&store_root.join(db_file));
+            store::seed(&conn);
+            store::seed_assistant_usage(&conn, 100, 50); // ses_001: 150
+            store::seed_subagent_run(&conn, "ses_child", "ses_001", 7, 3); // 10
+            store::seed_subagent_run(&conn, "ses_grandchild", "ses_child", 2, 1); // 3
+            store::seed_subagent_run(&conn, "ses_orphan", "ses_gone", 5, 5); // 10
+        }
+        let _store = EnvGuard::set(home_var, &store_root);
+        let project_path = format!("{provider}://proj1");
+        let session_path = format!("{provider}://proj1/ses_001");
+
+        for (mode, root_tokens, project_tokens) in [
+            (UsageStatsMode::BillingTotal, 163, 173),
+            (UsageStatsMode::ConversationOnly, 150, 160),
+        ] {
+            let mode_name = serde_json::to_value(mode).unwrap();
+            let mode_name = mode_name.as_str().unwrap().to_string();
+            let label = format!("{provider} {mode_name}");
+
+            let session =
+                get_session_token_stats(session_path.clone(), None, None, Some(mode_name.clone()))
+                    .await
+                    .unwrap();
+            assert_eq!(session.total_tokens, root_tokens, "{label}: session");
+
+            let pages = get_project_token_stats(
+                project_path.clone(),
+                Some(0),
+                Some(100),
+                None,
+                None,
+                Some(mode_name.clone()),
+            )
+            .await
+            .unwrap();
+            let mut items: Vec<(&str, u64)> = pages
+                .items
+                .iter()
+                .map(|item| (item.session_id.as_str(), item.total_tokens))
+                .collect();
+            items.sort_unstable();
+            assert_eq!(
+                items,
+                [("ses_001", root_tokens), ("ses_orphan", 10)],
+                "{label}: runs are not listed as sessions"
+            );
+
+            let project = get_project_stats_summary(
+                project_path.clone(),
+                None,
+                None,
+                Some(mode_name.clone()),
+            )
+            .await
+            .unwrap();
+            assert_eq!(project.total_tokens, project_tokens, "{label}: project");
+            assert_eq!(project.total_sessions, 2, "{label}: project sessions");
+
+            let global = get_global_stats_summary(
+                home.path().to_string_lossy().to_string(),
+                Some(vec![provider.to_string()]),
+                Some(mode_name.clone()),
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+            assert_eq!(global.total_tokens, project_tokens, "{label}: global");
+            assert_eq!(global.total_sessions, 2, "{label}: global sessions");
+
+            let comparison = get_session_comparison(
+                "ses_001".to_string(),
+                project_path.clone(),
+                None,
+                None,
+                Some(mode_name.clone()),
+            )
+            .await
+            .unwrap();
+            let share = root_tokens as f32 / project_tokens as f32 * 100.0;
+            assert!(
+                (comparison.percentage_of_project_tokens - share).abs() < 0.01,
+                "{label}: comparison share"
+            );
+            assert!(get_session_comparison(
+                "ses_child".to_string(),
+                project_path.clone(),
+                None,
+                None,
+                Some(mode_name.clone()),
+            )
+            .await
+            .is_err());
+
+            let mut request = project_request(provider, project_path.clone());
+            request.stats_mode = mode;
+            request.intervals = vec![interval(
+                "2023-11-14",
+                "2023-11-14T00:00:00Z",
+                "2023-11-15T00:00:00Z",
+            )];
+            let response = get_usage_breakdown(request).await.unwrap();
+            assert_eq!(
+                total_tokens(&response),
+                project_tokens,
+                "{label}: breakdown"
+            );
+            let mut sessions: Vec<(String, u64)> = response
+                .sessions
+                .iter()
+                .map(|s| {
+                    (
+                        s.session_ref.session_id.clone(),
+                        s.models.iter().map(|m| m.stats.token_count).sum(),
+                    )
+                })
+                .collect();
+            sessions.sort_unstable();
+            assert_eq!(
+                sessions,
+                [
+                    ("ses_001".to_string(), root_tokens),
+                    ("ses_orphan".to_string(), 10)
+                ],
+                "{label}: breakdown sessions"
+            );
+            let coverage = coverage(&response, provider);
+            assert_eq!(coverage.sessions_scanned, 2, "{label}");
+            assert!(coverage.sidechain_metadata, "{label}");
+        }
+    }
+}

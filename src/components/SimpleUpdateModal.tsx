@@ -8,7 +8,7 @@ import {
   Button,
 } from "@/components/ui";
 import { LoadingSpinner, LoadingProgress } from "@/components/ui/loading";
-import { Download, TriangleAlert, CircleCheckBig, X, RotateCw } from 'lucide-react';
+import { Download, ExternalLink, TriangleAlert, CircleCheckBig, X, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from "sonner";
 import type { UseUpdaterReturn } from '@/hooks/useUpdater';
@@ -255,6 +255,12 @@ export function SimpleUpdateModal({
             </div>
           )}
 
+          {updater.state.isFlatpak && (
+            <p className="text-caption text-muted-foreground" data-testid="update-flatpak-hint">
+              {t('simpleUpdateModal.flatpakHint')}
+            </p>
+          )}
+
           {/* Error display */}
           {localizedError && !updater.state.isRestarting && !shouldShowManualRestartNotice && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-md">
@@ -307,6 +313,11 @@ export function SimpleUpdateModal({
               <>
                 <LoadingSpinner size="xs" variant="default" />
                 {t('simpleUpdateModal.downloadingShort')}
+              </>
+            ) : updater.state.isFlatpak ? (
+              <>
+                <ExternalLink className="w-3.5 h-3.5" />
+                {t('simpleUpdateModal.openReleasePage')}
               </>
             ) : (
               <>

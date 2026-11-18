@@ -81,6 +81,7 @@ function createUpdater(
       isInstalling: false,
       isRestarting: false,
       requiresManualRestart: false,
+      isFlatpak: false,
       downloadProgress: 0,
       error: null,
       updateInfo: null,
@@ -155,6 +156,46 @@ describe("SimpleUpdateModal", () => {
     expect(
       screen.queryByRole("button", { name: "simpleUpdateModal.reportIssue" })
     ).not.toBeInTheDocument();
+  });
+
+  it("offers the release page instead of an in-place install in the Flatpak", () => {
+    const updater = createUpdater({ isFlatpak: true });
+
+    render(
+      <SimpleUpdateModal
+        updater={updater}
+        isVisible={true}
+        onClose={vi.fn()}
+        onRemindLater={vi.fn()}
+        onSkipVersion={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("update-flatpak-hint")).toHaveTextContent(
+      "simpleUpdateModal.flatpakHint"
+    );
+    expect(
+      screen.queryByRole("button", { name: "simpleUpdateModal.downloadAndInstall" })
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "simpleUpdateModal.openReleasePage" }));
+    expect(updater.downloadAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Download & Install outside the Flatpak", () => {
+    render(
+      <SimpleUpdateModal
+        updater={createUpdater()}
+        isVisible={true}
+        onClose={vi.fn()}
+        onRemindLater={vi.fn()}
+        onSkipVersion={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByTestId("update-flatpak-hint")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "simpleUpdateModal.downloadAndInstall" })
+    ).toBeInTheDocument();
   });
 
   it("renders release notes from updater body", () => {

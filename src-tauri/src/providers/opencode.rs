@@ -614,51 +614,137 @@ pub fn parse_session_path(session_path: &str) -> Option<(String, String)> {
     Some((project_id.to_string(), session_id.to_string()))
 }
 
-/// Every descendant session of `session_id` (children, grandchildren, ...),
-/// oldest first. A subagent can itself spawn subagents, so the walk is
-/// recursive rather than a single `parent_id` query. `UNION` (not
-/// `UNION ALL`) keeps a corrupted `parent_id` cycle finite, and the session
-/// itself is excluded even when it sits on such a cycle.
-pub fn load_descendant_sessions_from_db(
-    base_path: &str,
-    db_file: &str,
-    project_id: &str,
-    session_id: &str,
-) -> Vec<ChildSession> {
+/// How a project's sessions nest. A subagent run is a session row whose
+/// `parent_id` names the session that spawned it, and a run can spawn runs of
+/// its own (#560, #577).
+///
+/// Every session belongs under exactly one top-level session, so stats can
+/// fold each run into one place without counting it twice: a run whose
+/// parent is not in the project counts as top-level, so its usage is never
+/// dropped, and a corrupted `parent_id` cycle is cut at its smallest id.
+#[derive(Debug, Default)]
+pub struct SessionTree {
+    parents: HashMap<String, String>,
+    /// Children of a session, oldest first.
+    children: HashMap<String, Vec<String>>,
+}
+
+impl SessionTree {
+    /// Build the tree from `(id, parent_id)` rows, oldest first.
+    pub fn from_links(rows: &[(String, Option<String>)]) -> Self {
+        let ids: HashSet<&str> = rows.iter().map(|(id, _)| id.as_str()).collect();
+        let mut parents: HashMap<String, String> = rows
+            .iter()
+            .filter_map(|(id, parent)| {
+                let parent = parent.as_deref()?;
+                (parent != id && ids.contains(parent)).then(|| (id.clone(), parent.to_string()))
+            })
+            .collect();
+
+        // Walk up from every session; a walk that meets its own path again
+        // has found a cycle, cut at its smallest id. A session already walked
+        // ends the walk, so each one is visited once.
+        let mut settled: HashSet<String> = HashSet::with_capacity(rows.len());
+        for (id, _) in rows {
+            let mut path: Vec<String> = Vec::new();
+            let mut current = id.clone();
+            loop {
+                if settled.contains(&current) {
+                    break;
+                }
+                if let Some(start) = path.iter().position(|seen| *seen == current) {
+                    if let Some(cut) = path[start..].iter().min() {
+                        parents.remove(cut);
+                    }
+                    break;
+                }
+                path.push(current.clone());
+                match parents.get(&current) {
+                    Some(parent) => current = parent.clone(),
+                    None => break,
+                }
+            }
+            settled.extend(path);
+        }
+
+        let mut children: HashMap<String, Vec<String>> = HashMap::new();
+        let mut placed: HashSet<&str> = HashSet::with_capacity(parents.len());
+        for (id, _) in rows {
+            if let Some(parent) = parents.get(id) {
+                if placed.insert(id.as_str()) {
+                    children.entry(parent.clone()).or_default().push(id.clone());
+                }
+            }
+        }
+        Self { parents, children }
+    }
+
+    /// Whether `session_id` is a subagent run of another session in the
+    /// project, i.e. its usage belongs to the session that spawned it.
+    pub fn is_subagent_run(&self, session_id: &str) -> bool {
+        self.parents.contains_key(session_id)
+    }
+
+    /// Every session below `session_id` (children, grandchildren, ...),
+    /// level by level, oldest first within a level. Never `session_id`
+    /// itself.
+    pub fn descendants(&self, session_id: &str) -> Vec<&str> {
+        let mut found = Vec::new();
+        let mut queue = std::collections::VecDeque::from([session_id]);
+        while let Some(current) = queue.pop_front() {
+            for child in self.children.get(current).into_iter().flatten() {
+                found.push(child.as_str());
+                queue.push_back(child.as_str());
+            }
+        }
+        found
+    }
+}
+
+/// [`SessionTree`] of `project_id`'s sessions in the database, from the 1.x
+/// and 2.x session tables alike. Empty when the store is file-backed or
+/// cannot be read.
+pub fn load_session_tree_from_db(base_path: &str, db_file: &str, project_id: &str) -> SessionTree {
     let Some(conn) = open_db(base_path, db_file) else {
-        return Vec::new();
+        return SessionTree::default();
     };
-    let Ok(mut stmt) = conn.prepare(
-        "WITH RECURSIVE descendants(id) AS (
-                SELECT id FROM session WHERE parent_id = ?1 AND project_id = ?2
-                UNION
-                SELECT s.id FROM session s
-                JOIN descendants d ON s.parent_id = d.id
-                WHERE s.project_id = ?2
-            )
-            SELECT s.id, s.title, s.time_created, s.time_updated,
-                   (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) AS message_count
-            FROM session s
-            JOIN descendants d ON s.id = d.id
-            WHERE s.id != ?1
-            ORDER BY s.time_created ASC",
-    ) else {
-        return Vec::new();
+    let Some(sessions) = StoreSchema::read(&conn)
+        .ok()
+        .and_then(StoreSchema::sessions_sql)
+    else {
+        return SessionTree::default();
     };
-
-    let Ok(rows) = stmt.query_map(rusqlite::params![session_id, project_id], |row| {
-        Ok(ChildSession {
-            id: row.get(0)?,
-            title: row.get(1)?,
-            created_at: epoch_ms_to_rfc3339(row.get::<_, u64>(2)?),
-            updated_at: epoch_ms_to_rfc3339(row.get::<_, u64>(3)?),
-            message_count: row.get(4)?,
-        })
+    let Ok(mut stmt) = conn.prepare(&format!(
+        "SELECT s.id, s.parent_id FROM ({sessions}) s
+         WHERE s.project_id = ?1
+         ORDER BY s.time_created, s.id"
+    )) else {
+        return SessionTree::default();
+    };
+    let Ok(rows) = stmt.query_map([project_id], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
     }) else {
-        return Vec::new();
+        return SessionTree::default();
     };
+    let links: Vec<(String, Option<String>)> = rows.filter_map(Result::ok).collect();
+    SessionTree::from_links(&links)
+}
 
-    rows.filter_map(std::result::Result::ok).collect()
+/// [`SessionTree`] of an `opencode://<project_id>` project (a virtual
+/// per-directory project uses the tree of the store project it lists).
+pub fn load_session_tree_at(base_path: &str, db_file: &str, project_path: &str) -> SessionTree {
+    match OpenCodeProjectRef::parse(project_path) {
+        Ok(project) => load_session_tree_from_db(base_path, db_file, project.storage_id()),
+        Err(_) => SessionTree::default(),
+    }
+}
+
+/// [`load_session_tree_at`] against the default store root.
+pub fn load_session_tree(project_path: &str) -> SessionTree {
+    let Some(base_path) = get_base_path() else {
+        return SessionTree::default();
+    };
+    load_session_tree_at(&base_path, OPENCODE_DB_FILE, project_path)
 }
 
 /// Messages of every descendant session (subagent run) of an
@@ -670,12 +756,27 @@ pub fn load_subagent_messages_at(
     db_file: &str,
     session_path: &str,
 ) -> Vec<ClaudeMessage> {
+    let Some((project_id, _)) = parse_session_path(session_path) else {
+        return Vec::new();
+    };
+    let tree = load_session_tree_from_db(base_path, db_file, &project_id);
+    load_tree_subagent_messages_at(base_path, db_file, &tree, session_path)
+}
+
+/// [`load_subagent_messages_at`] with the project's [`SessionTree`] already
+/// loaded, so a caller walking a whole project reads it once.
+pub fn load_tree_subagent_messages_at(
+    base_path: &str,
+    db_file: &str,
+    tree: &SessionTree,
+    session_path: &str,
+) -> Vec<ClaudeMessage> {
     let Some((project_id, session_id)) = parse_session_path(session_path) else {
         return Vec::new();
     };
     let mut messages = Vec::new();
-    for child in load_descendant_sessions_from_db(base_path, db_file, &project_id, &session_id) {
-        let child_path = format!("opencode://{project_id}/{}", child.id);
+    for child in tree.descendants(&session_id) {
+        let child_path = format!("opencode://{project_id}/{child}");
         let Ok(mut child_messages) = load_messages_at(base_path, db_file, &child_path) else {
             continue;
         };
@@ -693,6 +794,14 @@ pub fn load_subagent_messages(session_path: &str) -> Vec<ClaudeMessage> {
         return Vec::new();
     };
     load_subagent_messages_at(&base_path, OPENCODE_DB_FILE, session_path)
+}
+
+/// [`load_tree_subagent_messages_at`] against the default store root.
+pub fn load_tree_subagent_messages(tree: &SessionTree, session_path: &str) -> Vec<ClaudeMessage> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    load_tree_subagent_messages_at(&base_path, OPENCODE_DB_FILE, tree, session_path)
 }
 
 /// Load messages for an `OpenCode` session
@@ -2887,7 +2996,7 @@ mod tests {
     }
 
     #[test]
-    fn sqlite_load_descendant_sessions_walks_recursively() {
+    fn sqlite_session_tree_walks_descendants_recursively() {
         let tmp = tempfile::tempdir().unwrap();
         let conn = create_test_db(tmp.path());
         seed_test_data(&conn);
@@ -2913,58 +3022,47 @@ mod tests {
         drop(conn);
 
         let base = tmp.path().to_string_lossy().to_string();
-        let descendants =
-            load_descendant_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_001");
-
+        let tree = load_session_tree_from_db(&base, OPENCODE_DB_FILE, "proj1");
         assert_eq!(
-            descendants
-                .iter()
-                .map(|c| c.id.as_str())
-                .collect::<Vec<_>>(),
+            tree.descendants("ses_001"),
             vec!["ses_child", "ses_grandchild"]
         );
+        assert!(!tree.is_subagent_run("ses_001"));
+        assert!(tree.is_subagent_run("ses_child"));
+        assert!(tree.is_subagent_run("ses_grandchild"));
+        // The walk starts below the session, and a leaf terminates it.
+        assert_eq!(tree.descendants("ses_grandchild"), Vec::<&str>::new());
 
-        // The walk starts below the root, and a leaf terminates it.
-        assert!(load_descendant_sessions_from_db(
-            &base,
-            OPENCODE_DB_FILE,
-            "proj1",
-            "ses_grandchild"
-        )
-        .is_empty());
+        // In its own project the foreign session's parent is missing, so it
+        // counts as a top-level session rather than disappearing.
+        let foreign = load_session_tree_from_db(&base, OPENCODE_DB_FILE, "proj2");
+        assert!(!foreign.is_subagent_run("ses_foreign"));
+        let by_path = load_session_tree_at(&base, OPENCODE_DB_FILE, "opencode://proj2");
+        assert!(!by_path.is_subagent_run("ses_foreign"));
     }
 
     #[test]
-    fn sqlite_load_descendant_sessions_terminates_on_parent_cycle() {
-        let tmp = tempfile::tempdir().unwrap();
-        let conn = create_test_db(tmp.path());
-        seed_test_data(&conn);
-        // A corrupted store: ses_001 -> ses_a -> ses_b -> ses_001. A session has
-        // one parent, so a cycle reachable from the root runs through it.
-        for (id, parent) in [("ses_a", "ses_001"), ("ses_b", "ses_a")] {
-            conn.execute(
-                "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
-                 VALUES (?1, 'proj1', ?1, 1700000200000, 1700000200000, ?2)",
-                rusqlite::params![id, parent],
-            )
-            .unwrap();
-        }
-        conn.execute(
-            "UPDATE session SET parent_id = 'ses_b' WHERE id = 'ses_001'",
-            [],
-        )
-        .unwrap();
-        drop(conn);
+    fn session_tree_cuts_a_parent_cycle_once() {
+        let link = |id: &str, parent: Option<&str>| (id.to_string(), parent.map(str::to_string));
+        // A corrupted store: ses_001 -> ses_a -> ses_b -> ses_001, with ses_c
+        // hanging off the cycle and ses_d naming a parent that is not there.
+        let tree = SessionTree::from_links(&[
+            link("ses_a", Some("ses_001")),
+            link("ses_b", Some("ses_a")),
+            link("ses_001", Some("ses_b")),
+            link("ses_c", Some("ses_b")),
+            link("ses_d", Some("ses_gone")),
+            link("ses_self", Some("ses_self")),
+        ]);
 
-        let base = tmp.path().to_string_lossy().to_string();
-        let mut ids: Vec<String> =
-            load_descendant_sessions_from_db(&base, OPENCODE_DB_FILE, "proj1", "ses_001")
-                .into_iter()
-                .map(|c| c.id)
-                .collect();
-        ids.sort();
-        // Each session once, and never the root itself.
-        assert_eq!(ids, vec!["ses_a", "ses_b"]);
+        // The cycle is cut at its smallest id, so it has one top-level
+        // session and every other session sits under exactly one parent.
+        assert!(!tree.is_subagent_run("ses_001"));
+        assert_eq!(tree.descendants("ses_001"), vec!["ses_a", "ses_b", "ses_c"]);
+        assert_eq!(tree.descendants("ses_a"), vec!["ses_b", "ses_c"]);
+        assert!(!tree.is_subagent_run("ses_d"));
+        assert!(!tree.is_subagent_run("ses_self"));
+        assert_eq!(tree.descendants("ses_self"), Vec::<&str>::new());
     }
 
     #[test]
@@ -4190,6 +4288,30 @@ mod v2_tests {
         let child = children.iter().find(|c| c.id == "ses_child").unwrap();
         assert_eq!(child.title, "explore the repo");
         assert_eq!(child.message_count, 1);
+    }
+
+    /// #577: subagent runs of a 2.x (or migrated) store nest through
+    /// `session_v2.parent_id`, so stats roll them up like 1.x runs.
+    #[test]
+    fn v2_session_tree_reads_both_session_tables() {
+        let store = store(true);
+        store.v2_session("ses_parent", Some("parent"), None, 9000);
+        store.v2_session("ses_child", Some("child"), Some("ses_parent"), 9100);
+        store
+            .conn
+            .execute(
+                "INSERT INTO session (id, project_id, title, time_created, time_updated, parent_id)
+                 VALUES ('ses_v1_grandchild', 'proj1', 'grandchild', 2000, 9200, 'ses_child')",
+                [],
+            )
+            .unwrap();
+
+        let tree = load_session_tree_from_db(&store.base, OPENCODE_DB_FILE, "proj1");
+        assert_eq!(
+            tree.descendants("ses_parent"),
+            vec!["ses_child", "ses_v1_grandchild"]
+        );
+        assert!(tree.is_subagent_run("ses_v1_grandchild"));
     }
 
     #[test]
