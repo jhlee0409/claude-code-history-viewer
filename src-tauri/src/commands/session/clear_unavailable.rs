@@ -494,7 +494,7 @@ mod tests {
 
     /// A Claude project folder in the sandbox whose sessions ran in `cwd`.
     fn claude_project(home: &Path, folder: &str, cwd: &Path, sessions: &[&str]) -> PathBuf {
-        let dir = home.join(".claude/projects").join(folder);
+        let dir = home.join(".claude").join("projects").join(folder);
         fs::create_dir_all(&dir).unwrap();
         for id in sessions {
             write_session(&dir, id, cwd);
@@ -535,10 +535,10 @@ mod tests {
     #[serial]
     fn preview_lists_each_session_and_its_folder_without_touching_them() {
         let home = SandboxHome::new();
-        let gone = home.path().join("removed/app");
+        let gone = home.path().join("removed").join("app");
         let dir = claude_project(home.path(), "-removed-app", &gone, &["s-1", "s-2"]);
         fs::create_dir(dir.join("s-1")).unwrap();
-        fs::write(dir.join("s-1/subagent.jsonl"), "{}\n").unwrap();
+        fs::write(dir.join("s-1").join("subagent.jsonl"), "{}\n").unwrap();
         fs::write(dir.join("notes.md"), "kept").unwrap();
 
         let result = preview(reference(&dir));
@@ -587,7 +587,7 @@ mod tests {
     #[serial]
     fn preview_refuses_a_project_whose_location_exists() {
         let home = SandboxHome::new();
-        let here = home.path().join("work/app");
+        let here = home.path().join("work").join("app");
         fs::create_dir_all(&here).unwrap();
         let dir = claude_project(home.path(), "-elsewhere-app", &here, &["s-1"]);
 
@@ -607,12 +607,12 @@ mod tests {
         let dir = claude_project(home.path(), "-gone", &gone, &["s-1"]);
         let nested = dir.join("s-1");
         fs::create_dir(&nested).unwrap();
-        let outside = home.path().join("elsewhere/-gone");
+        let outside = home.path().join("elsewhere").join("-gone");
         fs::create_dir_all(&outside).unwrap();
         write_session(&outside, "s-1", &gone);
 
         for bad in [
-            home.path().join(".claude/projects"),
+            home.path().join(".claude").join("projects"),
             outside.clone(),
             nested,
         ] {
@@ -631,7 +631,7 @@ mod tests {
     #[serial]
     fn preview_skips_a_session_whose_own_folder_still_exists() {
         let home = SandboxHome::new();
-        let gone = home.path().join("gone/app");
+        let gone = home.path().join("gone").join("app");
         let alive = home.path().join("alive");
         fs::create_dir_all(&alive).unwrap();
         let dir = claude_project(home.path(), "-gone-app", &gone, &["new"]);
@@ -675,7 +675,7 @@ mod tests {
     #[serial]
     fn clear_moves_only_the_confirmed_sessions_and_reports_each() {
         let home = SandboxHome::new();
-        let gone = home.path().join("gone/app");
+        let gone = home.path().join("gone").join("app");
         let dir = claude_project(home.path(), "-gone-app", &gone, &["a", "b"]);
         fs::create_dir(dir.join("a")).unwrap();
         // Written after the preview: never confirmed, so never cleared.
@@ -698,7 +698,7 @@ mod tests {
     #[serial]
     fn clear_refuses_when_the_location_is_back() {
         let home = SandboxHome::new();
-        let gone = home.path().join("drive/app");
+        let gone = home.path().join("drive").join("app");
         let dir = claude_project(home.path(), "-drive-app", &gone, &["a"]);
         assert_eq!(preview(reference(&dir)).targets.len(), 1);
 
@@ -753,14 +753,28 @@ mod tests {
     fn cursor_agent_targets_are_the_transcript_folder_and_chat_metadata() {
         let home = SandboxHome::new();
         let id = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-        let project_dir = home.path().join(".cursor/projects/Users-me-gone");
+        let project_dir = home
+            .path()
+            .join(".cursor")
+            .join("projects")
+            .join("Users-me-gone");
         let session_dir = project_dir.join("agent-transcripts").join(id);
         fs::create_dir_all(&session_dir).unwrap();
         let transcript = session_dir.join(format!("{id}.jsonl"));
         fs::write(&transcript, "{}\n").unwrap();
-        let meta = home.path().join(".cursor/chats/0123abcd").join(id);
+        let meta = home
+            .path()
+            .join(".cursor")
+            .join("chats")
+            .join("0123abcd")
+            .join(id);
         fs::create_dir_all(&meta).unwrap();
-        let root = home.path().join(".cursor/projects").canonicalize().unwrap();
+        let root = home
+            .path()
+            .join(".cursor")
+            .join("projects")
+            .canonicalize()
+            .unwrap();
         let project = Project {
             store: Store::CursorAgent {
                 root: root.clone(),
@@ -774,7 +788,9 @@ mod tests {
         assert_eq!(
             targets,
             vec![
-                root.join("Users-me-gone/agent-transcripts").join(id),
+                root.join("Users-me-gone")
+                    .join("agent-transcripts")
+                    .join(id),
                 meta.canonicalize().unwrap(),
             ]
         );
@@ -838,10 +854,10 @@ mod codex_tests {
     fn codex_clear_previews_and_trashes_only_rollouts_of_the_missing_cwd() {
         let home = SandboxHome::new();
         let codex = home.path().join(".codex");
-        let sessions = codex.join("sessions/2025/01/01");
+        let sessions = codex.join("sessions").join("2025").join("01").join("01");
         fs::create_dir_all(&sessions).unwrap();
         let _codex_home = CodexHome::set(&codex);
-        let gone = home.path().join("gone/app");
+        let gone = home.path().join("gone").join("app");
         let alive = home.path().join("alive");
         fs::create_dir_all(&alive).unwrap();
         let mine = rollout(&sessions, "11111111-1111-1111-1111-111111111111", &gone);

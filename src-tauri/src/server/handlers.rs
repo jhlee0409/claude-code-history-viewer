@@ -2489,7 +2489,7 @@ mod provider_uri_scope_tests {
     #[serial]
     async fn unavailable_cleanup_takes_only_history_paths_it_would_open() {
         let home = crate::test_utils::SandboxHome::new();
-        let outside = home.path().join("elsewhere/-gone");
+        let outside = home.path().join("elsewhere").join("-gone");
         std::fs::create_dir_all(&outside).unwrap();
         let outside = outside.to_string_lossy().into_owned();
         let project = |provider: Option<&str>| commands::session::UnavailableProjectRef {
@@ -2509,7 +2509,7 @@ mod provider_uri_scope_tests {
         .await;
         assert!(res.is_ok(), "{:?}", error_of(res));
 
-        let claude_project = home.path().join(".claude/projects/-gone");
+        let claude_project = home.path().join(".claude").join("projects").join("-gone");
         std::fs::create_dir_all(&claude_project).unwrap();
         let res = clear_unavailable_sessions(Json(ClearUnavailableSessionsParams {
             projects: vec![commands::session::ConfirmedCleanup {
