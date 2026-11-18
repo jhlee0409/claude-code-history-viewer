@@ -1,11 +1,12 @@
 import { Button } from "@/components/ui/button";
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { Check, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "../../renderers";
 import { HighlightedText } from "../../common/HighlightedText";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { useCopiedFlag } from "@/hooks/useCopiedFlag";
 
 interface ToolIdBadgeProps {
   toolId: string;
@@ -31,7 +32,7 @@ export function ToolIdBadge({
   badgeTextClassName,
 }: ToolIdBadgeProps) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopiedFlag(1500);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -39,9 +40,8 @@ export function ToolIdBadge({
     } catch {
       return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [toolId]);
+    markCopied();
+  }, [toolId, markCopied]);
 
   if (!toolId) return null;
 

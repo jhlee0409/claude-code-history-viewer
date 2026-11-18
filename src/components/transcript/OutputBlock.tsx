@@ -26,12 +26,13 @@
  * records (Grep content-mode matches: a soft-wrapped match would read as the
  * next match, TC13).
  */
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { Check, Copy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { useCopiedFlag } from "@/hooks/useCopiedFlag";
 import { hasAnsiCodes, stripAnsiCodes } from "@/utils/ansiToHtml";
 import { AnsiText } from "../common/AnsiText";
 import { HighlightedText } from "../common/HighlightedText";
@@ -123,7 +124,7 @@ export function OutputBlock({
 }: OutputBlockProps) {
   const { t } = useTranslation();
   const [showAll, setShowAll] = useCaptureExpandState(`${expandKey}:all`, false);
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopiedFlag(1500);
   const zoneId = useId();
   const mainId = `${zoneId}-out`;
   const errId = `${zoneId}-err`;
@@ -156,8 +157,7 @@ export function OutputBlock({
     } catch {
       return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    markCopied();
   };
 
   return (

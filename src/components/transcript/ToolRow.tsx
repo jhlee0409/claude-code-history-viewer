@@ -75,6 +75,7 @@ import { cn } from "@/lib/utils";
 import { useToggle } from "@/hooks/useToggle";
 import { RendererDefaultsContext } from "@/shared/rendererDefaults";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { useCopiedFlag } from "@/hooks/useCopiedFlag";
 import { HighlightedText } from "../common/HighlightedText";
 import type { ToolFamily, ToolOutcome } from "./toolOutcome";
 import { OutcomeStatus } from "./OutcomeStatus";
@@ -258,16 +259,15 @@ function detailFacts(outcome: ToolOutcome, family: ToolFamily, t: TFunction): st
 
 function CopyToolId({ toolId }: { toolId: string }) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopiedFlag(1500);
   const onCopy = useCallback(async () => {
     try {
       await copyTextToClipboard(toolId);
     } catch {
       return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [toolId]);
+    markCopied();
+  }, [toolId, markCopied]);
   return (
     <button
       type="button"

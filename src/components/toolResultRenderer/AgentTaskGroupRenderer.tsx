@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
  * with progress indicator and collapsible details.
  */
 
-import { memo, useState } from "react";
+import { memo } from "react";
 import {
   ChevronRight,
   Bot,
@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
+import { useCopiedFlag } from "@/hooks/useCopiedFlag";
 
 export interface AgentTask {
   agentId: string;
@@ -71,7 +72,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
   const isExpandedContentId = useId();
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useCaptureExpandState(`agent-task-${task.agentId}`, false);
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopiedFlag(2000);
   const config = STATUS_CONFIG[task.status] || STATUS_CONFIG.async_launched;
   const StatusIcon = config.icon;
 
@@ -79,8 +80,7 @@ const AgentTaskItem = memo(function AgentTaskItem({
     e.stopPropagation();
     if (task.outputFile) {
       await navigator.clipboard.writeText(task.outputFile);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      markCopied();
     }
   };
 
