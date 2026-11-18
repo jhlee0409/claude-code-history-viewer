@@ -795,6 +795,7 @@ dependencies = [
  "dirs 5.0.1",
  "dispatch2",
  "fake",
+ "flate2",
  "futures",
  "gio",
  "insta",
