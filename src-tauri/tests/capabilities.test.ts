@@ -8,6 +8,8 @@ describe("Tauri Capabilities", () => {
   const expectedPermissions = [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    // A window's settings change reaches the app's other windows (#656).
+    "core:event:allow-emit",
     "core:app:allow-version",
     "core:window:allow-start-dragging",
     "core:window:allow-internal-toggle-maximize",

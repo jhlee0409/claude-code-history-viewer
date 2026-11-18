@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T09:32:15.267Z
- * 총 키 개수: 2470
+ * 생성 시간: 2026-11-18T10:14:16.746Z
+ * 총 키 개수: 2475
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (315개)
+ * common namespace의 번역 키 (318개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -80,6 +80,7 @@ export type CommonKeys =
   | 'common.command.goToTab8'
   | 'common.command.groupHeading'
   | 'common.command.newTab'
+  | 'common.command.newWindow'
   | 'common.command.nextStep'
   | 'common.command.nextTab'
   | 'common.command.openArchive'
@@ -336,6 +337,8 @@ export type CommonKeys =
   | 'common.watcher.startError'
   | 'common.watcher.stopError'
   | 'common.watcher.watching'
+  | 'common.window.openFailed'
+  | 'common.window.projectNotFound'
   | 'copyButton.copied'
   | 'copyButton.copy'
   | 'copyButton.copying'
@@ -578,7 +581,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (334개)
+ * session namespace의 번역 키 (336개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -627,6 +630,7 @@ export type SessionKeys =
   | 'project.listOptions'
   | 'project.main'
   | 'project.notFound'
+  | 'project.openInNewWindow'
   | 'project.pathCopied'
   | 'project.pathUnavailable'
   | 'project.pathUnavailableDescription'
@@ -854,6 +858,7 @@ export type SessionKeys =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
+  | 'session.openInNewWindow'
   | 'session.promptHistory.description'
   | 'session.promptHistory.label'
   | 'session.refreshAllConversations'
@@ -3080,6 +3085,7 @@ export type TranslationKey =
   | 'common.command.goToTab8'
   | 'common.command.groupHeading'
   | 'common.command.newTab'
+  | 'common.command.newWindow'
   | 'common.command.nextStep'
   | 'common.command.nextTab'
   | 'common.command.openArchive'
@@ -3336,6 +3342,8 @@ export type TranslationKey =
   | 'common.watcher.startError'
   | 'common.watcher.stopError'
   | 'common.watcher.watching'
+  | 'common.window.openFailed'
+  | 'common.window.projectNotFound'
   | 'contentArray.cacheCreation'
   | 'contentArray.cacheRead'
   | 'contentArray.claudeApiResponse'
@@ -3817,6 +3825,7 @@ export type TranslationKey =
   | 'project.listOptions'
   | 'project.main'
   | 'project.notFound'
+  | 'project.openInNewWindow'
   | 'project.pathCopied'
   | 'project.pathUnavailable'
   | 'project.pathUnavailableDescription'
@@ -4146,6 +4155,7 @@ export type TranslationKey =
   | 'session.noProjects.hint'
   | 'session.noProjects.title'
   | 'session.openError'
+  | 'session.openInNewWindow'
   | 'session.promptHistory.description'
   | 'session.promptHistory.label'
   | 'session.refreshAllConversations'

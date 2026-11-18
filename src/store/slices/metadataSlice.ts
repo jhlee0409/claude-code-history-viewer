@@ -86,6 +86,12 @@ export interface MetadataSliceActions {
   ) => Promise<void>;
   /** Update global user settings */
   updateUserSettings: (update: Partial<UserSettings>) => Promise<void>;
+  /**
+   * User metadata as the backend last saved it, from any window (issue #656):
+   * it replaces this window's copy; another window's change of the custom
+   * Claude folders rescans the projects here too.
+   */
+  applySharedMetadata: (metadata: UserMetadata) => void;
   /** Get session display name (custom name or fallback) */
   getSessionDisplayName: (
     sessionId: string,
@@ -153,12 +159,32 @@ export const initialMetadataState: MetadataSliceState = {
   its turn comes, and the answers arrive in order. A failed write does not
   stall the ones behind it; its own caller still sees the failure. One app
   store, so one queue.
+
+  Several desktop windows (issue #656) each have a store and a queue; the
+  backend serializes their saves and announces each one, in order, to every
+  window (`applySharedMetadata`), so the last announcement is the newest
+  metadata. An answer to this window's own request is older than any
+  announcement that arrived while the request was out: it lands only when
+  none did (`announcements`).
 */
 let writes: Promise<unknown> = Promise.resolve();
 function inTurn<T>(write: () => Promise<T>): Promise<T> {
   const turn = writes.then(write);
   writes = turn.catch(() => undefined);
   return turn;
+}
+
+/** Saves announced by the backend so far (`applySharedMetadata`). */
+let announcements = 0;
+
+type SetMetadata = (partial: Pick<FullAppStore, "userMetadata">) => void;
+
+/** Ask the backend for the whole metadata; the answer lands unless a save was announced meanwhile. */
+async function request(set: SetMetadata, command: string, ...args: [Record<string, unknown>?]): Promise<UserMetadata> {
+  const sent = announcements;
+  const metadata = await api<UserMetadata>(command, ...args);
+  if (announcements === sent) set({ userMetadata: metadata });
+  return metadata;
 }
 
 export const createMetadataSlice: StateCreator<
@@ -173,9 +199,8 @@ export const createMetadataSlice: StateCreator<
     set({ isMetadataLoading: true, metadataError: null });
 
     try {
-      const metadata = await api<UserMetadata>("load_user_metadata");
+      await request(set, "load_user_metadata");
       set({
-        userMetadata: metadata,
         isMetadataLoaded: true,
         isMetadataLoading: false,
       });
@@ -209,11 +234,10 @@ export const createMetadataSlice: StateCreator<
       const mergedSession: SessionMetadata = { ...existingSession, ...update };
 
       try {
-        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+        await request(set, "update_session_metadata", {
           sessionId,
           update: mergedSession,
         });
-        set({ userMetadata: updatedMetadata });
       } catch (error) {
         console.error("Failed to update session metadata:", error);
         set({ metadataError: String(error) });
@@ -229,11 +253,10 @@ export const createMetadataSlice: StateCreator<
         ? { ...existing, starred: undefined, ref: undefined }
         : { ...existing, starred: true, ref };
       try {
-        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+        await request(set, "update_session_metadata", {
           sessionId: session.session_id,
           update,
         });
-        set({ userMetadata: updatedMetadata });
       } catch (error) {
         console.error("Failed to update favourite:", error);
         set({ metadataError: String(error) });
@@ -255,11 +278,10 @@ export const createMetadataSlice: StateCreator<
         const existing = get().userMetadata.sessions[sessionId];
         if (existing?.starred !== true || existing.ref) return;
         try {
-          const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+          await request(set, "update_session_metadata", {
             sessionId,
             update: { ...existing, ref },
           });
-          set({ userMetadata: updatedMetadata });
         } catch (error) {
           console.error("Failed to record a favourite's location:", error);
           set({ metadataError: String(error) });
@@ -275,11 +297,10 @@ export const createMetadataSlice: StateCreator<
       const moved: SessionMetadata =
         existing.ref || existing.starred ? { ...existing, ref } : existing;
       try {
-        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+        await request(set, "update_session_metadata", {
           sessionId: toId,
           update: moved,
         });
-        set({ userMetadata: updatedMetadata });
       } catch (error) {
         console.error("Failed to carry session metadata over:", error);
         set({ metadataError: String(error) });
@@ -287,11 +308,10 @@ export const createMetadataSlice: StateCreator<
       }
       try {
         // An empty record removes the entry.
-        const updatedMetadata = await api<UserMetadata>("update_session_metadata", {
+        await request(set, "update_session_metadata", {
           sessionId: fromId,
           update: {},
         });
-        set({ userMetadata: updatedMetadata });
       } catch (error) {
         // The new record is saved; a stale old one is harmless.
         console.error("Failed to remove the old session metadata:", error);
@@ -306,11 +326,10 @@ export const createMetadataSlice: StateCreator<
       const mergedProject: ProjectMetadata = { ...existingProject, ...update };
 
       try {
-        const updatedMetadata = await api<UserMetadata>("update_project_metadata", {
+        await request(set, "update_project_metadata", {
           projectPath,
           update: mergedProject,
         });
-        set({ userMetadata: updatedMetadata });
       } catch (error) {
         console.error("Failed to update project metadata:", error);
         set({ metadataError: String(error) });
@@ -326,10 +345,9 @@ export const createMetadataSlice: StateCreator<
       };
 
       try {
-        const updatedMetadata = await api<UserMetadata>("update_user_settings", {
+        await request(set, "update_user_settings", {
           settings: mergedSettings,
         });
-        set({ userMetadata: updatedMetadata });
       } catch (error) {
         console.error("Failed to update user settings:", error);
         const message = String(error);
@@ -337,6 +355,20 @@ export const createMetadataSlice: StateCreator<
         throw new Error(message);
       }
     }),
+
+  applySharedMetadata: (metadata: UserMetadata) => {
+    announcements += 1;
+    const current = get().userMetadata;
+    // This window's own save, already landed from its answer.
+    if (JSON.stringify(current) === JSON.stringify(metadata)) return;
+    const foldersChanged =
+      JSON.stringify(current.settings.customClaudePaths ?? []) !==
+      JSON.stringify(metadata.settings.customClaudePaths ?? []);
+    set({ userMetadata: metadata });
+    // Another window added or removed a Claude folder: list its projects
+    // here too, as that window did.
+    if (foldersChanged && get().projectsScanned) void get().scanProjects();
+  },
 
   getSessionDisplayName: (
     sessionId: string,
