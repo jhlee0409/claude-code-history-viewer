@@ -4320,6 +4320,11 @@ pub async fn get_session_token_stats(
     end_date: Option<String>,
     stats_mode: Option<String>,
 ) -> Result<SessionTokenStats, String> {
+    // A prompt-history session (#764) recorded no usage: its replies were
+    // deleted with the transcript.
+    if crate::commands::session::prompt_history::is_session_path(&session_path) {
+        return crate::commands::session::prompt_history::session_token_stats(&session_path);
+    }
     let start = std::time::Instant::now();
     let mode = parse_stats_mode(stats_mode);
     let provider = detect_session_provider(&session_path);

@@ -17,6 +17,7 @@
 import { toast } from "sonner";
 import type { FullAppStore } from "@/store/slices/types";
 import type { ClaudeProject, ClaudeSession } from "@/types";
+import { isPromptHistorySession } from "@/utils/promptHistory";
 import { ownPlace, ownWork, type PlaceOwner } from "./ownership";
 import { selectRecentEditsRequest } from "./screenOwner";
 
@@ -81,19 +82,24 @@ export async function loadSessionAnalytics(
   options: SessionAnalyticsOptions = {},
 ): Promise<void> {
   const { comparison = true, tokenStats = true } = options;
+  // A prompt-history session (#764) has no usage to rank among the
+  // project's sessions: it is never compared, and no earlier session's
+  // comparison stays beside it.
+  const promptHistory = isPromptHistorySession(session);
   const isLatest = comparisonRequests.begin();
   const owns = ownerFor(get, project, isLatest, options.ownsPlace ?? ownPlace(get));
 
   get().setAnalyticsLoadingSessionComparison(true);
   try {
     const [result] = await Promise.all([
-      comparison
+      comparison && !promptHistory
         ? get().loadSessionComparison(session.actual_session_id, project.path)
         : Promise.resolve(undefined),
       tokenStats ? get().loadSessionTokenStats(session.file_path) : undefined,
     ]);
     if (!owns()) return;
     if (result !== undefined) get().setAnalyticsSessionComparison(result, session.file_path);
+    else if (promptHistory) get().setAnalyticsSessionComparison(null);
     get().setAnalyticsSessionComparisonError(null);
   } catch (error) {
     if (!owns()) return;

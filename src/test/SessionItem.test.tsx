@@ -827,4 +827,81 @@ describe("SessionItem", () => {
       expect(container?.innerHTML).toContain("svg");
     });
   });
+
+  describe("Prompt history sessions (#764)", () => {
+    const promptHistory = (): ClaudeSession => ({
+      ...createMockSession({
+        provider: "claude",
+        session_id: "/home/u/.claude/projects/-a/abc.prompt-history",
+        file_path: "/home/u/.claude/projects/-a/abc.prompt-history",
+        actual_session_id: "abc",
+        summary: "an old prompt",
+      }),
+      storage_type: "prompt_history",
+    });
+
+    const pristine = useAppStore.getState();
+    beforeEach(() => {
+      useAppStore.setState(pristine, true);
+    });
+
+    it("offers nothing that renames, moves, deletes, resumes or reveals it", () => {
+      const { container } = render(
+        <SessionItem
+          session={promptHistory()}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+      fireEvent.contextMenu(container.firstChild as HTMLElement);
+      const items = within(screen.getByRole("menu"))
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent);
+
+      expect(items).toEqual(["Copy Session ID"]);
+    });
+
+    it("cannot be renamed by double-click", () => {
+      render(
+        <SessionItem
+          session={promptHistory()}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+      fireEvent.doubleClick(screen.getByText("an old prompt"));
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    });
+
+    it("says it is prompt history on the full and the compact row", () => {
+      const { unmount } = render(
+        <SessionItem
+          session={promptHistory()}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+        />
+      );
+      expect(screen.getByText("session.item.storageType.prompt_history")).toHaveAttribute(
+        "title",
+        "session.promptHistory.label"
+      );
+      unmount();
+
+      render(
+        <SessionItem
+          session={promptHistory()}
+          isSelected={false}
+          onSelect={mockOnSelect}
+          formatTimeAgo={mockFormatTimeAgo}
+          variant="compact"
+        />
+      );
+      expect(
+        within(screen.getByRole("treeitem")).getByText("session.promptHistory.label")
+      ).toBeInTheDocument();
+    });
+  });
 });
