@@ -30,6 +30,7 @@ import { useSearchState } from "./hooks/useSearchState";
 import { useScrollNavigation } from "./hooks/useScrollNavigation";
 import { useMessageVirtualization } from "./hooks/useMessageVirtualization";
 import { usePromptJump } from "./hooks/usePromptJump";
+import { useStepNavigation } from "./hooks/useStepNavigation";
 import { useVisibleMessageTracking } from "./hooks/useVisibleMessageTracking";
 import { useCapturePreview } from "../../hooks/useCapturePreview";
 import { MAX_CAPTURE_MESSAGES } from "../../hooks/useCaptureScreenshot";
@@ -505,6 +506,18 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     getScrollElement,
     targetMessageUuid,
     navigateToMessage,
+  });
+
+  // The previous / next step of the turn in view (go.previousStep / go.nextStep
+  // commands). Turns come from the unfiltered messages, as in the outline.
+  useStepNavigation({
+    messages,
+    flattenedMessages,
+    virtualizer,
+    getScrollElement,
+    targetMessageUuid,
+    navigateToMessage,
+    isInSubagent,
   });
 
   // Reports the first visible message row to the Messages panel's outline

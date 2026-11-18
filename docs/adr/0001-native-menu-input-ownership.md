@@ -107,6 +107,7 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    | `tab.next` `tab.previous` | `shown` - steps from the tab in front at issue | another tab in front, or it is closed: nothing |
    | `tab.goTo1` `tab.goTo2` `tab.goTo3` `tab.goTo4` `tab.goTo5` `tab.goTo6` `tab.goTo7` `tab.goTo8` `tab.goToLast` | `shown` - and the tab at that position at issue (a menu item: when the page hands it over) | another tab in front, or that tab closed: nothing |
    | `go.back` `go.forward` | `shown` - that tab's own place history | another tab in front: nothing |
+   | `go.previousStep` `go.nextStep` | `shown` - that tab's message list | another tab in front: nothing |
    | `edit.find` | `shown` - that tab's find field | another tab in front: nothing |
    | `go.settingsManager` `go.archive` | `shown` - opens in that tab | another tab in front: nothing |
 

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T02:44:26.882Z
- * 총 키 개수: 2443
+ * 생성 시간: 2026-11-18T04:11:56.292Z
+ * 총 키 개수: 2446
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (311개)
+ * common namespace의 번역 키 (313개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -80,11 +80,13 @@ export type CommonKeys =
   | 'common.command.goToTab8'
   | 'common.command.groupHeading'
   | 'common.command.newTab'
+  | 'common.command.nextStep'
   | 'common.command.nextTab'
   | 'common.command.openArchive'
   | 'common.command.openPalette'
   | 'common.command.openPreferences'
   | 'common.command.openSettingsManager'
+  | 'common.command.previousStep'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
   | 'common.command.toggleInlineTokens'
@@ -1598,7 +1600,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (172개)
+ * message namespace의 번역 키 (173개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1769,6 +1771,7 @@ export type MessageKeys =
   | 'navigator.outline.turnLabelLoaded'
   | 'navigator.promptJumpHint'
   | 'navigator.showParallelTasks'
+  | 'navigator.stepJumpHint'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly'
@@ -3053,11 +3056,13 @@ export type TranslationKey =
   | 'common.command.goToTab8'
   | 'common.command.groupHeading'
   | 'common.command.newTab'
+  | 'common.command.nextStep'
   | 'common.command.nextTab'
   | 'common.command.openArchive'
   | 'common.command.openPalette'
   | 'common.command.openPreferences'
   | 'common.command.openSettingsManager'
+  | 'common.command.previousStep'
   | 'common.command.previousTab'
   | 'common.command.sendFeedback'
   | 'common.command.toggleInlineTokens'
@@ -3719,6 +3724,7 @@ export type TranslationKey =
   | 'navigator.outline.turnLabelLoaded'
   | 'navigator.promptJumpHint'
   | 'navigator.showParallelTasks'
+  | 'navigator.stepJumpHint'
   | 'navigator.title'
   | 'navigator.toggle'
   | 'navigator.userOnly'
