@@ -47,6 +47,8 @@ import {
   type TabScreens,
 } from "./navigation/tabs";
 import { OpenSessionInNewTabContext } from "./contexts/openInNewTab";
+import { fetchWindowTarget, openWindowTarget } from "./navigation/windows";
+import { currentWindowLabel } from "./utils/platform";
 import { PlaceOpenersContext } from "./contexts/placeOpeners";
 
 import "./App.css";
@@ -237,17 +239,22 @@ function App() {
     // and claim one once a hint actually arrives, so a startup without a hint
     // never supersedes a navigation already in flight.
     const observedEpoch = useAppStore.getState().navigationEpoch;
-    void fetchStartupSessionHint().then((hint) => {
+    void Promise.all([fetchStartupSessionHint(), fetchWindowTarget()]).then(([hint, target]) => {
       // A second invocation, a deep link or the user may have navigated while
       // the startup command was resolving. The newer request owns navigation.
       if (useAppStore.getState().navigationEpoch !== observedEpoch) return;
-      // Startup priority (plan §4.3): the hint first; the restored tab opens
-      // only when there is none (barrier: after the hint was asked for).
-      if (!hint) {
-        void restoreActiveTab(tabScreensRef.current);
+      // Startup priority (plan §4.3): the hint first (the launch window
+      // only), then what a window opened later was opened for (issue #656);
+      // the restored tab opens only when there is neither.
+      if (hint) {
+        runPreloadWithHint(hint, readWebUIDeepLink().messageId);
         return;
       }
-      runPreloadWithHint(hint, readWebUIDeepLink().messageId);
+      if (target) {
+        void openWindowTarget(target, { openProject: (project) => handleProjectSelectRef.current(project) });
+        return;
+      }
+      void restoreActiveTab(tabScreensRef.current);
     });
   }, [projectsReady, runPreloadWithHint]);
 
@@ -271,7 +278,9 @@ function App() {
       try {
         const { listen } = await import("@tauri-apps/api/event");
         if (cancelled) return;
-        unlisten = await listen<SessionHint>("cli-session-hint", (event) => {
+        unlisten = await listen<SessionHint>(
+          "cli-session-hint",
+          (event) => {
           const hint = event.payload;
           // Supersede whatever hint is still resolving.
           const epoch = useAppStore.getState().beginNavigation();
@@ -283,7 +292,10 @@ function App() {
             return;
           }
           runPreloadWithHint(hint, null, { epoch });
-        });
+          },
+          // Sent to the window in front only (issue #656).
+          { target: { kind: "WebviewWindow", label: currentWindowLabel() } },
+        );
       } catch (error) {
         // Non-Tauri environments (webui-server served in a browser) lack
         // `@tauri-apps/api/event`. Second-invocation routing doesn't apply.
@@ -491,6 +503,12 @@ function App() {
     },
     [navigate, analyticsActions, setDateFilter]
   );
+  // The startup effect opens a window's project target the way a sidebar
+  // click does (issue #656), with the latest opener.
+  const handleProjectSelectRef = useRef(handleProjectSelect);
+  useEffect(() => {
+    handleProjectSelectRef.current = handleProjectSelect;
+  }, [handleProjectSelect]);
 
   // The palette opens projects and sessions as their sidebar rows do (T10).
   const placeOpeners = useMemo(

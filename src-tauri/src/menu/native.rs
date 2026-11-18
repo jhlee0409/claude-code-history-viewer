@@ -14,11 +14,17 @@
 //!   command when its menu event runs. It also carries the page's tab in
 //!   front, which the journal stamps on every event chosen after it.
 //!
+//! Several windows share the one menu bar (issue #656). A menu event goes to
+//! the window in front (`multi_window::front_label`): it is recorded in that
+//! window's journal and emitted to that window only. Each window syncs its
+//! own state; the menu shows the state of the window in front, switched on
+//! every focus change (`window_in_front`).
+//!
 //! One app-wide menu-event handler is registered once at startup, so a
 //! rebuilt menu adds no listener.
 
 use super::bridge::{ItemState, MenuBridge, MenuStatePayload, SyncOutcome};
-use super::journal::{JournalSnapshot, MenuJournal};
+use super::journal::{JournalSnapshot, MenuJournals};
 use super::labels::Labels;
 use super::manifest::{manifest, MenuId, Os, PredefinedKind};
 use super::spec::{build_spec, ItemSpec, MenuSpec};
@@ -27,7 +33,7 @@ use tauri::menu::{
     AboutMetadata, CheckMenuItem, Menu, MenuItem, MenuItemKind, PredefinedMenuItem, Submenu,
     HELP_SUBMENU_ID, WINDOW_SUBMENU_ID,
 };
-use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State, WebviewWindow};
 
 /// The event the frontend listens on (`MENU_COMMAND_EVENT` in `nativeMenu.ts`).
 pub const MENU_COMMAND_EVENT: &str = "menu-command";
@@ -223,12 +229,17 @@ fn apply_state<R: Runtime>(item: &MenuItemKind<R>, state: ItemState) -> tauri::R
 /// The app-wide menu-event handler (`Builder::on_menu_event`).
 pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     let bridge = app.state::<MenuBridge>();
-    if let Some(event) = app.state::<MenuJournal>().record(manifest(), id) {
-        // A page that is not listening (startup, a reload) pulls it from the
-        // journal instead; a failed emit loses nothing.
-        if let Err(error) = app.emit_to("main", MENU_COMMAND_EVENT, &event) {
-            log::warn!("menu event {} kept for the next pull: {error}", event.seq);
+    if let Some(window) = crate::multi_window::front_label(app) {
+        let journal = app.state::<MenuJournals>().of(&window);
+        if let Some(event) = journal.record(manifest(), id) {
+            // A page that is not listening (startup, a reload) pulls it from
+            // its window's journal instead; a failed emit loses nothing.
+            if let Err(error) = app.emit_to(window.as_str(), MENU_COMMAND_EVENT, &event) {
+                log::warn!("menu event {} kept for the next pull: {error}", event.seq);
+            }
         }
+    } else {
+        log::warn!("menu event {id:?} dropped: no window is open");
     }
     // A checkbox item ticks itself when chosen. Put it back to the app's
     // state; the frontend's next sync ticks it if the command did toggle.
@@ -242,17 +253,38 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
     }
 }
 
-/// The frontend reports its language and command state; the menu shows it.
+/// Window `label` came to the front: the menu shows its state.
+pub fn window_in_front<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    let bridge = app.state::<MenuBridge>();
+    let outcome = bridge.focus(label);
+    if let Err(error) = apply_outcome(app, &outcome) {
+        bridge.apply_failed();
+        log::warn!("menu state of window {label:?} not shown: {error}");
+    }
+}
+
+/// Window `label` closed: its menu state and journal go with it.
+pub fn window_closed<R: Runtime>(app: &AppHandle<R>, label: &str) {
+    app.state::<MenuBridge>().forget(label);
+    app.state::<MenuJournals>().forget(label);
+}
+
+/// A window's page reports its language and command state; the menu shows
+/// the state of the window in front.
 #[tauri::command]
 pub async fn sync_menu_state(
     app: AppHandle,
+    window: WebviewWindow,
     bridge: State<'_, MenuBridge>,
-    journal: State<'_, MenuJournal>,
+    journals: State<'_, MenuJournals>,
     state: MenuStatePayload,
 ) -> Result<(), String> {
-    // First, whatever happens to the menu: the stamp of the next menu events.
-    journal.report_front_tab(state.front_tab_id.clone());
-    let outcome = bridge.sync(manifest(), state);
+    // First, whatever happens to the menu: the stamp of the window's next
+    // menu events.
+    journals
+        .of(window.label())
+        .report_front_tab(state.front_tab_id.clone());
+    let outcome = bridge.sync(manifest(), window.label(), state);
     if let Err(error) = apply_outcome(&app, &outcome) {
         bridge.apply_failed();
         return Err(error.to_string());
@@ -260,16 +292,21 @@ pub async fn sync_menu_state(
     Ok(())
 }
 
-/// Every menu event the frontend has not acknowledged, oldest first.
+/// Every menu event the calling window has not acknowledged, oldest first.
 #[tauri::command]
-pub fn menu_journal(journal: State<'_, MenuJournal>) -> JournalSnapshot {
-    journal.snapshot()
+pub fn menu_journal(window: WebviewWindow, journals: State<'_, MenuJournals>) -> JournalSnapshot {
+    journals.of(window.label()).snapshot()
 }
 
-/// The frontend ran every menu event up to `seq` of run `epoch`.
+/// The calling window ran every menu event up to `seq` of its journal `epoch`.
 #[tauri::command]
-pub fn ack_menu_events(journal: State<'_, MenuJournal>, epoch: String, seq: u64) {
-    journal.ack(&epoch, seq);
+pub fn ack_menu_events(
+    window: WebviewWindow,
+    journals: State<'_, MenuJournals>,
+    epoch: String,
+    seq: u64,
+) {
+    journals.of(window.label()).ack(&epoch, seq);
 }
 
 fn apply_outcome<R: Runtime>(app: &AppHandle<R>, outcome: &SyncOutcome) -> tauri::Result<()> {

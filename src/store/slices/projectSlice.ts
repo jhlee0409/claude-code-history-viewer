@@ -6,6 +6,7 @@
 
 import { api } from "@/services/api";
 import { storageAdapter } from "@/services/storage";
+import { saveSetting } from "@/services/settingsSync";
 import { homeDirFromDefaultClaudePath } from "@/lib/format/path";
 import type { ClaudeProject, ClaudeSession, SessionPage, AppError, ProviderId, UserSettings } from "../../types";
 import { AppErrorType } from "../../types";
@@ -964,12 +965,7 @@ export const createProjectSlice: StateCreator<
     set({ claudePath: path });
 
     try {
-      const store = await storageAdapter.load("settings.json", {
-        autoSave: false,
-        defaults: {},
-      });
-      await store.set("claudePath", path);
-      await store.save();
+      await saveSetting("claudePath", path);
     } catch (error) {
       console.error("Failed to save claude path:", error);
     }

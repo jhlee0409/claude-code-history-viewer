@@ -16,6 +16,13 @@
 //!   while the window is still hidden (`"visible": false` in
 //!   `tauri.conf.json`); it shows the window afterwards in every case. The
 //!   frame comes from the pure [`restore_plan`] / [`place`].
+//! - **Several windows** (issue #656) — each window keeps a record of its
+//!   own, named by its label ([`record_file_name`]): `main` keeps
+//!   `window-state.json`, `window-<n>` keeps `window-state-window-<n>.json`.
+//!   Only `main` is restored at launch. A window opened later
+//!   ([`restore_and_track_window`]) restores the record of its label; with
+//!   none it opens offset from the window it was opened from ([`cascaded`]),
+//!   fitted onto a monitor like any restored frame.
 //!
 //! **Coordinates.** tao reports physical pixels, but they mean different
 //! things per platform; [`DesktopSpace::of`] holds the one rule per platform
@@ -40,6 +47,7 @@
 //! (outer − inner size, read from the created window) from the fitted outer
 //! size.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{mpsc, Arc, Mutex, PoisonError};
@@ -54,8 +62,12 @@ pub const FILE_NAME: &str = "window-state.json";
 /// Version of the saved record; a file with another version is ignored.
 pub const FORMAT_VERSION: u32 = 1;
 
-/// The only window whose state is kept (configured in `tauri.conf.json`).
-pub const WINDOW_LABEL: &str = "main";
+/// The window restored at launch (configured in `tauri.conf.json`).
+pub const WINDOW_LABEL: &str = crate::multi_window::MAIN_WINDOW;
+
+/// How far (logical px, right and down) a new window without a saved frame
+/// sits from the window it was opened from.
+pub const CASCADE_OFFSET: f64 = 28.0;
 
 /// Quiet time after the last move/resize before the record is written.
 pub const SAVE_DEBOUNCE: Duration = Duration::from_millis(500);
@@ -523,6 +535,41 @@ pub fn load(path: &Path) -> Option<SavedWindow> {
     saved
 }
 
+/// The record file of window `label`: `main`'s is [`FILE_NAME`], a secondary
+/// window's (`window-<n>`) carries its label; `None` for any other label,
+/// whose frame is not kept.
+pub fn record_file_name(label: &str) -> Option<String> {
+    if label == WINDOW_LABEL {
+        return Some(FILE_NAME.to_string());
+    }
+    crate::multi_window::window_number(label).map(|_| format!("window-state-{label}.json"))
+}
+
+/// Where a new window with no record of its own opens: the frame of the
+/// window it was opened from, [`CASCADE_OFFSET`] logical px right and down
+/// (physical px at that window's scale), never maximized; the restore fits
+/// it onto a monitor. `None` while that window is minimized or fullscreen
+/// (its frame then says nothing about a place on the desktop).
+pub fn cascaded(source: &Observation) -> Option<SavedWindow> {
+    if source.minimized || source.fullscreen {
+        return None;
+    }
+    let offset = scale_coordinate(1, CASCADE_OFFSET * source.scale_factor);
+    let frame = Rect::new(
+        source.frame.x.saturating_add(offset),
+        source.frame.y.saturating_add(offset),
+        source.frame.width,
+        source.frame.height,
+    );
+    Some(SavedWindow::new(
+        frame,
+        source.scale_factor,
+        source.monitor.clone(),
+        false,
+    ))
+    .filter(SavedWindow::is_plausible)
+}
+
 /// The temp file [`save`] writes before renaming it over `path`.
 fn temp_path(path: &Path) -> PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
@@ -790,8 +837,16 @@ impl Persister {
 // Tauri glue
 // ---------------------------------------------------------------------------
 
-/// Managed so the app's exit hook ([`on_run_event`]) can flush the record.
-struct WindowStateStore(Arc<Persister>);
+/// Every tracked window's record, by label: the app's exit hook
+/// ([`on_run_event`]) flushes them all.
+#[derive(Default)]
+struct WindowStateStore(Mutex<HashMap<String, Arc<Persister>>>);
+
+impl WindowStateStore {
+    fn persisters(&self) -> std::sync::MutexGuard<'_, HashMap<String, Arc<Persister>>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
 
 /// Restores the main window's saved frame, shows the window, and keeps the
 /// record up to date. Call from the app's `setup`, after anything that
@@ -802,34 +857,64 @@ pub fn restore_and_track<R: Runtime>(app: &AppHandle<R>) {
         log::warn!("window-state: no `{WINDOW_LABEL}` window");
         return;
     };
-    let path = match app.path().app_config_dir() {
-        Ok(dir) => Some(dir.join(FILE_NAME)),
-        Err(error) => {
+    restore_and_track_window(app, &window, None);
+}
+
+/// Restores `window`'s saved frame (the record of its label), shows it, and
+/// keeps the record up to date. With no record, a window opened from
+/// `opened_from` opens offset from it ([`cascaded`]). The window must have
+/// been created hidden; it is shown in every case.
+pub fn restore_and_track_window<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &WebviewWindow<R>,
+    opened_from: Option<&WebviewWindow<R>>,
+) {
+    let path = match (
+        record_file_name(window.label()),
+        app.path().app_config_dir(),
+    ) {
+        (Some(name), Ok(dir)) => Some(dir.join(name)),
+        (None, _) => {
+            log::warn!("window-state: `{}` is not kept", window.label());
+            None
+        }
+        (_, Err(error)) => {
             log::warn!("window-state: no config folder: {error}");
             None
         }
     };
     let saved = path.as_deref().and_then(load);
-    let restored = saved.as_ref().and_then(|saved| {
-        apply(app, &window, saved)
-            .inspect_err(|error| log::warn!("window-state: saved frame not restored: {error}"))
+    let wanted = saved.clone().or_else(|| {
+        opened_from
+            .and_then(observe_window)
+            .as_ref()
+            .and_then(cascaded)
+    });
+    let restored = wanted.as_ref().and_then(|wanted| {
+        apply(app, window, wanted)
+            .inspect_err(|error| log::warn!("window-state: frame not restored: {error}"))
             .ok()
     });
+    // Tracking starts from the frame put in place, saved or cascaded: a
+    // cascaded frame is written only once the window moves or resizes.
     let known = restored.or(saved);
-    // Nothing saved: no setter ran, so the hidden window is at its
-    // configured default frame — the normal frame until it moves.
-    let created = known.is_none().then(|| observe_created(&window)).flatten();
-    show(&window);
+    // Nothing put in place: the hidden window is at its configured default
+    // frame — the normal frame until it moves.
+    let created = known.is_none().then(|| observe_created(window)).flatten();
+    show(window);
     if let Some(path) = path {
-        track(app, &window, path, tracking_start(known, created));
+        track(app, window, path, tracking_start(known, created));
     }
 }
 
-/// Flushes the record when the app exits (⌘Q / Quit sends no window event).
+/// Flushes every record when the app exits (⌘Q / Quit sends no window event).
 pub fn on_run_event<R: Runtime>(app: &AppHandle<R>, event: &tauri::RunEvent) {
     if matches!(event, tauri::RunEvent::Exit) {
         if let Some(store) = app.try_state::<WindowStateStore>() {
-            store.0.save_if_dirty();
+            let persisters: Vec<Arc<Persister>> = store.persisters().values().cloned().collect();
+            for persister in persisters {
+                persister.save_if_dirty();
+            }
         }
     }
 }
@@ -961,8 +1046,15 @@ fn track<R: Runtime>(
         let persister = Arc::clone(&persister);
         Debouncer::spawn(SAVE_DEBOUNCE, move || persister.save_if_dirty())
     };
-    app.manage(WindowStateStore(Arc::clone(&persister)));
+    if app.try_state::<WindowStateStore>().is_none() {
+        app.manage(WindowStateStore::default());
+    }
+    let label = window.label().to_string();
+    app.state::<WindowStateStore>()
+        .persisters()
+        .insert(label.clone(), Arc::clone(&persister));
     let observed = window.clone();
+    let handle = app.clone();
     window.on_window_event(move |event| match event {
         tauri::WindowEvent::Moved(_) | tauri::WindowEvent::Resized(_) => {
             if let Some(observation) = observe_window(&observed) {
@@ -976,6 +1068,12 @@ fn track<R: Runtime>(
                 persister.observe(observation);
             }
             persister.save_if_dirty();
+        }
+        tauri::WindowEvent::Destroyed => {
+            // Saved on close; a window opened later under this label tracks anew.
+            if let Some(store) = handle.try_state::<WindowStateStore>() {
+                store.persisters().remove(&label);
+            }
         }
         _ => {}
     });
@@ -1529,6 +1627,65 @@ mod record_tests {
             }),
             false,
         )
+    }
+
+    #[test]
+    fn each_window_keeps_a_record_named_by_its_label() {
+        assert_eq!(record_file_name("main").as_deref(), Some(FILE_NAME));
+        assert_eq!(
+            record_file_name("window-2").as_deref(),
+            Some("window-state-window-2.json")
+        );
+        // Nothing else names a file: no label reaches a path unchecked.
+        for other in ["window-1", "../main", "window-2/../x", "devtools", ""] {
+            assert_eq!(record_file_name(other), None, "{other:?}");
+        }
+    }
+
+    fn observed(frame: Rect, scale_factor: f64) -> Observation {
+        Observation {
+            frame,
+            scale_factor,
+            monitor: Some(SavedMonitor {
+                name: Some("Built-in".into()),
+                bounds: Rect::new(0, 0, 2880, 1800),
+            }),
+            maximized: false,
+            minimized: false,
+            fullscreen: false,
+        }
+    }
+
+    #[test]
+    fn a_new_window_cascades_from_the_window_it_was_opened_from() {
+        // 28 logical px at 2x: 56 physical, same size, same monitor.
+        let source = observed(Rect::new(200, 100, 2400, 1600), 2.0);
+        assert_eq!(
+            cascaded(&source),
+            Some(SavedWindow::new(
+                Rect::new(256, 156, 2400, 1600),
+                2.0,
+                source.monitor.clone(),
+                false
+            ))
+        );
+        // A maximized source cascades as a normal window.
+        let mut maximized = observed(Rect::new(0, 50, 2880, 1750), 2.0);
+        maximized.maximized = true;
+        assert!(!cascaded(&maximized).unwrap().maximized);
+        // A coordinate at the edge saturates instead of overflowing.
+        let edge = observed(Rect::new(i32::MAX, i32::MAX, 800, 600), 1.0);
+        assert_eq!(cascaded(&edge).unwrap().frame.x, i32::MAX);
+    }
+
+    #[test]
+    fn a_minimized_or_fullscreen_source_gives_no_cascade() {
+        let mut minimized = observed(Rect::new(-32000, -32000, 160, 28), 1.0);
+        minimized.minimized = true;
+        let mut fullscreen = observed(Rect::new(0, 0, 2880, 1800), 2.0);
+        fullscreen.fullscreen = true;
+        assert_eq!(cascaded(&minimized), None);
+        assert_eq!(cascaded(&fullscreen), None);
     }
 
     #[test]

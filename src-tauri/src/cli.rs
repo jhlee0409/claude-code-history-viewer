@@ -18,7 +18,7 @@
 
 use crate::cli_args::extract_flag_value;
 use serde::Serialize;
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 /// Newtype wrapper so we can pass `Option<SessionHint>` through Tauri's typed
 /// managed-state API. `tauri::State<T>` keys by type, so wrapping in a named
@@ -30,11 +30,24 @@ pub struct StartupSessionHint(pub Option<SessionHint>);
 /// Tauri command returning the CLI-supplied session hint, if any.
 ///
 /// The frontend calls this on mount after projects have loaded; `None` means
-/// "no preload requested, run the normal UI".
+/// "no preload requested, run the normal UI". The hint belongs to the launch,
+/// so only the window created at launch (`main`) gets it: a window opened
+/// later (issue #656) opens what it was opened for instead.
 #[tauri::command]
 #[must_use]
-pub fn get_startup_session_hint(state: State<'_, StartupSessionHint>) -> Option<SessionHint> {
-    state.0.clone()
+pub fn get_startup_session_hint(
+    window: WebviewWindow,
+    state: State<'_, StartupSessionHint>,
+) -> Option<SessionHint> {
+    startup_hint_for(window.label(), &state)
+}
+
+fn startup_hint_for(label: &str, state: &StartupSessionHint) -> Option<SessionHint> {
+    if label == crate::multi_window::MAIN_WINDOW {
+        state.0.clone()
+    } else {
+        None
+    }
 }
 
 /// A CLI-supplied hint asking the frontend to preload a specific session.
@@ -232,6 +245,19 @@ mod tests {
 
     fn argv(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    /// Issue #656: the launch's hint opens in the launch window only; a
+    /// window opened later must not open the CLI session again.
+    #[test]
+    fn only_the_main_window_gets_the_startup_hint() {
+        let state =
+            StartupSessionHint(parse_session_hint(&argv(&["app", "--session", "0123abcd"])));
+        assert_eq!(
+            startup_hint_for("main", &state).map(|hint| hint.value),
+            Some("0123abcd".to_string())
+        );
+        assert!(startup_hint_for("window-2", &state).is_none());
     }
 
     // ===== Stage A (UUID) tests — preserved from PR #261 =====

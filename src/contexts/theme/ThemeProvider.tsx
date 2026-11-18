@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { ThemeContext, type Theme } from "@/contexts/theme/context";
-import { loadThemeFromTauriStore, saveThemeToTauriStore } from "./utils";
+import { listenForSettingChanges, saveSetting } from "@/services/settingsSync";
+import { isTheme, loadThemeFromTauriStore } from "./utils";
 
 const initialState = {
   theme: "system" as Theme,
@@ -32,7 +33,7 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setTheme(newTheme);
     setIsDarkMode(calculateIsDarkMode(newTheme));
     try {
-      await saveThemeToTauriStore(newTheme);
+      await saveSetting("theme", newTheme);
     } catch {
       toast.error(i18n.t("common.settings.theme.saveFailed"));
     }
@@ -51,6 +52,17 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     initializeTheme();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // A theme chosen in another window (issue #656).
+  useEffect(
+    () =>
+      listenForSettingChanges((key, value) => {
+        if (key !== "theme" || !isTheme(value)) return;
+        setTheme(value);
+        setIsDarkMode(calculateIsDarkMode(value));
+      }),
+    [],
+  );
 
   // Apply theme class to document and listen for system theme changes
   useEffect(() => {
