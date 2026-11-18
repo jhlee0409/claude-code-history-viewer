@@ -106,12 +106,15 @@ xdotool getdisplaygeometry >/dev/null 2>&1 || fail "Xvfb did not start"
 STATE=$HOME/.config/$IDENTIFIER/window-state.json
 rm -f "$STATE"
 
-# No window manager and nothing else on the display: the largest visible
-# top-level window of at least 100x100 is the app's (its minimum is 380x400).
+# The app's largest visible window of at least 100x100 (its minimum is
+# 380x400), found by its WM class: the binary's name, as GTK sets it. The pid
+# is the sandbox's, not the one `flatpak run` returns.
 visible_window() {
   local best="" area=0 id
-  for id in $(xdotool search --onlyvisible --maxdepth 1 --name '' 2>/dev/null || true); do
+  for id in $(xdotool search --onlyvisible --class claude-code-history-viewer 2>/dev/null || true); do
     eval "$(xdotool getwindowgeometry --shell "$id" 2>/dev/null || echo WIDTH=0 HEIGHT=0)"
+    # A screen-sized window is not the main window (1200x800 by default).
+    [ "${WIDTH:-0}" -ge 1920 ] && [ "${HEIGHT:-0}" -ge 1080 ] && continue
     if [ "${WIDTH:-0}" -ge 100 ] && [ "${HEIGHT:-0}" -ge 100 ] && [ $((WIDTH * HEIGHT)) -gt "$area" ]; then
       area=$((WIDTH * HEIGHT))
       best="$id $X $Y $WIDTH $HEIGHT"
