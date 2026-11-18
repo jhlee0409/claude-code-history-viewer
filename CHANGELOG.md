@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Recent edits and subagents of other providers no longer error in the WebUI.** A project or session of oh-my-pi, Pi or another file-based provider without recorded edits or subagents is answered with none instead of HTTP 500 `Path is outside the configured history directories`, and its files are never read as Claude history. (#643)
 - **The current search match is visible in a tool row's head.** The current match is now underlined in its text colour, so it stands out from the current message's highlight (which has the same colour as the match) in the light, dark and high-contrast themes, for example in a NotebookEdit path or a collapsed row's target. (#736)
 - **Session Details KPI captions are no longer cut off on phones with larger text.** "Tokens/Message" can wrap after its slash, and a tile whose caption or value needs more room moves onto its own row instead of running past the card's edge. (#719)
+- **Loading earlier messages keeps your place on the first frame again** (desktop and WebUI). When an earlier page loads above the transcript (scrolling to the top, or a search jump into an older page), the message you were reading no longer slips off screen for a moment before snapping back, so a jump to a search match settles about 60 ms sooner. (#778)
 
 ## [1.32.2] - 2026-10-20
 
