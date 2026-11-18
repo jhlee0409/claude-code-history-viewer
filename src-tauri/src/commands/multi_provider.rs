@@ -95,6 +95,7 @@ pub async fn scan_all_projects(
             "openinterpreter".to_string(),
             "pi".to_string(),
             "ompi".to_string(),
+            "qoder".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -112,6 +113,7 @@ pub async fn scan_all_projects(
             "trae".to_string(),
             "vibe".to_string(),
             "zcode".to_string(),
+            "claude-ai".to_string(),
         ]
     });
 
@@ -187,6 +189,7 @@ pub async fn scan_all_projects(
         ("openinterpreter", providers::openinterpreter::scan_projects),
         ("pi", providers::pi::scan_projects),
         ("ompi", providers::ompi::scan_projects),
+        ("qoder", providers::qoder::scan_projects),
         ("qwen", providers::qwen::scan_projects),
         ("zed", providers::zed::scan_projects),
         ("openhands", providers::openhands::scan_projects),
@@ -205,6 +208,7 @@ pub async fn scan_all_projects(
         ("llm", providers::llm::scan_projects),
         ("copilot", providers::copilot::scan_projects),
         ("zcode", providers::zcode::scan_projects),
+        ("claude-ai", providers::claude_ai::scan_projects),
     ];
 
     // Spawn every enabled scanner up front so they run concurrently on the
@@ -387,6 +391,7 @@ pub async fn load_provider_sessions(
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
         "pi" => providers::pi::load_sessions(&project_path, exclude),
         "ompi" => providers::ompi::load_sessions(&project_path, exclude),
+        "qoder" => providers::qoder::load_sessions(&project_path, exclude),
         "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
@@ -403,6 +408,7 @@ pub async fn load_provider_sessions(
         "openhands" => providers::openhands::load_sessions(&project_path, exclude),
         "trae" => providers::trae::load_sessions(&project_path, exclude),
         "vibe" => providers::vibe::load_sessions(&project_path, exclude),
+        "claude-ai" => providers::claude_ai::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -539,6 +545,7 @@ fn load_non_claude_messages(
         "openinterpreter" => providers::openinterpreter::load_messages(session_path),
         "pi" => providers::pi::load_messages(session_path),
         "ompi" => providers::ompi::load_messages(session_path),
+        "qoder" => providers::qoder::load_messages(session_path),
         "qwen" => providers::qwen::load_messages(session_path),
         "cline" => providers::cline::load_messages(session_path),
         "crush" => providers::crush::load_messages(session_path),
@@ -555,6 +562,7 @@ fn load_non_claude_messages(
         "openhands" => providers::openhands::load_messages(session_path),
         "trae" => providers::trae::load_messages(session_path),
         "vibe" => providers::vibe::load_messages(session_path),
+        "claude-ai" => providers::claude_ai::load_messages(session_path),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -682,6 +690,38 @@ pub async fn get_provider_message_offset(
     Ok(merged.iter().rev().position(|m| m.uuid == message_uuid))
 }
 
+/// Providers whose entries link to their predecessor, so a session can fork:
+/// Claude Code (`parentUuid`) and the Pi format (`id`/`parentId`, `pi` and
+/// `ompi`). Every other provider records one linear list.
+const BRANCHING_PROVIDER_IDS: &[&str] = &["claude", "pi", "ompi"];
+
+/// Where the session's conversation forks (#782): an edited prompt,
+/// `/rewind`, or resuming from an earlier point leaves the old continuation
+/// in the file next to the new one. Read from the whole file, so a window
+/// loaded by `load_provider_messages_paginated` can be filtered to one path
+/// whether or not the fork itself is loaded. Empty for providers that cannot
+/// fork.
+#[tauri::command]
+pub async fn get_conversation_branches(
+    provider: String,
+    session_path: String,
+) -> Result<crate::commands::session::ConversationBranches, String> {
+    if !BRANCHING_PROVIDER_IDS.contains(&provider.as_str()) {
+        return Ok(crate::commands::session::ConversationBranches::default());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if provider == "claude" {
+            return crate::commands::session::claude_conversation_branches(Path::new(
+                &session_path,
+            ));
+        }
+        let messages = load_non_claude_messages(&provider, &session_path)?;
+        Ok(crate::commands::session::conversation_branches_from_messages(&messages))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Search across all (or selected) providers
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
@@ -719,6 +759,7 @@ pub async fn search_all_providers(
             "openinterpreter".to_string(),
             "pi".to_string(),
             "ompi".to_string(),
+            "qoder".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
@@ -736,6 +777,7 @@ pub async fn search_all_providers(
             "trae".to_string(),
             "vibe".to_string(),
             "zcode".to_string(),
+            "claude-ai".to_string(),
         ]
     });
     // Native loaders use the full active provider selection. WSL loaders use
@@ -964,6 +1006,16 @@ pub async fn search_all_providers(
         }
     }
 
+    // Qoder
+    if providers_to_search.iter().any(|p| p == "qoder") {
+        match providers::qoder::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Qoder search failed: {e}");
+            }
+        }
+    }
+
     // Qwen Code
     if providers_to_search.iter().any(|p| p == "qwen") {
         match providers::qwen::search(&query, max_results) {
@@ -1109,6 +1161,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Trae search failed: {e}");
+            }
+        }
+    }
+
+    // claude.ai account exports
+    if providers_to_search.iter().any(|p| p == "claude-ai") {
+        match providers::claude_ai::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("claude.ai export search failed: {e}");
             }
         }
     }

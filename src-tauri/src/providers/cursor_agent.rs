@@ -159,6 +159,14 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
     Ok(projects)
 }
 
+/// The transcript files [`load_sessions`] lists for a project folder.
+pub(crate) fn transcript_paths(project_dir: &Path) -> Vec<PathBuf> {
+    transcript_files(&project_dir.join("agent-transcripts"))
+        .into_iter()
+        .map(DirEntry::into_path)
+        .collect()
+}
+
 /// Load the sessions (transcripts) for a Cursor Agent project.
 pub fn load_sessions(
     project_path: &str,
@@ -678,7 +686,7 @@ fn project_path(project_dir: &Path) -> String {
 /// `(name, actual_path)` scan reports for a project directory: the decoded
 /// workspace leaf and path when the encoded name resolves on disk, else the
 /// encoded name and the directory itself.
-fn project_display(project_dir: &Path) -> (String, String) {
+pub(crate) fn project_display(project_dir: &Path) -> (String, String) {
     let dir_name = project_dir
         .file_name()
         .and_then(|n| n.to_str())

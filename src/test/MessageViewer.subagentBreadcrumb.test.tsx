@@ -40,6 +40,8 @@ const SUBAGENT_SESSION = {
 function resetStoreState() {
   Object.keys(storeState).forEach((key) => delete storeState[key]);
   Object.assign(storeState, {
+    // The raw loaded window (the paging counter reads it).
+    messages: [],
     isCaptureMode: false,
     isMinimapOpen: false,
     hiddenMessageIds: [] as string[],

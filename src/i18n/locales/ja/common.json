@@ -101,6 +101,7 @@
   "common.provider.openinterpreter": "Open Interpreter",
   "common.provider.pearai": "PearAI",
   "common.provider.pi": "Pi",
+  "common.provider.qoder": "Qoder",
   "common.provider.qwen": "Qwen Code",
   "common.provider.saveError": "検出したプロバイダー設定を保存できませんでした。もう一度お試しください。",
   "common.provider.trae": "Trae",
@@ -321,5 +322,6 @@
   "common.command.actualSize": "実際のサイズ",
   "common.missingValue.notRecorded": "記録なし",
   "common.missingValue.partialTokens": "トークンは一部のみ記録されています。観測された小計を表示します。",
-  "common.missingValue.unknownTokens": "トークンの記録範囲は不明です。既存の値を表示します。"
+  "common.missingValue.unknownTokens": "トークンの記録範囲は不明です。既存の値を表示します。",
+  "common.provider.claudeAi": "Claude.ai"
 }

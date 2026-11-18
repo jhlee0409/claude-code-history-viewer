@@ -72,7 +72,7 @@ Docker, VPS, systemd 설정은 [서버 모드](#서버-모드-webui)를 참고�
 
 AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 도구 간에 히스토리를 돌아볼 방법을 제공하지 않습니다. CCHV가 이를 해결합니다.
 
-**서른두 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code 포함), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
+**서른세 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code 포함), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, Qoder 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
 
 | 프로바이더 | 데이터 위치 | 제공 내용 |
 |----------|--------------|--------------|
@@ -107,6 +107,8 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 스레드 — SQLite + Zstd 압축 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai의 GLM 코딩 에이전트 — session/message/part 구조 SQLite 스토어 (제목, 도구 호출, 추론, 토큰 사용량) |
 | **Hermes Agent** | `HERMES_HOME`의 `state.db` (기본값 `~/.hermes`, Windows는 `%LOCALAPPDATA%\hermes`) + `profiles/<name>/` | Nous Research의 에이전트 — SQLite 스토어의 CLI·데스크톱·게이트웨이 세션 (도구 호출, 추론, 세션 토큰 사용량 및 비용) |
+| **Claude.ai** (계정 내보내기) | claude.ai → 설정 → 개인정보 → 데이터 내보내기로 받은 zip 또는 압축을 푼 폴더 (설정에서 추가) | 읽기 전용: claude.ai 프로젝트별 대화, 검색 가능; 내보내기에 토큰 사용량이 없어 통계에는 포함되지 않음 |
+| **Qoder** | `~/.qoder/projects/` (CLI·데스크톱 앱, `QODER_CONFIG_DIR`), `~/.qoder-cn/projects/` (Qoder CN), IDE의 `…/Qoder/SharedClientCache/cli/projects/` | Alibaba의 에이전트형 IDE·CLI — Claude Code 형식 트랜스크립트 (도구 호출, 사고 과정, 서브에이전트 실행, Qoder가 기록한 경우 토큰 사용량) |
 | **OpenHands** | `~/.openhands/sessions/` | 클래식 이벤트 스토어 대화 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 워크스페이스별 채팅 (icube 스토어; 실험적, 리버스 엔지니어링 기반) |
 
@@ -134,7 +136,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity` (및
 
 | 기능 | 설명 |
 |---------|-------------|
-| **멀티 프로바이더** | **32개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code 포함), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent — 프로바이더별 필터링, 도구 간 비교 |
+| **멀티 프로바이더** | **33개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code 포함), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, Qoder — 프로바이더별 필터링, 도구 간 비교 |
 | **대화 브라우저** | 프로젝트/세션별 대화 탐색 (워크트리 그룹핑 지원) |
 | **글로벌 검색** | 모든 프로바이더의 대화에서 즉시 검색 |
 | **분석 대시보드** | 듀얼 모드 토큰 통계 (빌링 vs 대화), 비용 브레이크다운, 프로바이더 분포 차트 |
@@ -458,7 +460,7 @@ GET /health
 ## 사용법
 
 1. 앱 실행
-2. 지원하는 32개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
+2. 지원하는 33개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
 3. 좌측 사이드바에서 프로젝트 탐색 — 탭 바로 프로바이더별 필터링
 4. 세션 클릭하여 메시지 확인
 5. 탭으로 메시지, 분석, 토큰 통계, 최근 편집, 세션 보드 전환

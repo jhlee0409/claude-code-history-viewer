@@ -31,6 +31,7 @@ afterEach(cleanup);
 
 describe("MessageHeader provider label", () => {
   it("uses the provider registry label", () => {
+    expect(label("claude-ai")).toBe("Claude.ai");
     expect(label("cursor-acp")).toBe("Cursor ACP");
     expect(label("cursor-agent")).toBe("Cursor Agent");
     expect(label("hermes")).toBe("Hermes Agent");

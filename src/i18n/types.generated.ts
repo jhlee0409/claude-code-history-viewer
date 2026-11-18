@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T09:39:27.848Z
- * 총 키 개수: 2457
+ * 생성 시간: 2026-11-18T12:47:52.697Z
+ * 총 키 개수: 2500
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (317개)
+ * common namespace의 번역 키 (319개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -220,6 +220,7 @@ export type CommonKeys =
   | 'common.provider.amazonq'
   | 'common.provider.antigravity'
   | 'common.provider.claude'
+  | 'common.provider.claudeAi'
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
@@ -245,6 +246,7 @@ export type CommonKeys =
   | 'common.provider.openinterpreter'
   | 'common.provider.pearai'
   | 'common.provider.pi'
+  | 'common.provider.qoder'
   | 'common.provider.qwen'
   | 'common.provider.saveError'
   | 'common.provider.trae'
@@ -580,7 +582,7 @@ export type AnalyticsKeys =
   | 'analytics.weeklyActivity';
 
 /**
- * session namespace의 번역 키 (336개)
+ * session namespace의 번역 키 (355개)
  * 파일: locales/{lang}/session.json
  */
 export type SessionKeys =
@@ -592,6 +594,25 @@ export type SessionKeys =
   | 'project.a11y.keyboardHelp'
   | 'project.a11y.selectedState'
   | 'project.addPattern'
+  | 'project.clearUnavailable.acknowledge'
+  | 'project.clearUnavailable.clearing'
+  | 'project.clearUnavailable.confirm'
+  | 'project.clearUnavailable.description'
+  | 'project.clearUnavailable.failed'
+  | 'project.clearUnavailable.loading'
+  | 'project.clearUnavailable.menu'
+  | 'project.clearUnavailable.moved'
+  | 'project.clearUnavailable.notCleared'
+  | 'project.clearUnavailable.notMoved'
+  | 'project.clearUnavailable.nothing'
+  | 'project.clearUnavailable.reason.invalidProject'
+  | 'project.clearUnavailable.reason.locationAvailable'
+  | 'project.clearUnavailable.reason.permanentDelete'
+  | 'project.clearUnavailable.reason.unsupported'
+  | 'project.clearUnavailable.refreshFailed'
+  | 'project.clearUnavailable.targets'
+  | 'project.clearUnavailable.title'
+  | 'project.clearUnavailable.warning'
   | 'project.collapseSidebar'
   | 'project.copyLastKnownPath'
   | 'project.copyPath'
@@ -922,7 +943,7 @@ export type SessionKeys =
   | 'sessionPicker.title';
 
 /**
- * settings namespace의 번역 키 (574개)
+ * settings namespace의 번역 키 (591개)
  * 파일: locales/{lang}/settings.json
  */
 export type SettingsKeys =
@@ -944,6 +965,23 @@ export type SettingsKeys =
   | 'folderPicker.selectedPath'
   | 'folderPicker.validating'
   | 'folderPicker.validationError'
+  | 'settings.claudeAiExports'
+  | 'settings.claudeAiExports.add'
+  | 'settings.claudeAiExports.added'
+  | 'settings.claudeAiExports.chooseFolder'
+  | 'settings.claudeAiExports.chooseZip'
+  | 'settings.claudeAiExports.description'
+  | 'settings.claudeAiExports.duplicate'
+  | 'settings.claudeAiExports.empty'
+  | 'settings.claudeAiExports.invalid'
+  | 'settings.claudeAiExports.label'
+  | 'settings.claudeAiExports.labelPlaceholder'
+  | 'settings.claudeAiExports.path'
+  | 'settings.claudeAiExports.pathPlaceholder'
+  | 'settings.claudeAiExports.remove'
+  | 'settings.claudeAiExports.removeConfirm'
+  | 'settings.claudeAiExports.removeFailed'
+  | 'settings.claudeAiExports.webPathHint'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'
@@ -1609,7 +1647,7 @@ export type ErrorKeys =
   | 'error.viewDetails';
 
 /**
- * message namespace의 번역 키 (173개)
+ * message namespace의 번역 키 (178개)
  * 파일: locales/{lang}/message.json
  */
 export type MessageKeys =
@@ -1694,6 +1732,11 @@ export type MessageKeys =
   | 'messageViewer.claude'
   | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
+  | 'messageViewer.conversationBranch.group'
+  | 'messageViewer.conversationBranch.hint'
+  | 'messageViewer.conversationBranch.label'
+  | 'messageViewer.conversationBranch.next'
+  | 'messageViewer.conversationBranch.previous'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
   | 'messageViewer.debugInfo.hasMore'
@@ -3207,6 +3250,7 @@ export type TranslationKey =
   | 'common.provider.amazonq'
   | 'common.provider.antigravity'
   | 'common.provider.claude'
+  | 'common.provider.claudeAi'
   | 'common.provider.cline'
   | 'common.provider.codebuddy'
   | 'common.provider.codex'
@@ -3232,6 +3276,7 @@ export type TranslationKey =
   | 'common.provider.openinterpreter'
   | 'common.provider.pearai'
   | 'common.provider.pi'
+  | 'common.provider.qoder'
   | 'common.provider.qwen'
   | 'common.provider.saveError'
   | 'common.provider.trae'
@@ -3653,6 +3698,11 @@ export type TranslationKey =
   | 'messageViewer.claude'
   | 'messageViewer.clearSearch'
   | 'messageViewer.codex'
+  | 'messageViewer.conversationBranch.group'
+  | 'messageViewer.conversationBranch.hint'
+  | 'messageViewer.conversationBranch.label'
+  | 'messageViewer.conversationBranch.next'
+  | 'messageViewer.conversationBranch.previous'
   | 'messageViewer.debugInfo.file'
   | 'messageViewer.debugInfo.firstMessage'
   | 'messageViewer.debugInfo.hasMore'
@@ -3769,6 +3819,25 @@ export type TranslationKey =
   | 'project.a11y.keyboardHelp'
   | 'project.a11y.selectedState'
   | 'project.addPattern'
+  | 'project.clearUnavailable.acknowledge'
+  | 'project.clearUnavailable.clearing'
+  | 'project.clearUnavailable.confirm'
+  | 'project.clearUnavailable.description'
+  | 'project.clearUnavailable.failed'
+  | 'project.clearUnavailable.loading'
+  | 'project.clearUnavailable.menu'
+  | 'project.clearUnavailable.moved'
+  | 'project.clearUnavailable.notCleared'
+  | 'project.clearUnavailable.notMoved'
+  | 'project.clearUnavailable.nothing'
+  | 'project.clearUnavailable.reason.invalidProject'
+  | 'project.clearUnavailable.reason.locationAvailable'
+  | 'project.clearUnavailable.reason.permanentDelete'
+  | 'project.clearUnavailable.reason.unsupported'
+  | 'project.clearUnavailable.refreshFailed'
+  | 'project.clearUnavailable.targets'
+  | 'project.clearUnavailable.title'
+  | 'project.clearUnavailable.warning'
   | 'project.collapseSidebar'
   | 'project.copyLastKnownPath'
   | 'project.copyPath'
@@ -4199,6 +4268,23 @@ export type TranslationKey =
   | 'sessionPicker.empty'
   | 'sessionPicker.subtitle'
   | 'sessionPicker.title'
+  | 'settings.claudeAiExports'
+  | 'settings.claudeAiExports.add'
+  | 'settings.claudeAiExports.added'
+  | 'settings.claudeAiExports.chooseFolder'
+  | 'settings.claudeAiExports.chooseZip'
+  | 'settings.claudeAiExports.description'
+  | 'settings.claudeAiExports.duplicate'
+  | 'settings.claudeAiExports.empty'
+  | 'settings.claudeAiExports.invalid'
+  | 'settings.claudeAiExports.label'
+  | 'settings.claudeAiExports.labelPlaceholder'
+  | 'settings.claudeAiExports.path'
+  | 'settings.claudeAiExports.pathPlaceholder'
+  | 'settings.claudeAiExports.remove'
+  | 'settings.claudeAiExports.removeConfirm'
+  | 'settings.claudeAiExports.removeFailed'
+  | 'settings.claudeAiExports.webPathHint'
   | 'settings.context.userWide'
   | 'settings.context.userWideDesc'
   | 'settings.customDirectories'

@@ -2097,17 +2097,7 @@ fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>
             // Create a mutable copy for simd-json (it requires mutable slice)
             let mut line_bytes = mmap[start..end].to_vec();
 
-            parse_line_simd(line_num, &mut line_bytes, false)
-                .filter(|msg| {
-                    if is_system_message_type(&msg.message_type) {
-                        return false;
-                    }
-                    if msg.message_type == "system" {
-                        return !is_hidden_system_subtype(msg.subtype.as_deref());
-                    }
-                    true
-                })
-                .map(|msg| (line_num, msg))
+            parse_viewer_line(line_num, &mut line_bytes).map(|msg| (line_num, msg))
         })
         .collect();
 
@@ -2119,6 +2109,24 @@ fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>
     };
     fill_missing_timestamps(line_starts.len(), line_at, &mut messages);
     Ok(messages.into_iter().map(|(_, msg)| msg).collect())
+}
+
+/// One line of a Claude Code-format transcript as the viewer shows it: the
+/// parsed message, or `None` for a line the viewer hides (bookkeeping
+/// records, hidden system subtypes, meta lines, a summary). Shared with the
+/// providers that write this format (Qoder) so their messages are built and
+/// filtered exactly as Claude's are. An empty `timestamp` is left for
+/// [`fill_missing_timestamps`](super::timestamp_fill::fill_missing_timestamps).
+pub(crate) fn parse_viewer_line(line_num: usize, line: &mut [u8]) -> Option<ClaudeMessage> {
+    parse_line_simd(line_num, line, false).filter(|msg| {
+        if is_system_message_type(&msg.message_type) {
+            return false;
+        }
+        if msg.message_type == "system" {
+            return !is_hidden_system_subtype(msg.subtype.as_deref());
+        }
+        true
+    })
 }
 
 // ============================================================================
@@ -2228,10 +2236,13 @@ fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
 }
 
 /// Whether `session_path` is another provider's session file: subagent
-/// transcripts are kept beside Claude sessions only, so it is answered with
-/// no subagents and never opened (#643).
+/// transcripts are kept beside Claude sessions, and beside Qoder's (which
+/// writes the same `<session>/subagents/` layout), only; any other file is
+/// answered with no subagents and never opened (#643).
 pub(crate) fn is_other_provider_session_file(session_path: &str) -> bool {
-    !session_path.contains("://") && !crate::commands::stats::is_claude_session_path(session_path)
+    !session_path.contains("://")
+        && !crate::commands::stats::is_claude_session_path(session_path)
+        && !crate::providers::qoder::is_session_path(session_path)
 }
 
 /// Subagent rows for a `zcode://<directory>#<session_id>` parent: the
@@ -2482,7 +2493,7 @@ fn extract_subagent_metadata(
 /// `timestamp`. The parser drops a line with neither (a forked agent's
 /// `fork-context-ref`, for one), so counting it would leave a total that no
 /// page can reach, and `has_more` would stay true (#768).
-fn is_viewer_visible_line(
+pub(crate) fn is_viewer_visible_line(
     message_type: &str,
     subtype: Option<&str>,
     is_sidechain: Option<bool>,

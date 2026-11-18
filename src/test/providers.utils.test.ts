@@ -15,6 +15,7 @@ import {
   supportsRecentEdits,
   supportsSessionDeletion,
   supportsSubagents,
+  supportsTrashCleanup,
 } from "@/utils/providers";
 
 describe("providers utils", () => {
@@ -53,6 +54,7 @@ describe("providers utils", () => {
       "amazonq",
       "antigravity",
       "claude",
+      "claude-ai",
       "cline",
       "codebuddy",
       "codex",
@@ -77,6 +79,7 @@ describe("providers utils", () => {
       "openinterpreter",
       "pearai",
       "pi",
+      "qoder",
       "qwen",
       "trae",
       "vibe",
@@ -121,6 +124,18 @@ describe("providers utils", () => {
     // history files, and monitor-state regeneration (Antigravity) keep these off.
     for (const provider of ["antigravity", "cline", "continue", "aider", "gemini"] as const) {
       expect(supportsSessionDeletion(provider)).toBe(false);
+    }
+  });
+
+  it("clears unavailable locations only for providers whose delete goes to the trash", () => {
+    expect(supportsTrashCleanup(undefined)).toBe(true);
+    for (const provider of ["claude", "codex", "cursor-agent"] as const) {
+      expect(supportsTrashCleanup(provider)).toBe(true);
+    }
+    // Cursor and ForgeCode delete database rows permanently; the rest have no
+    // verified delete at all.
+    for (const provider of ["cursor", "forgecode", "gemini", "cline"] as const) {
+      expect(supportsTrashCleanup(provider)).toBe(false);
     }
   });
 
@@ -333,7 +348,7 @@ describe("providers utils", () => {
 
   // Mirrors `get_session_subagents` in src-tauri/src/commands/session/load.rs (#643).
   it("allows subagent lookups only for providers the backend reads", () => {
-    for (const id of ["claude", "opencode", "kilo", "zcode"]) {
+    for (const id of ["claude", "qoder", "opencode", "kilo", "zcode"]) {
       expect(supportsSubagents(id)).toBe(true);
     }
     for (const id of ["ompi", "pi", "gemini", "codex", "forgecode"]) {

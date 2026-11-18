@@ -52,6 +52,7 @@ pub(super) fn reports_token_usage(provider: StatsProvider) -> bool {
         | P::OpenCode
         | P::OpenInterpreter
         | P::Pi
+        | P::Qoder
         | P::Qwen
         | P::Zcode => true,
         P::Aider
@@ -67,7 +68,9 @@ pub(super) fn reports_token_usage(provider: StatsProvider) -> bool {
         | P::PearAI
         | P::Trae
         | P::Vibe
-        | P::Zed => false,
+        | P::Zed
+        // A claude.ai account export records no token usage (#674).
+        | P::ClaudeAi => false,
     }
 }
 
@@ -78,6 +81,7 @@ pub(super) fn records_sidechains(provider: StatsProvider) -> bool {
     matches!(
         provider,
         StatsProvider::Claude
+            | StatsProvider::Qoder
             | StatsProvider::Zcode
             | StatsProvider::OpenCode
             | StatsProvider::Kilo
@@ -675,6 +679,7 @@ fn scan_projects_reporting(
         P::OpenCode => p::opencode::scan_projects_reporting(report),
         P::OpenInterpreter => p::openinterpreter::scan_projects_reporting(report),
         P::Pi => p::pi::scan_projects_reporting(report),
+        P::Qoder => p::qoder::scan_projects_reporting(report),
         P::Qwen => p::qwen::scan_projects_reporting(report),
         P::Zcode => p::zcode::scan_projects_reporting(report),
         // No token usage (`reports_token_usage`): never scanned here.
@@ -692,7 +697,8 @@ fn scan_projects_reporting(
         | P::PearAI
         | P::Trae
         | P::Vibe
-        | P::Zed => scan_stats_projects(provider),
+        | P::Zed
+        | P::ClaudeAi => scan_stats_projects(provider),
     }
 }
 
@@ -723,6 +729,7 @@ fn load_sessions_reporting(
         P::OpenCode => p::opencode::load_sessions_reporting(project_path, report),
         P::OpenInterpreter => p::openinterpreter::load_sessions_reporting(project_path, report),
         P::Pi => p::pi::load_sessions_reporting(project_path, report),
+        P::Qoder => p::qoder::load_sessions_reporting(project_path, report),
         P::Qwen => p::qwen::load_sessions_reporting(project_path, report),
         P::Zcode => p::zcode::load_sessions_reporting(project_path, report),
         P::Aider
@@ -739,7 +746,8 @@ fn load_sessions_reporting(
         | P::PearAI
         | P::Trae
         | P::Vibe
-        | P::Zed => load_stats_sessions(provider, project_path),
+        | P::Zed
+        | P::ClaudeAi => load_stats_sessions(provider, project_path),
     }
 }
 

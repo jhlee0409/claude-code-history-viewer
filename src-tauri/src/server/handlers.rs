@@ -518,6 +518,18 @@ pub struct DeleteSessionParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PreviewUnavailableCleanupParams {
+    pub projects: Vec<commands::session::UnavailableProjectRef>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearUnavailableSessionsParams {
+    pub projects: Vec<commands::session::ConfirmedCleanup>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoveSessionParams {
     pub session_path: String,
     pub target_project_path: String,
@@ -934,6 +946,43 @@ handler_json!(
     }
 );
 
+/// Projects of a provider the cleanup opens on disk must be history paths
+/// (`codex://` ids pass as URIs); the others are only reported as excluded,
+/// never opened, so they need no root.
+fn require_cleanup_project(provider: Option<&str>, path: &str) -> Result<(), String> {
+    if commands::session::is_trash_cleanup_provider(provider) {
+        require_history_path_or_provider_uri(path)?;
+    }
+    Ok(())
+}
+
+handler_json!(
+    preview_unavailable_session_cleanup,
+    PreviewUnavailableCleanupParams,
+    |p: PreviewUnavailableCleanupParams| async move {
+        for project in &p.projects {
+            require_cleanup_project(project.provider.as_deref(), &project.path)?;
+        }
+        commands::session::preview_unavailable_session_cleanup(p.projects).await
+    }
+);
+
+handler_json!(
+    clear_unavailable_sessions,
+    ClearUnavailableSessionsParams,
+    |p: ClearUnavailableSessionsParams| async move {
+        for project in &p.projects {
+            require_cleanup_project(project.provider.as_deref(), &project.path)?;
+            if commands::session::is_trash_cleanup_provider(project.provider.as_deref()) {
+                for session in &project.session_paths {
+                    require_history_path(session)?;
+                }
+            }
+        }
+        commands::session::clear_unavailable_sessions(p.projects).await
+    }
+);
+
 handler_json!(
     move_session_to_project,
     MoveSessionParams,
@@ -1330,6 +1379,17 @@ handler_json!(
 );
 
 handler_json!(
+    get_conversation_branches,
+    ProviderMessagesParams,
+    |p: ProviderMessagesParams| async move {
+        if p.provider == "claude" {
+            require_history_path(&p.session_path)?;
+        }
+        commands::multi_provider::get_conversation_branches(p.provider, p.session_path).await
+    }
+);
+
+handler_json!(
     search_all_providers,
     SearchAllProvidersParams,
     |p: SearchAllProvidersParams| async move {
@@ -1415,6 +1475,7 @@ async fn save_webui_metadata(
     commands::metadata::mutate_and_save(&state.metadata, move |metadata| {
         mutate(metadata);
         keep_persisted_custom_claude_paths(metadata);
+        keep_persisted_claude_ai_exports(metadata);
     })
     .await
     .map_err(ApiError::from)
@@ -1443,6 +1504,18 @@ fn keep_persisted_custom_claude_paths(metadata: &mut crate::models::UserMetadata
         }
     }
     metadata.settings.custom_claude_paths = kept;
+}
+
+/// claude.ai exports name files the server reads, so over the `WebUI` they
+/// change only through `add_claude_ai_export` / `remove_claude_ai_export`,
+/// which check the path; a full-settings save keeps the list on disk.
+fn keep_persisted_claude_ai_exports(metadata: &mut crate::models::UserMetadata) {
+    metadata.settings.claude_ai_exports = commands::metadata::get_user_data_path()
+        .ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|content| serde_json::from_str::<crate::models::UserMetadata>(&content).ok())
+        .map(|persisted| persisted.settings.claude_ai_exports)
+        .unwrap_or_default();
 }
 
 #[derive(Deserialize)]
@@ -1505,6 +1578,35 @@ pub async fn update_user_settings(
         save_webui_metadata(&state, move |metadata| metadata.settings = p.settings).await?;
 
     json_ok(metadata_to_save)
+}
+
+#[derive(Deserialize)]
+pub struct AddClaudeAiExportParams {
+    pub path: String,
+    pub label: Option<String>,
+}
+
+/// Register a claude.ai export typed into the `WebUI`. With no native dialog
+/// to vouch for the choice, the path must lie in the folders a browser user
+/// may name (Downloads, Documents, Desktop - as for `read_text_file`).
+pub async fn add_claude_ai_export(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<AddClaudeAiExportParams>,
+) -> Result<Json<Value>, ApiError> {
+    commands::claude_settings::is_safe_path(std::path::Path::new(p.path.trim()))?;
+    let added =
+        commands::claude_ai_export::add_claude_ai_export_in(&state.metadata, p.path, p.label)
+            .await?;
+    json_ok(added)
+}
+
+pub async fn remove_claude_ai_export(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<PathParam>,
+) -> Result<Json<Value>, ApiError> {
+    let metadata =
+        commands::claude_ai_export::remove_claude_ai_export_in(&state.metadata, p.path).await?;
+    json_ok(metadata)
 }
 
 pub async fn is_project_hidden(
@@ -1839,6 +1941,63 @@ mod tests {
         let saved = persisted_metadata().settings.custom_claude_paths;
         assert_eq!(saved.len(), 1, "{saved:?}");
         assert_eq!(saved[0].path, config_dir.to_string_lossy());
+    }
+
+    /// claude.ai exports change over the `WebUI` only through their own
+    /// routes, and only for a path in the folders a browser user may name.
+    #[tokio::test]
+    #[serial]
+    async fn webui_claude_ai_exports_change_only_through_their_routes() {
+        use crate::providers::claude_ai::test_support::write_export_zip;
+        let home = crate::test_utils::SandboxHome::new();
+        let export = home.path().join("Downloads").join("data.zip");
+        let outside = home.path().join("elsewhere").join("data.zip");
+        for path in [&export, &outside] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            write_export_zip(path);
+        }
+        commands::metadata::save_metadata_to_disk(&crate::models::UserMetadata::new()).unwrap();
+        let state = metadata_state();
+        let add = |path: &std::path::Path| AddClaudeAiExportParams {
+            path: path.to_string_lossy().to_string(),
+            label: None,
+        };
+
+        let refused = add_claude_ai_export(State(Arc::clone(&state)), Json(add(&outside))).await;
+        assert!(refused.is_err(), "a path outside the allowed folders");
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, Vec::new());
+
+        let _ = add_claude_ai_export(State(Arc::clone(&state)), Json(add(&export)))
+            .await
+            .unwrap_or_else(|_| panic!("add_claude_ai_export failed"));
+        let saved = persisted_metadata().settings.claude_ai_exports;
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].path, export.to_string_lossy());
+
+        // A full-settings save can neither add nor drop an export.
+        let mut settings = persisted_metadata().settings;
+        settings.claude_ai_exports = vec![crate::models::ClaudeAiExport {
+            path: outside.to_string_lossy().to_string(),
+            label: None,
+        }];
+        let _ = update_user_settings(
+            State(Arc::clone(&state)),
+            Json(UpdateUserSettingsParams { settings }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("update_user_settings failed"));
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, saved);
+
+        let _ = remove_claude_ai_export(
+            State(Arc::clone(&state)),
+            Json(PathParam {
+                path: export.to_string_lossy().to_string(),
+            }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("remove_claude_ai_export failed"));
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, Vec::new());
+        assert!(export.is_file(), "removing an export never deletes it");
     }
 
     /// The `WebUI` path (Axum `/update_session_metadata`) keeps a favourite's
@@ -2431,6 +2590,49 @@ mod provider_uri_scope_tests {
         }))
         .await;
         assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// The unavailable-location cleanup confines what it opens over `--serve`:
+    /// a project or session of a provider it clears must be a history path,
+    /// while a project it only reports as excluded is never opened.
+    #[tokio::test]
+    #[serial]
+    async fn unavailable_cleanup_takes_only_history_paths_it_would_open() {
+        let home = crate::test_utils::SandboxHome::new();
+        let outside = home.path().join("elsewhere").join("-gone");
+        std::fs::create_dir_all(&outside).unwrap();
+        let outside = outside.to_string_lossy().into_owned();
+        let project = |provider: Option<&str>| commands::session::UnavailableProjectRef {
+            provider: provider.map(str::to_string),
+            path: outside.clone(),
+        };
+
+        let res = preview_unavailable_session_cleanup(Json(PreviewUnavailableCleanupParams {
+            projects: vec![project(None)],
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
+
+        let res = preview_unavailable_session_cleanup(Json(PreviewUnavailableCleanupParams {
+            projects: vec![project(Some("aider"))],
+        }))
+        .await;
+        assert!(res.is_ok(), "{:?}", error_of(res));
+
+        let claude_project = home.path().join(".claude").join("projects").join("-gone");
+        std::fs::create_dir_all(&claude_project).unwrap();
+        let res = clear_unavailable_sessions(Json(ClearUnavailableSessionsParams {
+            projects: vec![commands::session::ConfirmedCleanup {
+                provider: None,
+                path: claude_project.to_string_lossy().into_owned(),
+                session_paths: vec![std::path::Path::new(&outside)
+                    .join("s.jsonl")
+                    .to_string_lossy()
+                    .into_owned()],
+            }],
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
     }
 
     /// A project the recent-edits panel does not route to a provider is read

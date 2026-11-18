@@ -8901,6 +8901,205 @@
       "total_count": 3
     }
   },
+  "claude-ai": {
+    "load_provider_messages": [
+      {
+        "content": [
+          {
+            "context": "text/markdown · 2 KB",
+            "source": {
+              "file_name": "release-checklist.md",
+              "file_size": 2048,
+              "file_type": "text/markdown",
+              "type": "file"
+            },
+            "title": "release-checklist.md",
+            "type": "document"
+          },
+          {
+            "context": "image",
+            "source": {
+              "file_name": "screenshot.png",
+              "file_type": "image",
+              "type": "file"
+            },
+            "title": "screenshot.png",
+            "type": "document"
+          },
+          {
+            "text": "Summarise the attached checklist and check the latest Tauri release notes.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "parentUuid": null,
+        "provider": "claude-ai",
+        "role": "user",
+        "sessionId": "0b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+        "timestamp": "2026-03-02T08:00:00.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000001"
+      },
+      {
+        "content": [
+          {
+            "signature": "",
+            "thinking": "I should search for the release notes first.",
+            "type": "thinking"
+          },
+          {
+            "id": "toolu_01ReleaseSearch",
+            "input": {
+              "query": "Tauri 2 release notes"
+            },
+            "name": "web_search",
+            "type": "tool_use"
+          },
+          {
+            "content": "Tauri 2.0 Release\nhttps://v2.tauri.app/blog/tauri-20/\nTauri 2.0 is stable.",
+            "is_error": false,
+            "tool_use_id": "toolu_01ReleaseSearch",
+            "type": "tool_result"
+          },
+          {
+            "id": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002-tool-1",
+            "input": {
+              "command": "create",
+              "id": "checklist",
+              "title": "Checklist"
+            },
+            "name": "artifacts",
+            "type": "tool_use"
+          },
+          {
+            "content": "OK",
+            "is_error": false,
+            "tool_use_id": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002-tool-1",
+            "type": "tool_result"
+          },
+          {
+            "text": "Your checklist covers version bumps and tagging. Tauri 2.0 is stable.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": null,
+        "model": "claude-opus-4-1",
+        "parentUuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+        "provider": "claude-ai",
+        "role": "assistant",
+        "sessionId": "0b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+        "stop_reason": "end_turn",
+        "timestamp": "2026-03-02T08:05:00.000Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": [
+            {
+              "context": "text/markdown · 2 KB",
+              "source": {
+                "file_name": "release-checklist.md",
+                "file_size": 2048,
+                "file_type": "text/markdown",
+                "type": "file"
+              },
+              "title": "release-checklist.md",
+              "type": "document"
+            },
+            {
+              "context": "image",
+              "source": {
+                "file_name": "screenshot.png",
+                "file_type": "image",
+                "type": "file"
+              },
+              "title": "screenshot.png",
+              "type": "document"
+            },
+            {
+              "text": "Summarise the attached checklist and check the latest Tauri release notes.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "parentUuid": null,
+          "provider": "claude-ai",
+          "role": "user",
+          "sessionId": "0b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+          "timestamp": "2026-03-02T08:00:00.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000001"
+        },
+        {
+          "content": [
+            {
+              "signature": "",
+              "thinking": "I should search for the release notes first.",
+              "type": "thinking"
+            },
+            {
+              "id": "toolu_01ReleaseSearch",
+              "input": {
+                "query": "Tauri 2 release notes"
+              },
+              "name": "web_search",
+              "type": "tool_use"
+            },
+            {
+              "content": "Tauri 2.0 Release\nhttps://v2.tauri.app/blog/tauri-20/\nTauri 2.0 is stable.",
+              "is_error": false,
+              "tool_use_id": "toolu_01ReleaseSearch",
+              "type": "tool_result"
+            },
+            {
+              "id": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002-tool-1",
+              "input": {
+                "command": "create",
+                "id": "checklist",
+                "title": "Checklist"
+              },
+              "name": "artifacts",
+              "type": "tool_use"
+            },
+            {
+              "content": "OK",
+              "is_error": false,
+              "tool_use_id": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002-tool-1",
+              "type": "tool_result"
+            },
+            {
+              "text": "Your checklist covers version bumps and tagging. Tauri 2.0 is stable.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": null,
+          "model": "claude-opus-4-1",
+          "parentUuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+          "provider": "claude-ai",
+          "role": "assistant",
+          "sessionId": "0b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+          "stop_reason": "end_turn",
+          "timestamp": "2026-03-02T08:05:00.000Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002"
+        }
+      ],
+      "next_offset": 2,
+      "total_count": 2
+    }
+  },
   "cursor-acp": {
     "load_provider_messages": [
       {
@@ -9098,6 +9297,324 @@
       ],
       "next_offset": 4,
       "total_count": 4
+    }
+  }
+,
+  "qoder": {
+    "load_provider_messages": [
+      {
+        "content": "Run the test suite and tell me what fails",
+        "isSidechain": false,
+        "parentUuid": null,
+        "provider": "qoder",
+        "role": "user",
+        "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+        "timestamp": "2026-11-07T08:56:16.431Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "user",
+        "uuid": "user:0e50e52b-1d5e-4951-bdd0-ec956d49425c"
+      },
+      {
+        "content": [
+          {
+            "signature": "",
+            "thinking": "I should run the tests before reading any code.",
+            "type": "thinking"
+          }
+        ],
+        "isSidechain": false,
+        "messageId": "2026110716561847cc37e0cb974aa7",
+        "model": "gfmodel",
+        "parentUuid": "e46e5b5f-3c0c-4189-bf84-a297d3245875",
+        "provider": "qoder",
+        "role": "assistant",
+        "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+        "timestamp": "2026-11-07T08:56:28.691Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "769c01d1-67f8-4bf1-b4c1-d1330cb399b5"
+      },
+      {
+        "content": [
+          {
+            "citations": null,
+            "text": "Running the test suite first.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": false,
+        "messageId": "2026110716561847cc37e0cb974aa7",
+        "model": "gfmodel",
+        "parentUuid": "769c01d1-67f8-4bf1-b4c1-d1330cb399b5",
+        "provider": "qoder",
+        "role": "assistant",
+        "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+        "timestamp": "2026-11-07T08:56:28.692Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "uuid": "764d63e0-c8a6-4cb0-be8b-49edb1c2ebbe"
+      },
+      {
+        "content": [
+          {
+            "id": "call_78042557f04743aeae0852f7",
+            "input": {
+              "command": "pnpm test",
+              "description": "Run the test suite"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          {
+            "content": "FAIL src/math.test.ts > adds\n1 failed, 41 passed",
+            "is_error": true,
+            "tool_use_id": "call_78042557f04743aeae0852f7",
+            "type": "tool_result"
+          }
+        ],
+        "isSidechain": false,
+        "messageId": "2026110716561847cc37e0cb974aa7",
+        "model": "gfmodel",
+        "parentUuid": "764d63e0-c8a6-4cb0-be8b-49edb1c2ebbe",
+        "provider": "qoder",
+        "role": "assistant",
+        "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+        "stop_reason": "tool_use",
+        "timestamp": "2026-11-07T08:56:28.692Z",
+        "toolUse": {
+          "id": "call_78042557f04743aeae0852f7",
+          "input": {
+            "command": "pnpm test",
+            "description": "Run the test suite"
+          },
+          "name": "Bash",
+          "type": "tool_use"
+        },
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "input_tokens": 28067,
+          "output_tokens": 272,
+          "service_tier": "standard"
+        },
+        "uuid": "7b76b378-a801-4606-9c11-be5b834b8a98"
+      },
+      {
+        "content": [
+          {
+            "citations": null,
+            "text": "One test fails: `adds` in src/math.test.ts. The other 41 pass.",
+            "type": "text"
+          }
+        ],
+        "isSidechain": false,
+        "messageId": "20261107165634f2b5bce98bb045c6",
+        "model": "gfmodel",
+        "parentUuid": "83781778-5a59-41d2-ae7c-8d0b0dd7d211",
+        "provider": "qoder",
+        "role": "assistant",
+        "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+        "stop_reason": "end_turn",
+        "timestamp": "2026-11-07T08:56:44.994Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "assistant",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 9856,
+          "input_tokens": 32057,
+          "output_tokens": 95,
+          "service_tier": "standard"
+        },
+        "uuid": "bacef942-2923-4adf-bfb7-5afdd91f8090"
+      },
+      {
+        "content": "Checkpoint saved",
+        "isSidechain": false,
+        "level": "info",
+        "parentUuid": "bacef942-2923-4adf-bfb7-5afdd91f8090",
+        "provider": "qoder",
+        "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+        "subtype": "informational",
+        "timestamp": "2026-11-07T08:56:45.016Z",
+        "toolUse": null,
+        "toolUseResult": null,
+        "type": "system",
+        "uuid": "01b57133-f7d3-4635-956d-7c12d7fea75b"
+      }
+    ],
+    "load_provider_messages_paginated": {
+      "has_more": false,
+      "messages": [
+        {
+          "content": "Run the test suite and tell me what fails",
+          "isSidechain": false,
+          "parentUuid": null,
+          "provider": "qoder",
+          "role": "user",
+          "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+          "timestamp": "2026-11-07T08:56:16.431Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "user",
+          "uuid": "user:0e50e52b-1d5e-4951-bdd0-ec956d49425c"
+        },
+        {
+          "content": [
+            {
+              "signature": "",
+              "thinking": "I should run the tests before reading any code.",
+              "type": "thinking"
+            }
+          ],
+          "isSidechain": false,
+          "messageId": "2026110716561847cc37e0cb974aa7",
+          "model": "gfmodel",
+          "parentUuid": "e46e5b5f-3c0c-4189-bf84-a297d3245875",
+          "provider": "qoder",
+          "role": "assistant",
+          "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+          "timestamp": "2026-11-07T08:56:28.691Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "769c01d1-67f8-4bf1-b4c1-d1330cb399b5"
+        },
+        {
+          "content": [
+            {
+              "citations": null,
+              "text": "Running the test suite first.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": false,
+          "messageId": "2026110716561847cc37e0cb974aa7",
+          "model": "gfmodel",
+          "parentUuid": "769c01d1-67f8-4bf1-b4c1-d1330cb399b5",
+          "provider": "qoder",
+          "role": "assistant",
+          "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+          "timestamp": "2026-11-07T08:56:28.692Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "uuid": "764d63e0-c8a6-4cb0-be8b-49edb1c2ebbe"
+        },
+        {
+          "content": [
+            {
+              "id": "call_78042557f04743aeae0852f7",
+              "input": {
+                "command": "pnpm test",
+                "description": "Run the test suite"
+              },
+              "name": "Bash",
+              "type": "tool_use"
+            },
+            {
+              "content": "FAIL src/math.test.ts > adds\n1 failed, 41 passed",
+              "is_error": true,
+              "tool_use_id": "call_78042557f04743aeae0852f7",
+              "type": "tool_result"
+            }
+          ],
+          "isSidechain": false,
+          "messageId": "2026110716561847cc37e0cb974aa7",
+          "model": "gfmodel",
+          "parentUuid": "764d63e0-c8a6-4cb0-be8b-49edb1c2ebbe",
+          "provider": "qoder",
+          "role": "assistant",
+          "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+          "stop_reason": "tool_use",
+          "timestamp": "2026-11-07T08:56:28.692Z",
+          "toolUse": {
+            "id": "call_78042557f04743aeae0852f7",
+            "input": {
+              "command": "pnpm test",
+              "description": "Run the test suite"
+            },
+            "name": "Bash",
+            "type": "tool_use"
+          },
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "input_tokens": 28067,
+            "output_tokens": 272,
+            "service_tier": "standard"
+          },
+          "uuid": "7b76b378-a801-4606-9c11-be5b834b8a98"
+        },
+        {
+          "content": [
+            {
+              "citations": null,
+              "text": "One test fails: `adds` in src/math.test.ts. The other 41 pass.",
+              "type": "text"
+            }
+          ],
+          "isSidechain": false,
+          "messageId": "20261107165634f2b5bce98bb045c6",
+          "model": "gfmodel",
+          "parentUuid": "83781778-5a59-41d2-ae7c-8d0b0dd7d211",
+          "provider": "qoder",
+          "role": "assistant",
+          "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+          "stop_reason": "end_turn",
+          "timestamp": "2026-11-07T08:56:44.994Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "assistant",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 9856,
+            "input_tokens": 32057,
+            "output_tokens": 95,
+            "service_tier": "standard"
+          },
+          "uuid": "bacef942-2923-4adf-bfb7-5afdd91f8090"
+        },
+        {
+          "content": "Checkpoint saved",
+          "isSidechain": false,
+          "level": "info",
+          "parentUuid": "bacef942-2923-4adf-bfb7-5afdd91f8090",
+          "provider": "qoder",
+          "sessionId": "5a4669b0-9c94-4e9a-a6fb-c1967797bb56",
+          "subtype": "informational",
+          "timestamp": "2026-11-07T08:56:45.016Z",
+          "toolUse": null,
+          "toolUseResult": null,
+          "type": "system",
+          "uuid": "01b57133-f7d3-4635-956d-7c12d7fea75b"
+        }
+      ],
+      "next_offset": 6,
+      "total_count": 6
     }
   }
 }

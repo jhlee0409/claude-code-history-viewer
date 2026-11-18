@@ -101,6 +101,7 @@
   "common.provider.openinterpreter": "Open Interpreter",
   "common.provider.pearai": "PearAI",
   "common.provider.pi": "Pi",
+  "common.provider.qoder": "Qoder",
   "common.provider.qwen": "Qwen Code",
   "common.provider.saveError": "검색한 프로바이더 설정을 저장하지 못했습니다. 다시 시도해주세요.",
   "common.provider.trae": "Trae",
@@ -321,5 +322,6 @@
   "common.command.actualSize": "실제 크기",
   "common.missingValue.notRecorded": "기록 없음",
   "common.missingValue.partialTokens": "토큰이 일부만 기록되어 관측된 소계를 표시합니다.",
-  "common.missingValue.unknownTokens": "토큰 기록 범위를 확인할 수 없어 기존 값을 표시합니다."
+  "common.missingValue.unknownTokens": "토큰 기록 범위를 확인할 수 없어 기존 값을 표시합니다.",
+  "common.provider.claudeAi": "Claude.ai"
 }

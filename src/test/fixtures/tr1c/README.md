@@ -11,7 +11,8 @@ limit 500). It is not a handwritten mock API payload.
 - Dataset SHA-256 (31-ID combined bundle):
   `d119baa5b622cd1ee38be8fc86e1bd49f8c2b2d86b1f82b195934b7287231c0b`.
   The 32nd ID, `hermes`, was captured later from its own pinned server; see
-  [Hermes addition](#hermes-addition).
+  [Hermes addition](#hermes-addition). The 33rd, `qoder`, likewise; see
+  [Qoder addition](#qoder-addition).
 - Isolated HOME under the owning worktree's ignored `scratch/tr1c/raw-home`.
   Absolute fixture paths in responses are retained, not user-history paths.
 
@@ -37,11 +38,11 @@ HTTP receipts preserve this run. Native/IPC execution was not repeated here.
 
 ## Added public-provider inventory
 
-All **32 current dispatcher IDs** have observed, nonempty message responses.
-Only **25 IDs / 79 blocks** are tool-result-positive. These are actual server
+All **33 current dispatcher IDs** have observed, nonempty message responses.
+Only **26 IDs / 80 blocks** are tool-result-positive. These are actual server
 responses over repository-authored parser fixtures, not live user histories or
 independent production captures. The original eight response objects above are
-unchanged; the added 24 contribute 79 messages and 19 tool-result blocks.
+unchanged; the added 25 contribute 85 messages and 20 tool-result blocks.
 
 `added-provider-inventory.json` records each added ID's message/call/result
 counts, source file:line and exact source-slice SHA-256, shared-family/storage
@@ -64,6 +65,7 @@ without source exit evidence remains unknown, not successful.
 | gemini, qwen | Native JSONL headers and parser records |
 | grok, vibe | Native session directories and parser records |
 | hermes | Native `state.db` sessions/messages rows (OpenAI-style `tool_calls` + `role = 'tool'` result) |
+| qoder | Committed Claude Code-format transcript `tests/fixtures/qoder/cli-session-1.1.84.jsonl` (tool_use + `is_error` tool_result) |
 | kimi | Committed sessions/project-hash/session-1 files |
 | zcode, zed | Native SQLite parts/thread records; Zed uses test-supported JSON layout |
 
@@ -105,6 +107,54 @@ Captured after the 31-ID bundle, with the same recipe, for #665:
   Hermes stores no tool error flag, so `is_error` is the parser's `false`; the
   `exit_code` stays inside the raw tool text and the process verdict is
   `unknown`.
+
+### claude.ai export addition
+
+Captured for #674 with the same recipe:
+
+- Backend: the `feat/provider-claude-ai-export` worktree (base `77ce7e59`
+  plus the claude-ai provider), debug `cargo build --features webui-server`
+  server SHA-256
+  `298a18064a845a8358290eef9ba6cf1dca9cc8dea2f62717ab2873111c18eb53`.
+- Store: a fresh isolated HOME whose `~/Downloads/data-2026-11-18.zip` is
+  the synthetic fixture `src-tauri/tests/fixtures/claude-ai-export`
+  (`conversations.json`, `projects.json`, `users.json`, deflated), registered
+  in `~/.claude-history-viewer/user-data.json` `settings.claudeAiExports`.
+  Not a live account export.
+- Session path `claude-ai://89eecd2a602885c0/project-c0000000-0000-4000-8000-000000000001#0b6a2f4e-1c3d-4e5f-8a9b-000000000002`,
+  served with `--serve --no-auth --no-watch --host 127.0.0.1`. Decoded HTTP
+  bodies: `load_provider_messages` SHA-256
+  `03f3f65aaa61bb6a7568742860c9cdc4b749f5178ec93ca967b70149ddc804d0`,
+  `load_provider_messages_paginated` SHA-256
+  `56b42e6a0a597106b7ab56932a8f86328347bb51b064e665cddbbfa17d82d1d6`, added
+  unmodified.
+- The assistant message holds both calls and both results (claude.ai keeps
+  them in one message). claude.ai records no process exit, so both verdicts
+  are `unknown`.
+
+### Qoder addition
+
+Captured after the Hermes addition, with the same recipe, for #339:
+
+- Backend source: worktree `feat/provider-qoder` on `c74795be` plus the
+  provider; debug `cargo build --features webui-server` in a private target
+  directory, server SHA-256
+  `566d24c997bd2331604e4b23e9b67e022647d6a9633bfe8cf146b5beba456cbf`.
+- Store: a fresh isolated HOME (`scratch/`, `QODER_CONFIG_DIR` unset), so the
+  default `~/.qoder/projects`, holding the committed fixture verbatim at
+  `-Users-dev-work-qoder-demo/5a4669b0-9c94-4e9a-a6fb-c1967797bb56.jsonl`.
+  The fixture mirrors a sanitized Qoder CLI 1.1.84 transcript
+  (junhoyeo/tokscale#1609); it is not a live Qoder capture.
+- Served with `--serve --no-auth --no-watch --host 127.0.0.1`. Decoded HTTP
+  bodies: `load_provider_messages` SHA-256
+  `98c8789e959d1b1301946841bb29268c98d67cb3a785fb4c8e5af9f41bcfaf6a`,
+  `load_provider_messages_paginated` SHA-256
+  `0e6abbd167ba7526b97e948f5578d1e2e0c05f4887a92fe537ab4273e94d0504`, added
+  unmodified (two-space layout).
+- Seven transcript messages come back as six: the public loader folds the
+  tool_result into the assistant message that made the call. The result's
+  `is_error: true` is Qoder's own flag, so the process verdict is `failed`;
+  Qoder records no exit code.
 
 ### CodeBuddy nondeterminism, not equality
 

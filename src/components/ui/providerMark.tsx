@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Terminal, MessageCircle, Orbit, Asterisk, Bot, SquareUser, Square, ArrowRight, Glasses, Diamond, MousePointer2, MousePointerClick, SquareMousePointer, Hammer, Sparkles, Bird, Hash, Feather, Hexagon, Moon, Ghost, Braces, Layers, Triangle, DoorOpen, Code, Leaf, CircleDot, Flower, WavesHorizontal, Radio, Zap, Pentagon, CircleQuestionMark, type LucideIcon } from "lucide-react";
+import { Terminal, MessageCircle, MessagesSquare, Orbit, Asterisk, Bot, SquareUser, Square, ArrowRight, Glasses, Diamond, MousePointer2, MousePointerClick, SquareMousePointer, Hammer, Sparkles, Bird, Hash, Feather, Hexagon, Moon, Ghost, Braces, Layers, Triangle, DoorOpen, Code, Leaf, CircleDot, Aperture, Flower, WavesHorizontal, Radio, Zap, Pentagon, CircleQuestionMark, type LucideIcon } from "lucide-react";
 import type { ProviderId } from "@/types";
 import { cn } from "@/lib/utils";
 import { getProviderBadgeStyle, getProviderLabel } from "@/utils/providers";
@@ -7,12 +7,13 @@ import { getProviderBadgeStyle, getProviderLabel } from "@/utils/providers";
 /** Explicit stable silhouettes, never an array-position/colour-dependent hash. */
 const SHAPES: Record<ProviderId, LucideIcon> = {
   aider: Terminal, amazonq: MessageCircle, antigravity: Orbit, claude: Asterisk,
+  "claude-ai": MessagesSquare,
   cline: Bot, codebuddy: SquareUser, codex: Square, continue: ArrowRight,
   copilot: Glasses, crush: Diamond, cursor: MousePointer2, "cursor-acp": SquareMousePointer, "cursor-agent": MousePointerClick,
   forgecode: Hammer, gemini: Sparkles, goose: Bird, grok: Hash, hermes: Feather, kilo: Hexagon,
   kimi: Moon, kiro: Ghost, llm: Braces, ompi: Layers, opencode: Triangle,
   openhands: DoorOpen, openinterpreter: Code, pearai: Leaf, pi: CircleDot,
-  qwen: Flower, trae: WavesHorizontal, vibe: Radio, zcode: Zap, zed: Pentagon,
+  qoder: Aperture, qwen: Flower, trae: WavesHorizontal, vibe: Radio, zcode: Zap, zed: Pentagon,
 };
 
 export function ProviderMark({ provider = "claude", decorative = false, className }: { provider?: string; decorative?: boolean; className?: string }) {

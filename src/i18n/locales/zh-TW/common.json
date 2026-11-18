@@ -101,6 +101,7 @@
   "common.provider.openinterpreter": "Open Interpreter",
   "common.provider.pearai": "PearAI",
   "common.provider.pi": "Pi",
+  "common.provider.qoder": "Qoder",
   "common.provider.qwen": "Qwen Code",
   "common.provider.saveError": "無法儲存已找到的提供者設定，請再試一次。",
   "common.provider.trae": "Trae",
@@ -321,5 +322,6 @@
   "common.command.actualSize": "實際大小",
   "common.missingValue.notRecorded": "未記錄",
   "common.missingValue.partialTokens": "僅記錄了部分權杖，顯示已觀測的小計。",
-  "common.missingValue.unknownTokens": "無法確定權杖記錄範圍，顯示現有值。"
+  "common.missingValue.unknownTokens": "無法確定權杖記錄範圍，顯示現有值。",
+  "common.provider.claudeAi": "Claude.ai"
 }

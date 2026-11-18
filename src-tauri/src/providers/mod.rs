@@ -11,6 +11,8 @@ pub mod antigravity_cli;
 /// transcripts cannot provide.
 pub mod antigravity_state_sync;
 pub mod claude;
+/// claude.ai account exports registered in Settings (read in place).
+pub mod claude_ai;
 pub mod cline;
 mod cline_sdk;
 pub mod codebuddy;
@@ -46,6 +48,10 @@ pub mod pearai;
 pub mod pi;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
+/// Qoder (Alibaba) CLI, desktop app and IDE agent — Claude Code-format JSONL
+/// transcripts under `~/.qoder/projects`, `~/.qoder-cn/projects` and the
+/// IDE's `SharedClientCache/cli/projects`.
+pub mod qoder;
 pub mod qwen;
 /// What a provider scan could not read; collected for usage coverage.
 pub mod scan_report;
@@ -63,6 +69,9 @@ pub enum ProviderId {
     /// Amazon Q Developer CLI (`amazon-q/data.sqlite3`).
     AmazonQ,
     Claude,
+    /// claude.ai account export (`conversations.json`, zip or folder).
+    #[serde(rename = "claude-ai")]
+    ClaudeAi,
     Cline,
     Codebuddy,
     Codex,
@@ -108,6 +117,9 @@ pub enum ProviderId {
     Pi,
     /// oh-my-pi (`omp`) — a `pi` fork with the same session format under `~/.omp`.
     Ompi,
+    /// Qoder (Alibaba) — Claude Code-format JSONL transcripts (`~/.qoder/projects`,
+    /// `~/.qoder-cn/projects`, the IDE's `SharedClientCache/cli/projects`).
+    Qoder,
     /// Qwen Code (Gemini-CLI fork) — JSONL transcripts under `~/.qwen/projects`.
     Qwen,
     Antigravity,
@@ -127,6 +139,7 @@ impl ProviderId {
             Self::Aider => "aider",
             Self::AmazonQ => "amazonq",
             Self::Claude => "claude",
+            Self::ClaudeAi => "claude-ai",
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
@@ -151,6 +164,7 @@ impl ProviderId {
             Self::OpenHands => "openhands",
             Self::Pi => "pi",
             Self::Ompi => "ompi",
+            Self::Qoder => "qoder",
             Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
             Self::Zed => "zed",
@@ -165,6 +179,7 @@ impl ProviderId {
             "aider" => Some(Self::Aider),
             "amazonq" => Some(Self::AmazonQ),
             "claude" => Some(Self::Claude),
+            "claude-ai" => Some(Self::ClaudeAi),
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
@@ -189,6 +204,7 @@ impl ProviderId {
             "openhands" => Some(Self::OpenHands),
             "pi" => Some(Self::Pi),
             "ompi" => Some(Self::Ompi),
+            "qoder" => Some(Self::Qoder),
             "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
             "zed" => Some(Self::Zed),
@@ -204,6 +220,7 @@ impl ProviderId {
             Self::Aider => "Aider",
             Self::AmazonQ => "Amazon Q CLI",
             Self::Claude => "Claude Code",
+            Self::ClaudeAi => "Claude.ai",
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
@@ -228,6 +245,7 @@ impl ProviderId {
             Self::OpenHands => "OpenHands",
             Self::Pi => "Pi",
             Self::Ompi => "oh-my-pi",
+            Self::Qoder => "Qoder",
             Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
             Self::Zed => "Zed",
@@ -252,6 +270,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     let mut providers = Vec::new();
 
     if let Some(info) = claude::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = claude_ai::detect() {
         providers.push(info);
     }
     if let Some(info) = codex::detect() {
@@ -297,6 +318,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = openhands::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = qoder::detect() {
         providers.push(info);
     }
     if let Some(info) = qwen::detect() {

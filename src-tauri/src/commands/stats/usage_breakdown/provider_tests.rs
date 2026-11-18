@@ -134,6 +134,7 @@ fn every_provider_is_classified_and_the_unsupported_set_is_pinned() {
         [
             "aider",
             "amazonq",
+            "claude-ai",
             "codebuddy",
             "continue",
             "crush",
@@ -262,7 +263,7 @@ async fn every_supported_provider_without_a_store_is_not_found() {
     let home = SandboxHome::new();
     let _env = without_store_env();
     let supported = supported_provider_ids();
-    assert_eq!(supported.len(), 19);
+    assert_eq!(supported.len(), 20);
 
     let response = get_usage_breakdown(all_request(&supported, &home.path().join(".claude")))
         .await

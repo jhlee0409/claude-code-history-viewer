@@ -6,10 +6,13 @@
 //! - `edits`: File edit tracking and restore functions
 //! - `rename`: Native session renaming functions
 //! - `delete`: Session deletion
+//! - `clear_unavailable`: Clearing the sessions of a project whose location is gone
 //! - `move_session`: Moving a Claude Code session to another project
 
 mod api_view;
+mod branches;
 mod chain;
+mod clear_unavailable;
 mod delete;
 mod edits;
 mod load;
@@ -26,7 +29,17 @@ mod timestamp_fill;
 
 // Re-export all commands
 pub use api_view::load_session_api_view;
+pub use branches::{
+    claude_conversation_branches, conversation_branches_from_messages, BranchOption, BranchPoint,
+    ConversationBranches,
+};
 pub use chain::{resolve_session_chain, superseded_chain_paths};
+#[cfg(feature = "webui-server")]
+pub use clear_unavailable::is_trash_cleanup_provider;
+pub use clear_unavailable::{
+    clear_unavailable_sessions, preview_unavailable_session_cleanup, ConfirmedCleanup,
+    UnavailableProjectRef,
+};
 pub use delete::*;
 pub use edits::*;
 pub use load::*;
@@ -34,6 +47,7 @@ pub use move_session::move_session_to_project;
 pub use rename::*;
 pub use resume::*;
 pub use search::*;
+pub(crate) use timestamp_fill::fill_missing_timestamps;
 
 /// Split a provider URI into its scheme and remainder, or `None` if the value
 /// is an ordinary path.
@@ -185,6 +199,10 @@ pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), St
     if let Some(trae_base) = crate::providers::trae::get_base_path() {
         allowed.push(PathBuf::from(trae_base));
     }
+    // Qoder's transcript stores (CLI, Qoder CN, the IDE's embedded agent):
+    // each `projects/` folder holds only session transcripts, their sidecars
+    // and subagent transcripts, never the app's credentials.
+    allowed.extend(crate::providers::qoder::store_dirs());
     // Claude directories the user configured (Settings → Custom Claude
     // Directories, `CLAUDE_CONFIG_DIR`) — the same sources `scan_all_projects`
     // reads. Each must pass the custom-directory validator, which already
