@@ -8,6 +8,7 @@ use crate::models::{
     ToolUsageStats,
 };
 use crate::providers;
+use crate::providers::opencode::SessionTree;
 use crate::providers::scan_report::ScanReport;
 use crate::utils::find_line_ranges;
 use chrono::{DateTime, Datelike, Timelike, Utc};
@@ -1956,20 +1957,25 @@ fn collect_provider_global_file_stats(
 
     let provider_tag = stats_provider_id(provider);
 
-    // Keep the project identity with every session while loading in parallel.
-    let mut session_tasks: Vec<(String, String, String)> = Vec::new();
+    // Keep the project identity, and the project's subagent tree, with every
+    // session while loading in parallel.
+    let mut trees: Vec<Option<SessionTree>> = Vec::with_capacity(projects.len());
+    let mut session_tasks: Vec<(String, String, crate::models::ClaudeSession, usize)> = Vec::new();
 
     for project in projects {
         let project_display_name = format!("{} [{}]", project.name, provider_tag);
         project_keys.insert(format!("{provider_tag}:{}", project.path));
 
         let sessions = load_stats_sessions(provider, &project.path).unwrap_or_default();
+        let tree_index = trees.len();
+        trees.push(load_stats_session_tree(provider, &project.path));
 
         for session in sessions {
             session_tasks.push((
                 project_display_name.clone(),
                 project.path.clone(),
-                session.file_path,
+                session,
+                tree_index,
             ));
         }
     }
@@ -1977,8 +1983,10 @@ fn collect_provider_global_file_stats(
     // Process all sessions in parallel
     let all_stats: Vec<SessionFileStats> = session_tasks
         .par_iter()
-        .filter_map(|(project_name, project_path, file_path)| {
-            let messages = load_stats_messages(provider, file_path).unwrap_or_default();
+        .filter_map(|(project_name, project_path, session, tree_index)| {
+            let messages =
+                load_stats_session_messages(provider, trees[*tree_index].as_ref(), session, mode)
+                    .unwrap_or_default()?;
 
             build_global_session_file_stats_from_messages(
                 provider,
@@ -3498,12 +3506,49 @@ fn load_provider_sessions_for_stats(
     load_stats_sessions(provider, project_path)
 }
 
-/// Load messages for a provider-specific stats request.
-fn load_provider_messages_for_stats(
+/// How a project's listed sessions nest, for a provider that lists its
+/// subagent runs as sessions of their own (`OpenCode`, Kilo:
+/// `session.parent_id`). `None` for every other provider: Claude's subagent
+/// transcripts and Z Code's runs are never listed as sessions.
+fn load_stats_session_tree(provider: StatsProvider, project_path: &str) -> Option<SessionTree> {
+    match provider {
+        StatsProvider::OpenCode => Some(providers::opencode::load_session_tree(project_path)),
+        StatsProvider::Kilo => Some(providers::kilo::load_session_tree(project_path)),
+        _ => None,
+    }
+}
+
+/// The messages a listed session contributes to project and global stats,
+/// the same ones `get_session_token_stats` counts for it, so per-session
+/// items add up to the project and global totals (#577). `None` for a
+/// subagent run listed as its own session: its usage is counted under the
+/// top-level session that spawned it, as that session's sidechain
+/// (`billing_total` only).
+fn load_stats_session_messages(
     provider: StatsProvider,
+    tree: Option<&SessionTree>,
     session: &crate::models::ClaudeSession,
-) -> Result<Vec<ClaudeMessage>, String> {
-    load_stats_messages(provider, &session.file_path)
+    mode: StatsMode,
+) -> Result<Option<Vec<ClaudeMessage>>, String> {
+    let Some(tree) = tree else {
+        return load_stats_messages(provider, &session.file_path).map(Some);
+    };
+    if tree.is_subagent_run(&session.actual_session_id) {
+        return Ok(None);
+    }
+    let mut messages = load_stats_messages(provider, &session.file_path)?;
+    if mode.include_sidechain() {
+        messages.extend(match provider {
+            StatsProvider::OpenCode => {
+                providers::opencode::load_tree_subagent_messages(tree, &session.file_path)
+            }
+            StatsProvider::Kilo => {
+                providers::kilo::load_tree_subagent_messages(tree, &session.file_path)
+            }
+            _ => Vec::new(),
+        });
+    }
+    Ok(Some(messages))
 }
 
 struct SessionTokenStatsOptions {
@@ -3711,11 +3756,15 @@ fn get_provider_project_token_stats(
     let project_name = resolve_provider_project_name(provider, project_path);
     let mut all_stats = Vec::new();
     let sessions = load_provider_sessions_for_stats(provider, project_path)?;
+    let tree = load_stats_session_tree(provider, project_path);
     let s_limit = parse_date_limit(start_date, "start_date");
     let e_limit = parse_date_limit(end_date, "end_date");
 
     for session in &sessions {
-        let messages = load_provider_messages_for_stats(provider, session)?;
+        let Some(messages) = load_stats_session_messages(provider, tree.as_ref(), session, mode)?
+        else {
+            continue;
+        };
         if let Some(stats) = build_session_token_stats_from_messages(
             SessionTokenStatsOptions {
                 provider,
@@ -3923,6 +3972,7 @@ fn get_provider_project_stats_summary(
 
     let project_name = resolve_provider_project_name(provider, project_path);
     let sessions = load_provider_sessions_for_stats(provider, project_path)?;
+    let tree = load_stats_session_tree(provider, project_path);
     let s_limit = parse_date_limit(start_date, "start_date");
     let e_limit = parse_date_limit(end_date, "end_date");
 
@@ -3938,7 +3988,10 @@ fn get_provider_project_stats_summary(
     let mut activity_map: HashMap<(u8, u8), (u32, u64)> = HashMap::new();
 
     for session in &sessions {
-        let messages = load_provider_messages_for_stats(provider, session)?;
+        let Some(messages) = load_stats_session_messages(provider, tree.as_ref(), session, mode)?
+        else {
+            continue;
+        };
         if messages.is_empty() {
             continue;
         }
@@ -4217,12 +4270,16 @@ fn get_provider_session_comparison(
     }
 
     let sessions = load_provider_sessions_for_stats(provider, project_path)?;
+    let tree = load_stats_session_tree(provider, project_path);
     let mut all_sessions: Vec<SessionComparisonStats> = Vec::new();
     let s_limit = parse_date_limit(start_date, "start_date");
     let e_limit = parse_date_limit(end_date, "end_date");
 
     for session in &sessions {
-        let messages = load_provider_messages_for_stats(provider, session)?;
+        let Some(messages) = load_stats_session_messages(provider, tree.as_ref(), session, mode)?
+        else {
+            continue;
+        };
         if messages.is_empty() {
             continue;
         }

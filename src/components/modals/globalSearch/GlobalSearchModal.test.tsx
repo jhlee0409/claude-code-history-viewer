@@ -13,6 +13,7 @@ const getCommandContext = (): CommandContext => ({
     canGoBack: false,
     canGoForward: false,
     hasFindTarget: false,
+    hasStepTarget: false,
     tabs: { activeId: "t1", ids: ["t1"] },
     ownPlace: () => () => true,
     actions: {
@@ -21,6 +22,7 @@ const getCommandContext = (): CommandContext => ({
         goBack: vi.fn(),
         goForward: vi.fn(),
         focusFind: vi.fn(),
+        stepInTurn: vi.fn(),
         toggleInspector: vi.fn(),
         toggleMinimap: vi.fn(),
         openSettingsManager: vi.fn(),

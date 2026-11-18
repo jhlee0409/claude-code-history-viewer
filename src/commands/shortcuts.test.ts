@@ -13,6 +13,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     goBack: vi.fn(),
     goForward: vi.fn(),
     focusFind: vi.fn(),
+    stepInTurn: vi.fn(),
     toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
     openSettingsManager: vi.fn(),
@@ -36,6 +37,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     canGoBack: true,
     canGoForward: true,
     hasFindTarget: true,
+    hasStepTarget: true,
     tabs: tabsOf(3),
     ownPlace: () => () => true,
     actions,
@@ -173,6 +175,32 @@ describe("shortcut handler", () => {
       press({ key: "f", code: "KeyF", metaKey: true }, button);
       expect(ctx.actions.goBack).not.toHaveBeenCalled();
       expect(ctx.actions.focusFind).not.toHaveBeenCalled();
+    });
+
+    it("steps with ⌘⌥↑↓ in the Mac app and ⌥⇧↑↓ in the WebUI, never from a text field or behind a dialog", () => {
+      const mac = setup(MAC_DESKTOP);
+      press({ key: "ArrowDown", code: "ArrowDown", metaKey: true, altKey: true });
+      press({ key: "ArrowUp", code: "ArrowUp", metaKey: true, altKey: true });
+      expect(mac.actions.stepInTurn).toHaveBeenNthCalledWith(1, "next");
+      expect(mac.actions.stepInTurn).toHaveBeenNthCalledWith(2, "previous");
+      while (cleanups.length) cleanups.pop()?.();
+
+      const web = setup(MAC_WEB);
+      // The prompt jump's ⌥↓ (usePromptJump) is not a step key.
+      expect(press({ key: "ArrowDown", code: "ArrowDown", altKey: true }).defaultPrevented).toBe(false);
+      press({ key: "ArrowDown", code: "ArrowDown", altKey: true, shiftKey: true });
+      expect(web.actions.stepInTurn).toHaveBeenCalledTimes(1);
+      expect(web.actions.stepInTurn).toHaveBeenCalledWith("next");
+
+      // ⌥⇧↑ selects to the paragraph start in a field: left to it.
+      const input = document.body.appendChild(document.createElement("textarea"));
+      const inField = press({ key: "ArrowUp", code: "ArrowUp", altKey: true, shiftKey: true }, input);
+      expect(inField.defaultPrevented).toBe(false);
+      const dialog = document.body.appendChild(document.createElement("div"));
+      dialog.setAttribute("role", "dialog");
+      const button = dialog.appendChild(document.createElement("button"));
+      press({ key: "ArrowUp", code: "ArrowUp", altKey: true, shiftKey: true }, button);
+      expect(web.actions.stepInTurn).toHaveBeenCalledTimes(1);
     });
   });
 

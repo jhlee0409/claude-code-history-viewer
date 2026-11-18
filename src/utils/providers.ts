@@ -190,7 +190,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsArchiveCreation: false,
   },
   kilo: {
-    supportsConversationBreakdown: false,
+    // Subagent runs (child sessions) are its sidechain (#577).
+    supportsConversationBreakdown: true,
     supportsNativeRename: false,
     supportsResumeCommand: false,
     supportsSessionDeletion: false,
@@ -218,7 +219,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsArchiveCreation: false,
   },
   opencode: {
-    supportsConversationBreakdown: false,
+    // Subagent runs (child sessions) are its sidechain (#577).
+    supportsConversationBreakdown: true,
     supportsNativeRename: true,
     supportsResumeCommand: false,
     supportsSessionDeletion: false,
@@ -274,7 +276,8 @@ const PROVIDER_SESSION_CAPABILITIES: Record<ProviderId, ProviderSessionCapabilit
     supportsArchiveCreation: false,
   },
   zcode: {
-    supportsConversationBreakdown: false,
+    // Subagent runs (`subagent_child` tasks) are its sidechain (#577).
+    supportsConversationBreakdown: true,
     supportsNativeRename: false,
     supportsResumeCommand: false,
     supportsSessionDeletion: false,
