@@ -134,6 +134,7 @@ fn every_provider_is_classified_and_the_unsupported_set_is_pinned() {
         [
             "aider",
             "amazonq",
+            "claude-ai",
             "codebuddy",
             "continue",
             "crush",

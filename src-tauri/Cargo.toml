@@ -57,6 +57,13 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 zstd = "0.13"
 notify = { version = "7.0", default-features = false, features = ["macos_fsevent"] }
 notify-debouncer-mini = "0.5"
+# claude.ai account exports are read in place from the downloaded zip.
+# Already in the tree through tauri-plugin-updater; deflate only.
+zip = { version = "4.2", default-features = false, features = ["deflate-flate2"] }
+# zip's `deflate-flate2` enables flate2 without a backend; select the pure-Rust
+# one (miniz_oxide, already in the tree). Without it flate2 fails to compile
+# wherever no other normal dependency picks a backend (Windows).
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 
 # WebUI server mode (optional)
 argon2 = { version = "0.5", optional = true }

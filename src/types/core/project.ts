@@ -64,6 +64,21 @@ export interface CustomClaudePath {
   label?: string;
 }
 
+/** A claude.ai account export (zip or extracted folder) registered in Settings */
+export interface ClaudeAiExport {
+  /** Absolute path to the export zip or its extracted folder */
+  path: string;
+  /** User-defined display label (e.g., "Personal") */
+  label?: string;
+}
+
+/** Result of registering a claude.ai export: the saved metadata and what the export holds */
+export interface ClaudeAiExportAdded {
+  metadata: UserMetadata;
+  conversations: number;
+  projects: number;
+}
+
 /** A WSL distribution detected on the system */
 export interface WslDistro {
   /** Distribution name (e.g., "Ubuntu", "Debian") */
@@ -92,6 +107,8 @@ export interface UserSettings {
   groupingMode?: GroupingMode;
   /** Additional Claude configuration directories to scan */
   customClaudePaths?: CustomClaudePath[];
+  /** claude.ai account exports shown under the `claude-ai` provider */
+  claudeAiExports?: ClaudeAiExport[];
   /** WSL integration settings (Windows only) */
   wsl?: WslSettings;
   /** Providers explicitly discovered by the user and allowed to scan on startup */

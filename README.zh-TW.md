@@ -107,6 +107,7 @@ AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供�
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 執行緒 — SQLite + Zstd 壓縮 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 編程智能體 — session/message/part 三表 SQLite 儲存（標題、工具呼叫、思考過程、Token 用量） |
 | **Hermes Agent** | `HERMES_HOME` 中的 `state.db`（預設 `~/.hermes`，Windows 為 `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research 的智能體 — SQLite 儲存中的 CLI、桌面與閘道工作階段（工具呼叫、推理過程、工作階段 Token 用量與費用） |
+| **Claude.ai**（帳戶匯出） | 從 claude.ai → 設定 → 隱私 → 匯出資料 取得的 zip 或解壓縮後的資料夾（在設定中新增） | 唯讀：依 claude.ai 專案分組的對話，可搜尋；匯出不含權杖用量，因此不計入統計 |
 | **Qoder** | `~/.qoder/projects/`（CLI 與桌面應用程式，`QODER_CONFIG_DIR`）、`~/.qoder-cn/projects/`（Qoder CN）、IDE 的 `…/Qoder/SharedClientCache/cli/projects/` | 阿里巴巴的智能體 IDE 與 CLI — Claude Code 格式的對話記錄（工具呼叫、思考過程、子智能體執行，以及 Qoder 有記錄時的 Token 用量） |
 | **OpenHands** | `~/.openhands/sessions/` | 傳統 event-store 對話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 逐工作區聊天（icube 儲存；實驗性，逆向工程） |

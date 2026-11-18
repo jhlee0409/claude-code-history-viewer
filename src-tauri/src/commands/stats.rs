@@ -66,6 +66,9 @@ enum StatsProvider {
     Cursor,
     Zcode,
     Hermes,
+    /// claude.ai account exports: no token usage, so never in the global
+    /// totals or the usage breakdown's counted providers.
+    ClaudeAi,
     CursorAcp,
 }
 
@@ -130,6 +133,7 @@ fn stats_provider_id(provider: StatsProvider) -> &'static str {
         StatsProvider::Cursor => "cursor",
         StatsProvider::Zcode => "zcode",
         StatsProvider::Hermes => "hermes",
+        StatsProvider::ClaudeAi => "claude-ai",
         StatsProvider::CursorAcp => "cursor-acp",
     }
 }
@@ -342,6 +346,7 @@ fn all_stats_providers() -> HashSet<StatsProvider> {
         StatsProvider::Cursor,
         StatsProvider::Zcode,
         StatsProvider::Hermes,
+        StatsProvider::ClaudeAi,
         StatsProvider::CursorAcp,
     ]
     .into_iter()
@@ -375,6 +380,7 @@ fn parse_active_stats_providers(active_providers: Option<Vec<String>>) -> HashSe
             "qwen" => Some(StatsProvider::Qwen),
             "zcode" => Some(StatsProvider::Zcode),
             "hermes" => Some(StatsProvider::Hermes),
+            "claude-ai" => Some(StatsProvider::ClaudeAi),
             "cursor-acp" => Some(StatsProvider::CursorAcp),
             "trae" => Some(StatsProvider::Trae),
             "vibe" => Some(StatsProvider::Vibe),
@@ -447,6 +453,8 @@ fn detect_project_provider(project_path: &str) -> StatsProvider {
         StatsProvider::Zcode
     } else if project_path.starts_with("hermes://") {
         StatsProvider::Hermes
+    } else if project_path.starts_with("claude-ai://") {
+        StatsProvider::ClaudeAi
     } else if project_path.starts_with("cursor-acp://") {
         StatsProvider::CursorAcp
     } else if project_path.starts_with("codex://") {
@@ -561,6 +569,9 @@ fn detect_session_provider(session_path: &str) -> StatsProvider {
     }
     if session_path.starts_with("hermes://") {
         return StatsProvider::Hermes;
+    }
+    if session_path.starts_with("claude-ai://") {
+        return StatsProvider::ClaudeAi;
     }
     if session_path.starts_with("cursor-acp://") {
         return StatsProvider::CursorAcp;
@@ -1649,6 +1660,7 @@ fn scan_stats_projects(
         StatsProvider::Qwen => providers::qwen::scan_projects(),
         StatsProvider::Zcode => providers::zcode::scan_projects(),
         StatsProvider::Hermes => providers::hermes::scan_projects(),
+        StatsProvider::ClaudeAi => providers::claude_ai::scan_projects(),
         StatsProvider::CursorAcp => providers::cursor_acp::scan_projects(),
         StatsProvider::Trae => providers::trae::scan_projects(),
         StatsProvider::Vibe => providers::vibe::scan_projects(),
@@ -1693,6 +1705,7 @@ fn load_stats_sessions(
         StatsProvider::Qwen => providers::qwen::load_sessions(project_path, false),
         StatsProvider::Zcode => providers::zcode::load_sessions(project_path, false),
         StatsProvider::Hermes => providers::hermes::load_sessions(project_path, false),
+        StatsProvider::ClaudeAi => providers::claude_ai::load_sessions(project_path, false),
         StatsProvider::CursorAcp => providers::cursor_acp::load_sessions(project_path, false),
         StatsProvider::Trae => providers::trae::load_sessions(project_path, false),
         StatsProvider::Vibe => providers::vibe::load_sessions(project_path, false),
@@ -1746,6 +1759,7 @@ fn stats_provider_store(provider: StatsProvider) -> Option<providers::ProviderIn
         StatsProvider::Llm => providers::llm::detect(),
         StatsProvider::Grok => providers::grok::detect(),
         StatsProvider::Hermes => providers::hermes::detect(),
+        StatsProvider::ClaudeAi => providers::claude_ai::detect(),
         StatsProvider::CursorAcp => providers::cursor_acp::detect(),
         StatsProvider::Kimi => providers::kimi::detect(),
         StatsProvider::Antigravity => providers::antigravity::detect(),
@@ -1781,6 +1795,7 @@ fn load_stats_messages(
         // Rolls subagent runs into their parent as sidechain usage (#577).
         StatsProvider::Zcode => providers::zcode::load_messages_with_subagents(session_path),
         StatsProvider::Hermes => providers::hermes::load_messages(session_path),
+        StatsProvider::ClaudeAi => providers::claude_ai::load_messages(session_path),
         StatsProvider::CursorAcp => providers::cursor_acp::load_messages(session_path),
         StatsProvider::Trae => providers::trae::load_messages(session_path),
         StatsProvider::Vibe => providers::vibe::load_messages(session_path),
@@ -3327,6 +3342,7 @@ fn resolve_provider_project_name(provider: StatsProvider, project_path: &str) ->
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, project_path),
         StatsProvider::Hermes => providers::hermes::project_name(project_path),
+        StatsProvider::ClaudeAi => providers::claude_ai::project_name(project_path),
         StatsProvider::Qoder => providers::qoder::project_name(project_path),
         StatsProvider::CursorAcp => providers::cursor_acp::project_name(project_path),
     }
@@ -3508,6 +3524,7 @@ fn resolve_provider_project_name_from_session(
         | StatsProvider::Llm
         | StatsProvider::Zcode => fallback_provider_name(provider, session_path),
         StatsProvider::Hermes => providers::hermes::project_name_for_session(session_path),
+        StatsProvider::ClaudeAi => providers::claude_ai::project_name_for_session(session_path),
         StatsProvider::Qoder => providers::qoder::project_name_for_session(session_path),
         StatsProvider::CursorAcp => providers::cursor_acp::project_name_for_session(session_path),
         StatsProvider::Claude => "unknown".to_string(),
@@ -5857,6 +5874,9 @@ pub async fn get_global_stats_summary(
     // Provider IDs that use the same normalized message pipeline as the
     // original stats providers. Keep this list explicit so adding a provider
     // to the enum cannot accidentally trigger an expensive scan twice.
+    // claude.ai exports are deliberately absent: they record no token usage,
+    // so their conversations are browsable and searchable but not counted
+    // in the global summary (#674).
     for provider in [
         StatsProvider::Aider,
         StatsProvider::AmazonQ,
@@ -7016,6 +7036,7 @@ mod tests {
         let parsed = parse_active_stats_providers(Some(ids));
 
         assert_eq!(parsed, supported);
+        assert!(parsed.contains(&StatsProvider::ClaudeAi));
         assert!(parsed.contains(&StatsProvider::Qoder));
         assert!(parsed.contains(&StatsProvider::CursorAcp));
     }

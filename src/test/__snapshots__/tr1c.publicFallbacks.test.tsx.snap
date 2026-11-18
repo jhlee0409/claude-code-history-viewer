@@ -31,6 +31,19 @@ exports[`TR1c added public provider result/fallback preservation > antigravity: 
 ]
 `;
 
+exports[`TR1c added public provider result/fallback preservation > claude-ai: preserves real result values/order and never guesses process exit 1`] = `
+[
+  "Document release-checklist.mdtext/markdown · 2 KBDocument screenshot.pngimageSummarise the attached checklist and check the latest Tauri release notes.",
+  "ThoughtsI should search for the release notes first.web_searchTauri 2 release notesResult3 linesTauri 2.0 Release
+https://v2.tauri.app/blog/tauri-20/
+Tauri 2.0 is stable.Copy tool IDartifactscreateInput(command, id, title)5 lines{
+  "command": "create",
+  "id": "checklist",
+  "title": "Checklist"
+}Result1 lineOKCopy tool IDYour checklist covers version bumps and tagging. Tauri 2.0 is stable.",
+]
+`;
+
 exports[`TR1c added public provider result/fallback preservation > cline: preserves real result values/order and never guesses process exit 1`] = `
 [
   "Hello from Cline",

@@ -125,6 +125,8 @@ export type {
 // Project & Metadata Types
 export type {
   CustomClaudePath,
+  ClaudeAiExport,
+  ClaudeAiExportAdded,
   WslDistro,
   WslSettings,
   SessionMetadata,

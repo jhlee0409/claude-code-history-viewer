@@ -11,6 +11,8 @@ pub mod antigravity_cli;
 /// transcripts cannot provide.
 pub mod antigravity_state_sync;
 pub mod claude;
+/// claude.ai account exports registered in Settings (read in place).
+pub mod claude_ai;
 pub mod cline;
 mod cline_sdk;
 pub mod codebuddy;
@@ -67,6 +69,9 @@ pub enum ProviderId {
     /// Amazon Q Developer CLI (`amazon-q/data.sqlite3`).
     AmazonQ,
     Claude,
+    /// claude.ai account export (`conversations.json`, zip or folder).
+    #[serde(rename = "claude-ai")]
+    ClaudeAi,
     Cline,
     Codebuddy,
     Codex,
@@ -134,6 +139,7 @@ impl ProviderId {
             Self::Aider => "aider",
             Self::AmazonQ => "amazonq",
             Self::Claude => "claude",
+            Self::ClaudeAi => "claude-ai",
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
@@ -173,6 +179,7 @@ impl ProviderId {
             "aider" => Some(Self::Aider),
             "amazonq" => Some(Self::AmazonQ),
             "claude" => Some(Self::Claude),
+            "claude-ai" => Some(Self::ClaudeAi),
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
@@ -213,6 +220,7 @@ impl ProviderId {
             Self::Aider => "Aider",
             Self::AmazonQ => "Amazon Q CLI",
             Self::Claude => "Claude Code",
+            Self::ClaudeAi => "Claude.ai",
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
@@ -262,6 +270,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     let mut providers = Vec::new();
 
     if let Some(info) = claude::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = claude_ai::detect() {
         providers.push(info);
     }
     if let Some(info) = codex::detect() {

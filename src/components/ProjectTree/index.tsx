@@ -182,6 +182,7 @@ export const ProjectTree: React.FC<ProjectTreeProps> = ({
       amazonq: 0,
       antigravity: 0,
       claude: 0,
+      "claude-ai": 0,
       cline: 0,
       codebuddy: 0,
       codex: 0,

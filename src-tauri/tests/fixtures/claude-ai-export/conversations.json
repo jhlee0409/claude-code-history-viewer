@@ -1,0 +1,233 @@
+[
+  {
+    "uuid": "0b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+    "name": "Postgres vs MongoDB for metrics",
+    "summary": "",
+    "model": "claude-sonnet-4-5",
+    "created_at": "2026-02-14T10:04:22.000000Z",
+    "updated_at": "2026-02-14T10:22:41.000000Z",
+    "is_starred": false,
+    "account": { "uuid": "a0000000-0000-4000-8000-0000000000aa" },
+    "chat_messages": [
+      {
+        "uuid": "1b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+        "text": "Should I store time-series metrics in Postgres or MongoDB?",
+        "content": [
+          {
+            "start_timestamp": "2026-02-14T10:04:22.100000Z",
+            "stop_timestamp": "2026-02-14T10:04:22.100000Z",
+            "type": "text",
+            "text": "Should I store time-series metrics in Postgres or MongoDB?",
+            "citations": []
+          }
+        ],
+        "sender": "human",
+        "index": 0,
+        "created_at": "2026-02-14T10:04:22.100000Z",
+        "updated_at": "2026-02-14T10:04:22.100000Z",
+        "truncated": false,
+        "attachments": [],
+        "files": [],
+        "files_v2": [],
+        "sync_sources": [],
+        "parent_message_uuid": "00000000-0000-4000-8000-000000000000"
+      },
+      {
+        "uuid": "1b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+        "text": "For metrics, Postgres with the TimescaleDB extension is usually the better fit.",
+        "content": [
+          {
+            "start_timestamp": "2026-02-14T10:04:30.000000Z",
+            "stop_timestamp": "2026-02-14T10:04:41.000000Z",
+            "type": "text",
+            "text": "For metrics, Postgres with the TimescaleDB extension is usually the better fit.",
+            "citations": []
+          }
+        ],
+        "sender": "assistant",
+        "index": 1,
+        "created_at": "2026-02-14T10:04:41.000000Z",
+        "updated_at": "2026-02-14T10:04:41.000000Z",
+        "truncated": false,
+        "stop_reason": "stop_sequence",
+        "attachments": [],
+        "files": [],
+        "files_v2": [],
+        "sync_sources": [],
+        "parent_message_uuid": "1b6a2f4e-1c3d-4e5f-8a9b-000000000001"
+      }
+    ]
+  },
+  {
+    "uuid": "0b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+    "name": "Release checklist research",
+    "summary": "",
+    "model": "claude-opus-4-1",
+    "created_at": "2026-03-02T08:00:00.000000Z",
+    "updated_at": "2026-03-02T08:05:00.000000Z",
+    "project_uuid": "c0000000-0000-4000-8000-000000000001",
+    "account": { "uuid": "a0000000-0000-4000-8000-0000000000aa" },
+    "current_leaf_message_uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+    "chat_messages": [
+      {
+        "uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+        "text": "Summarise the attached checklist and check the latest Tauri release notes.",
+        "content": [
+          {
+            "type": "text",
+            "text": "Summarise the attached checklist and check the latest Tauri release notes."
+          }
+        ],
+        "sender": "human",
+        "created_at": "2026-03-02T08:00:00.000000Z",
+        "updated_at": "2026-03-02T08:00:00.000000Z",
+        "attachments": [
+          {
+            "file_name": "release-checklist.md",
+            "file_size": 2048,
+            "file_type": "text/markdown",
+            "extracted_content": "# Release checklist\n- bump version\n- tag"
+          }
+        ],
+        "files": [
+          { "file_kind": "image", "file_uuid": "f0000000-0000-4000-8000-000000000001", "file_name": "screenshot.png" }
+        ],
+        "files_v2": [
+          { "file_kind": "image", "file_uuid": "f0000000-0000-4000-8000-000000000001", "file_name": "screenshot.png" }
+        ],
+        "parent_message_uuid": "00000000-0000-4000-8000-000000000000"
+      },
+      {
+        "uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+        "text": "",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "I should search for the release notes first.",
+            "summaries": [{ "summary": "Planning a search" }],
+            "cut_off": false
+          },
+          {
+            "type": "tool_use",
+            "id": "toolu_01ReleaseSearch",
+            "name": "web_search",
+            "input": { "query": "Tauri 2 release notes" },
+            "message": "Searching the web"
+          },
+          {
+            "type": "tool_result",
+            "tool_use_id": "toolu_01ReleaseSearch",
+            "name": "web_search",
+            "content": [
+              {
+                "type": "knowledge",
+                "title": "Tauri 2.0 Release",
+                "url": "https://v2.tauri.app/blog/tauri-20/",
+                "text": "Tauri 2.0 is stable."
+              }
+            ],
+            "is_error": false
+          },
+          {
+            "type": "tool_use",
+            "name": "artifacts",
+            "input": { "command": "create", "id": "checklist", "title": "Checklist" }
+          },
+          {
+            "type": "tool_result",
+            "name": "artifacts",
+            "content": [{ "type": "text", "text": "OK" }],
+            "is_error": false
+          },
+          {
+            "type": "text",
+            "text": "Your checklist covers version bumps and tagging. Tauri 2.0 is stable."
+          }
+        ],
+        "sender": "assistant",
+        "created_at": "2026-03-02T08:05:00.000000Z",
+        "updated_at": "2026-03-02T08:05:00.000000Z",
+        "stop_reason": "end_turn",
+        "attachments": [],
+        "files": [],
+        "parent_message_uuid": "2b6a2f4e-1c3d-4e5f-8a9b-000000000001"
+      }
+    ]
+  },
+  {
+    "uuid": "0b6a2f4e-1c3d-4e5f-8a9b-000000000003",
+    "name": "Naming a CLI flag",
+    "model": "claude-sonnet-4-5",
+    "created_at": "2026-04-10T12:00:00.000000Z",
+    "updated_at": "2026-04-10T12:03:00.000000Z",
+    "project": { "uuid": "c0000000-0000-4000-8000-000000000002" },
+    "current_leaf_message_uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000004",
+    "chat_messages": [
+      {
+        "uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+        "text": "Name a flag that skips the cache.",
+        "content": [{ "type": "text", "text": "Name a flag that skips the cache." }],
+        "sender": "human",
+        "created_at": "2026-04-10T12:00:00.000000Z",
+        "parent_message_uuid": "00000000-0000-4000-8000-000000000000"
+      },
+      {
+        "uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+        "text": "--no-cache",
+        "content": [{ "type": "text", "text": "--no-cache" }],
+        "sender": "assistant",
+        "created_at": "2026-04-10T12:01:00.000000Z",
+        "parent_message_uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000001"
+      },
+      {
+        "uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000003",
+        "text": "Name a flag that skips the cache, as a long option with a verb.",
+        "content": [{ "type": "text", "text": "Name a flag that skips the cache, as a long option with a verb." }],
+        "sender": "human",
+        "created_at": "2026-04-10T12:02:00.000000Z",
+        "parent_message_uuid": "00000000-0000-4000-8000-000000000000"
+      },
+      {
+        "uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000004",
+        "text": "--bypass-cache",
+        "content": [{ "type": "text", "text": "--bypass-cache" }],
+        "sender": "assistant",
+        "created_at": "2026-04-10T12:03:00.000000Z",
+        "parent_message_uuid": "3b6a2f4e-1c3d-4e5f-8a9b-000000000003"
+      }
+    ]
+  },
+  {
+    "uuid": "0b6a2f4e-1c3d-4e5f-8a9b-000000000004",
+    "name": "",
+    "created_at": "2024-06-01T09:00:00+00:00",
+    "updated_at": "2024-06-01T09:01:00+00:00",
+    "project_uuid": "c0000000-0000-4000-8000-0000000000ff",
+    "chat_messages": [
+      {
+        "uuid": "4b6a2f4e-1c3d-4e5f-8a9b-000000000001",
+        "text": "What does the borrow checker guard against?",
+        "sender": "human",
+        "created_at": "2024-06-01T09:00:00+00:00",
+        "attachments": [],
+        "files": []
+      },
+      {
+        "uuid": "4b6a2f4e-1c3d-4e5f-8a9b-000000000002",
+        "text": "Data races and use-after-free, at compile time.",
+        "sender": "assistant",
+        "created_at": "2024-06-01T09:01:00+00:00",
+        "attachments": [],
+        "files": []
+      }
+    ]
+  },
+  "not a conversation",
+  {
+    "uuid": "0b6a2f4e-1c3d-4e5f-8a9b-000000000005",
+    "name": "Empty draft",
+    "created_at": "2026-05-01T00:00:00.000000Z",
+    "updated_at": "2026-05-01T00:00:00.000000Z",
+    "chat_messages": []
+  }
+]

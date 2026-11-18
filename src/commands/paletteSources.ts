@@ -242,6 +242,7 @@ export const MESSAGE_SEARCH_PROVIDERS: readonly ProviderId[] = [
   "amazonq",
   "antigravity",
   "claude",
+  "claude-ai",
   "cline",
   "codebuddy",
   "codex",

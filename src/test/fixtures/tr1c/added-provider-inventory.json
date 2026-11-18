@@ -1012,6 +1012,39 @@
     "responseSha256": "c0fd85d19094f11c5c7702ed2ebc1937a1c71fab6e2876944ecfc3a8b270134c"
   },
   {
+    "id": "claude-ai",
+    "messageCount": 2,
+    "resultCount": 2,
+    "callCount": 2,
+    "recordedNames": [
+      "web_search",
+      "artifacts"
+    ],
+    "rawMessagePositive": true,
+    "toolResultPositive": true,
+    "fullPaginatedEquivalent": true,
+    "paginationDifferences": [],
+    "sourceProvenance": [
+      {
+        "file": "src-tauri/tests/fixtures/claude-ai-export/conversations.json",
+        "line": 62,
+        "sha256": "33235a631b2e5d8677c6a5bab12a93cb9cade9452956252898bdca0c88d5abfe",
+        "kind": "synthetic export fixture (whole file)"
+      },
+      {
+        "file": "src-tauri/tests/fixtures/claude-ai-export/projects.json",
+        "line": 3,
+        "sha256": "9b5229930e81f8b793d642ec503df20c34479394e5f299bf0d7a6c81059a862c",
+        "kind": "synthetic export fixture (whole file)"
+      }
+    ],
+    "limitations": [
+      "Repository-authored synthetic claude.ai export (tests/fixtures/claude-ai-export, shape from public documentation), not a live account export. claude.ai records no process exit, so tool results keep the export is_error flag and the process verdict is unknown."
+    ],
+    "fallback": "shared tool row / opaque JSON",
+    "responseSha256": "9a2f73b44237836ff77f307d80501f2849a55bc14e4cbf0521cd8eda6496d7c4"
+  },
+  {
     "id": "qoder",
     "messageCount": 6,
     "resultCount": 1,

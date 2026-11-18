@@ -107,6 +107,7 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 스레드 — SQLite + Zstd 압축 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai의 GLM 코딩 에이전트 — session/message/part 구조 SQLite 스토어 (제목, 도구 호출, 추론, 토큰 사용량) |
 | **Hermes Agent** | `HERMES_HOME`의 `state.db` (기본값 `~/.hermes`, Windows는 `%LOCALAPPDATA%\hermes`) + `profiles/<name>/` | Nous Research의 에이전트 — SQLite 스토어의 CLI·데스크톱·게이트웨이 세션 (도구 호출, 추론, 세션 토큰 사용량 및 비용) |
+| **Claude.ai** (계정 내보내기) | claude.ai → 설정 → 개인정보 → 데이터 내보내기로 받은 zip 또는 압축을 푼 폴더 (설정에서 추가) | 읽기 전용: claude.ai 프로젝트별 대화, 검색 가능; 내보내기에 토큰 사용량이 없어 통계에는 포함되지 않음 |
 | **Qoder** | `~/.qoder/projects/` (CLI·데스크톱 앱, `QODER_CONFIG_DIR`), `~/.qoder-cn/projects/` (Qoder CN), IDE의 `…/Qoder/SharedClientCache/cli/projects/` | Alibaba의 에이전트형 IDE·CLI — Claude Code 형식 트랜스크립트 (도구 호출, 사고 과정, 서브에이전트 실행, Qoder가 기록한 경우 토큰 사용량) |
 | **OpenHands** | `~/.openhands/sessions/` | 클래식 이벤트 스토어 대화 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 워크스페이스별 채팅 (icube 스토어; 실험적, 리버스 엔지니어링 기반) |

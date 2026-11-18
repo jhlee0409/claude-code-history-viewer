@@ -108,6 +108,30 @@ Captured after the 31-ID bundle, with the same recipe, for #665:
   `exit_code` stays inside the raw tool text and the process verdict is
   `unknown`.
 
+### claude.ai export addition
+
+Captured for #674 with the same recipe:
+
+- Backend: the `feat/provider-claude-ai-export` worktree (base `77ce7e59`
+  plus the claude-ai provider), debug `cargo build --features webui-server`
+  server SHA-256
+  `298a18064a845a8358290eef9ba6cf1dca9cc8dea2f62717ab2873111c18eb53`.
+- Store: a fresh isolated HOME whose `~/Downloads/data-2026-11-18.zip` is
+  the synthetic fixture `src-tauri/tests/fixtures/claude-ai-export`
+  (`conversations.json`, `projects.json`, `users.json`, deflated), registered
+  in `~/.claude-history-viewer/user-data.json` `settings.claudeAiExports`.
+  Not a live account export.
+- Session path `claude-ai://89eecd2a602885c0/project-c0000000-0000-4000-8000-000000000001#0b6a2f4e-1c3d-4e5f-8a9b-000000000002`,
+  served with `--serve --no-auth --no-watch --host 127.0.0.1`. Decoded HTTP
+  bodies: `load_provider_messages` SHA-256
+  `03f3f65aaa61bb6a7568742860c9cdc4b749f5178ec93ca967b70149ddc804d0`,
+  `load_provider_messages_paginated` SHA-256
+  `56b42e6a0a597106b7ab56932a8f86328347bb51b064e665cddbbfa17d82d1d6`, added
+  unmodified.
+- The assistant message holds both calls and both results (claude.ai keeps
+  them in one message). claude.ai records no process exit, so both verdicts
+  are `unknown`.
+
 ### Qoder addition
 
 Captured after the Hermes addition, with the same recipe, for #339:

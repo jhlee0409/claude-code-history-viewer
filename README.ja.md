@@ -107,6 +107,7 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panelスレッド — SQLite + Zstd圧縮JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai の GLM コーディングエージェント — session/message/part 型 SQLite ストア（タイトル、ツール呼び出し、思考、トークン使用量） |
 | **Hermes Agent** | `HERMES_HOME` 内の `state.db`（既定は `~/.hermes`、Windows は `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research のエージェント — SQLite ストアの CLI・デスクトップ・ゲートウェイセッション（ツール呼び出し、推論、セッションのトークン使用量とコスト） |
+| **Claude.ai**（アカウントエクスポート） | claude.ai → 設定 → プライバシー → データをエクスポートで得た zip、または展開したフォルダ（設定で追加） | 読み取り専用：claude.ai プロジェクトごとの会話、検索可能。エクスポートにトークン使用量がないため統計には含まれない |
 | **Qoder** | `~/.qoder/projects/`（CLI・デスクトップアプリ、`QODER_CONFIG_DIR`）、`~/.qoder-cn/projects/`（Qoder CN）、IDE の `…/Qoder/SharedClientCache/cli/projects/` | Alibaba のエージェント型 IDE・CLI — Claude Code 形式のトランスクリプト（ツール呼び出し、思考、サブエージェント実行、Qoder が記録している場合はトークン使用量） |
 | **OpenHands** | `~/.openhands/sessions/` | クラシックなイベントストア形式の会話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | ワークスペース単位のチャット（icubeストア；実験的、リバースエンジニアリングによる対応） |
