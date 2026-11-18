@@ -190,6 +190,17 @@ jobs:
           fi
           grep -A2 "<releases>" "$METAINFO"
 
+      # The image's preinstalled runtimes cannot be updated in place: the
+      # update renames across the image's overlay layers and fails with
+      # "Invalid cross-device link" (flatpak/flatpak-github-actions#267).
+      # Remove them so flatpak-builder installs current ones instead.
+      - name: drop the image's preinstalled runtimes
+        run: |
+          flatpak list --columns=ref,installation || true
+          flatpak uninstall --system -y --noninteractive --all || true
+          flatpak uninstall --user -y --noninteractive --all || true
+          flatpak remotes --show-details
+
       - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           manifest-path: ${{ env.MANIFEST }}
