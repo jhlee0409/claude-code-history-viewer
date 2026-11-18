@@ -123,6 +123,21 @@ fn optional_col(cols: &HashSet<String>, name: &str) -> String {
     }
 }
 
+/// Project identity for a workspace key from [`workspace_of`] — shared by
+/// scan and search so search hits group under the scanned project (#672).
+fn project_path_for(ws: &str) -> String {
+    format!("{SCHEME}{ws}")
+}
+
+/// Display name for a workspace key (its folder leaf, else the key).
+fn project_name_for(ws: &str) -> String {
+    PathBuf::from(ws)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| ws.to_string())
+}
+
 /// Scan Zed projects (threads grouped by first workspace folder).
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_projects_conn(&open_db()?)
@@ -165,14 +180,10 @@ fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     let mut projects: Vec<ClaudeProject> = by_ws
         .into_iter()
         .map(|(ws, agg)| {
-            let name = PathBuf::from(&ws)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| ws.clone());
+            let name = project_name_for(&ws);
             ClaudeProject {
                 name,
-                path: format!("{SCHEME}{ws}"),
+                path: project_path_for(&ws),
                 actual_path: ws,
                 session_count: agg.session_count,
                 message_count: 0,
@@ -270,11 +281,17 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     if query.is_empty() || limit == 0 {
         return Ok(Vec::new());
     }
-    let conn = open_db()?;
+    search_conn(&open_db()?, query, limit)
+}
+
+fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let query_lower = query.to_lowercase();
-    let mut stmt = conn
-        .prepare("SELECT id, data_type, data, updated_at FROM threads")
-        .map_err(|e| e.to_string())?;
+    let cols = table_columns(conn, "threads");
+    let sql = format!(
+        "SELECT id, data_type, data, updated_at, {} FROM threads",
+        optional_col(&cols, "folder_paths")
+    );
+    let mut stmt = conn.prepare(&sql).map_err(|e| e.to_string())?;
     let rows = stmt
         .query_map([], |row| {
             Ok((
@@ -282,16 +299,20 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 row.get::<_, String>(1)?,
                 row.get::<_, Vec<u8>>(2)?,
                 row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<String>>(4)?,
             ))
         })
         .map_err(|e| e.to_string())?;
 
     let mut results = Vec::new();
-    for (id, data_type, data, updated_at) in rows.flatten() {
+    for (id, data_type, data, updated_at, folder_paths) in rows.flatten() {
         let Ok(json) = decode_thread_data(&data_type, &data) else {
             continue;
         };
-        for msg in parse_thread(&json, &id, updated_at.as_deref().unwrap_or("")) {
+        let ws = workspace_of(folder_paths.as_deref());
+        let project_name = project_name_for(&ws);
+        let project_path = project_path_for(&ws);
+        for mut msg in parse_thread(&json, &id, updated_at.as_deref().unwrap_or("")) {
             if results.len() >= limit {
                 return Ok(results);
             }
@@ -301,6 +322,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 .map(|c| search_json_value_case_insensitive(c, &query_lower))
                 .unwrap_or(false);
             if matched {
+                msg.project_name = Some(project_name.clone());
+                msg.project_path = Some(project_path.clone());
                 results.push(msg);
             }
         }
@@ -748,6 +771,52 @@ mod tests {
         let sessions = load_sessions_conn(&conn, "/Users/jack/proj").unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].first_message_time, "2026-06-20T09:00:00Z"); // created_at
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_folders() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute(
+            "CREATE TABLE threads (id TEXT PRIMARY KEY, summary TEXT NOT NULL, \
+             updated_at TEXT NOT NULL, data_type TEXT NOT NULL, data BLOB NOT NULL, \
+             folder_paths TEXT)",
+            [],
+        )
+        .unwrap();
+        for (id, folders) in [
+            ("ta", r#"["/work/client-a/app"]"#),
+            ("tb", r#"["/work/client-b/app"]"#),
+        ] {
+            let data = serde_json::to_vec(
+                &json!({ "messages": [{ "User": { "content": [{ "Text": "needle" }] } }] }),
+            )
+            .unwrap();
+            insert_thread(
+                &conn,
+                "id, summary, updated_at, data_type, data, folder_paths",
+                &[&id, &"s", &"2026-06-20T10:00:00Z", &"json", &data, &folders],
+            );
+        }
+
+        let projects = scan_projects_conn(&conn).unwrap();
+        let path_of = |ws: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == ws)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search_conn(&conn, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let expected = if hit.session_id == "ta" { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 
     #[test]

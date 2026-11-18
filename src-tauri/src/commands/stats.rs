@@ -1821,18 +1821,19 @@ fn collect_provider_global_file_stats(
         else {
             return (Vec::new(), project_keys);
         };
-        let Ok(sessions) = providers::antigravity::load_sessions(&root.to_string_lossy(), false)
-        else {
+        // Each desktop session counts under its workspace project, the key
+        // the project list and search use, not under the store root.
+        let Ok(sessions) = providers::antigravity::load_desktop_sessions(&root) else {
             return (Vec::new(), project_keys);
         };
-        project_keys.insert(format!(
-            "{}:{}",
-            stats_provider_id(provider),
-            root.to_string_lossy()
-        ));
 
         let mut all_stats = Vec::new();
-        for session in &sessions {
+        for providers::antigravity::DesktopSession {
+            project_path,
+            session,
+        } in &sessions
+        {
+            project_keys.insert(format!("{}:{project_path}", stats_provider_id(provider)));
             let records = match load_antigravity_usage_records(&session.file_path) {
                 Ok(records) => records
                     .into_iter()
@@ -1847,8 +1848,8 @@ fn collect_provider_global_file_stats(
             }
 
             let mut stats = SessionFileStats {
-                project_name: "Antigravity [antigravity]".to_string(),
-                project_path: root.to_string_lossy().to_string(),
+                project_name: format!("{} [antigravity]", session.project_name),
+                project_path: project_path.clone(),
                 provider,
                 ..Default::default()
             };
@@ -4392,6 +4393,11 @@ pub async fn get_session_token_stats(
     end_date: Option<String>,
     stats_mode: Option<String>,
 ) -> Result<SessionTokenStats, String> {
+    // A prompt-history session (#764) recorded no usage: its replies were
+    // deleted with the transcript.
+    if crate::commands::session::prompt_history::is_session_path(&session_path) {
+        return crate::commands::session::prompt_history::session_token_stats(&session_path);
+    }
     let start = std::time::Instant::now();
     let mode = parse_stats_mode(stats_mode);
     let provider = detect_session_provider(&session_path);
@@ -8768,6 +8774,104 @@ mod tests {
         } else {
             std::env::remove_var("HOME");
         }
+    }
+
+    /// Antigravity desktop sessions count under their workspace project
+    /// (`antigravity://<workspace>`, the project list's key), so two
+    /// workspaces sharing a folder name are two projects and two ranking rows
+    /// instead of one store-root row (#672).
+    #[tokio::test]
+    #[serial]
+    async fn test_global_summary_keeps_same_named_antigravity_workspaces_apart() {
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let antigravity_root = sandbox.path().join(".gemini").join("antigravity");
+        let rpc_cache = antigravity_root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1");
+        fs::create_dir_all(&rpc_cache).expect("create rpc-cache");
+        let conn = rusqlite::Connection::open(antigravity_root.join("conversation_summaries.db"))
+            .expect("open summaries db");
+        conn.execute_batch(
+            "CREATE TABLE conversation_summaries (
+                conversation_id TEXT PRIMARY KEY, title TEXT, preview TEXT,
+                step_count INTEGER, last_modified_time TEXT,
+                last_user_input_time TEXT, workspace_uris TEXT
+            );",
+        )
+        .expect("create summaries table");
+        for (session_id, workspace, tokens) in [
+            ("session-a", "/client-a/app", 100u64),
+            ("session-b", "/client-b/app", 200),
+        ] {
+            let session_dir = rpc_cache.join(session_id);
+            fs::create_dir_all(&session_dir).expect("create rpc-cache session");
+            let usage_record = json!({
+                "recordType": "usage",
+                "sessionId": session_id,
+                "sequence": 0,
+                "model": "claude-sonnet-4-6",
+                "inputTokens": tokens,
+                "outputTokens": 0,
+                "totalTokens": tokens,
+                "raw": {
+                    "chatModel": {
+                        "chatStartMetadata": { "createdAt": "2026-05-14T10:00:00Z" }
+                    }
+                }
+            });
+            fs::write(session_dir.join("usage.jsonl"), format!("{usage_record}\n"))
+                .expect("write usage");
+            conn.execute(
+                "INSERT INTO conversation_summaries VALUES (?1, '', '', 1, ?2, ?2, ?3)",
+                rusqlite::params![
+                    session_id,
+                    "2026-05-14T10:00:00Z",
+                    format!("[\"file://{workspace}\"]")
+                ],
+            )
+            .expect("insert summary");
+        }
+        drop(conn);
+
+        let summary = get_global_stats_summary(
+            sandbox.path().to_string_lossy().to_string(),
+            Some(vec!["antigravity".to_string()]),
+            Some("billing_total".to_string()),
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("global summary");
+
+        assert_eq!(summary.total_projects, 2);
+        assert_eq!(summary.total_tokens, 300);
+        let mut rows: Vec<(&str, &str, u64)> = summary
+            .top_projects
+            .iter()
+            .map(|row| {
+                (
+                    row.project_name.as_str(),
+                    row.project_path.as_str(),
+                    row.tokens,
+                )
+            })
+            .collect();
+        rows.sort_unstable();
+        assert_eq!(
+            rows,
+            [
+                ("app [antigravity]", "antigravity:///client-a/app", 100),
+                ("app [antigravity]", "antigravity:///client-b/app", 200),
+            ]
+        );
+        let antigravity = summary
+            .provider_distribution
+            .iter()
+            .find(|provider| provider.provider_id == "antigravity")
+            .expect("antigravity provider row");
+        assert_eq!(antigravity.projects, 2);
     }
 
     /// Kilo Code is wired into per-project/session stats but was missing from

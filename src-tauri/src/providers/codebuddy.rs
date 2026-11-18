@@ -158,7 +158,7 @@ pub fn scan_projects_in(base: &Path) -> Result<Vec<ClaudeProject>, String> {
             // sessions later; `actual_path` is the user-facing real working
             // directory (when we could recover it) so downstream features
             // like git-info detection see the correct repo location.
-            path: project_dir.to_string_lossy().to_string(),
+            path: project_path(project_dir),
             actual_path,
             session_count,
             message_count,
@@ -348,13 +348,22 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             break;
         }
 
+        // Scan lists only `<project>/<session>.jsonl` files that are not
+        // symlinks; anything else belongs to no scanned project.
+        let project_path = entry
+            .path()
+            .parent()
+            .filter(|_| entry.depth() == 2 && !entry.path_is_symlink())
+            .map(project_path);
+
         if let Ok(messages) = load_messages(&entry.path().to_string_lossy()) {
-            for msg in messages {
+            for mut msg in messages {
                 if results.len() >= limit {
                     return Ok(results);
                 }
                 if let Some(content) = &msg.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
+                        msg.project_path.clone_from(&project_path);
                         results.push(msg);
                     }
                 }
@@ -368,6 +377,12 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // ============================================================================
 // Internal helpers
 // ============================================================================
+
+/// The `ClaudeProject.path` scan reports for a project directory; search
+/// tags hits with the same string.
+fn project_path(project_dir: &Path) -> String {
+    project_dir.to_string_lossy().to_string()
+}
 
 /// Validate that a session path is within `~/.codebuddy/projects`
 fn validate_session_path(path: &Path) -> Result<(), String> {
@@ -1244,5 +1259,44 @@ mod tests {
             projects[0].name, "hyphenated-leaf",
             "fs-decoding fallback must preserve the hyphenated leaf"
         );
+    }
+
+    /// #672: hits carry the scanned project's `path`, so two projects whose
+    /// cwd leaf is `app` stay apart in search.
+    #[test]
+    #[serial]
+    fn search_hits_carry_scanned_project_path() {
+        let home = crate::test_utils::SandboxHome::new();
+        let projects_root = home.path().join(".codebuddy").join("projects");
+        for client in ["client-a", "client-b"] {
+            let project_dir = projects_root.join(format!("work-{client}-app"));
+            std::fs::create_dir_all(&project_dir).expect("create project");
+            let line = json!({
+                "type": "message",
+                "role": "user",
+                "sessionId": format!("s-{client}"),
+                "timestamp": 1_700_000_000_000i64,
+                "cwd": crate::test_utils::abs(&format!("work/{client}/app")),
+                "content": [{"type": "input_text", "text": "needle"}],
+            });
+            std::fs::write(project_dir.join("s.jsonl"), format!("{line}\n")).expect("write");
+        }
+
+        let projects = scan_projects().expect("scan ok");
+        let results = search("needle", 10).expect("search ok");
+        assert_eq!(results.len(), 2);
+        for client in ["client-a", "client-b"] {
+            let project = projects
+                .iter()
+                .find(|p| p.actual_path == crate::test_utils::abs(&format!("work/{client}/app")))
+                .expect("scanned project");
+            assert_eq!(project.name, "app");
+            let hit = results
+                .iter()
+                .find(|m| m.session_id == format!("s-{client}"))
+                .expect("hit");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+        assert_ne!(results[0].project_path, results[1].project_path);
     }
 }

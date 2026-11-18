@@ -266,6 +266,7 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
 
     let unreported = ScanReport::default();
     for dir in project_dirs(&root, &unreported) {
+        let project_path = project_path_for(&dir);
         for file in session_files(&dir, &unreported) {
             let Ok(data) = fs::read_to_string(&file) else {
                 continue;
@@ -291,6 +292,7 @@ pub(crate) fn search_store(store: &PiStore, query: &str, max_results: usize) -> 
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some(project_name.clone());
+                    msg.project_path = Some(project_path.clone());
                     results.push(msg);
                 }
             }
@@ -307,6 +309,13 @@ fn project_dirs(root: &Path, report: &ScanReport) -> Vec<PathBuf> {
         .filter(|e| !e.path_is_symlink() && e.file_type().is_dir())
         .map(|e| e.path().to_path_buf())
         .collect()
+}
+
+/// The opaque project identity (`ClaudeProject.path`) of a project
+/// directory, shared by scan and search so search hits group under their
+/// project.
+fn project_path_for(dir: &Path) -> String {
+    dir.to_string_lossy().to_string()
 }
 
 /// `.jsonl` session files directly inside a project directory; what the
@@ -373,7 +382,7 @@ pub(crate) fn scan_projects_in(
 
         projects.push(ClaudeProject {
             name,
-            path: dir.to_string_lossy().to_string(),
+            path: project_path_for(&dir),
             actual_path,
             session_count,
             message_count,
@@ -1627,6 +1636,52 @@ mod tests {
             load_messages(&file.to_string_lossy()).is_err(),
             "load_messages must reject a file outside the sessions root"
         );
+    }
+
+    /// Search hits carry the scanned `path` of their own project, so two
+    /// projects whose cwds share a leaf name stay apart.
+    #[test]
+    #[serial]
+    fn search_hits_carry_the_scanned_project_path_of_same_named_projects() {
+        let home = crate::test_utils::SandboxHome::new();
+        let root = home.path().join(".pi").join("agent").join("sessions");
+        for (dir, id, cwd) in [
+            ("--work-client-a-app--", "sess-a", "/work/client-a/app"),
+            ("--work-client-b-app--", "sess-b", "/work/client-b/app"),
+        ] {
+            let dir = root.join(dir);
+            fs::create_dir_all(&dir).expect("create fixture dir");
+            let data = SESSION
+                .replace("sess-1", id)
+                .replace("/Users/ac/dev/herdr", cwd);
+            fs::write(
+                dir.join(format!("2026-06-08T20-31-45-261Z_{id}.jsonl")),
+                data,
+            )
+            .expect("write fixture session");
+        }
+
+        let projects = scan_projects().expect("scan succeeds");
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+        let mut session_project = std::collections::HashMap::new();
+        for project in &projects {
+            for session in load_sessions(&project.path, false).expect("sessions load") {
+                session_project.insert(session.actual_session_id, project.path.clone());
+            }
+        }
+
+        let results = search("login", 50).expect("search succeeds");
+        let mut hit_paths = std::collections::HashSet::new();
+        for hit in &results {
+            let expected = session_project
+                .get(&hit.session_id)
+                .expect("scanned session");
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            hit_paths.insert(expected.clone());
+        }
+        assert_eq!(hit_paths.len(), 2, "both projects have hits");
     }
 }
 

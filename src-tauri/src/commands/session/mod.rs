@@ -16,6 +16,7 @@ mod load;
 mod move_session;
 #[cfg(all(test, unix))]
 mod path_safety_tests;
+pub(crate) mod prompt_history;
 mod rename;
 mod resume;
 mod search;
@@ -112,6 +113,13 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
 #[cfg(feature = "webui-server")]
 pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), String> {
     use std::path::PathBuf;
+
+    // A prompt-history session (#764) names no file, and its project folder
+    // may be gone: it is judged by the `projects/` folder it is listed under,
+    // whose Claude root holds the `history.jsonl` it is read from.
+    if let Some(projects_dir) = prompt_history::projects_dir_of(path) {
+        return is_safe_history_file_path(&projects_dir);
+    }
 
     let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
@@ -306,6 +314,31 @@ mod tests {
         assert!(
             res.is_err(),
             "a path outside every provider root must be rejected"
+        );
+    }
+
+    /// #764. A prompt-history session names no file, and its project folder
+    /// may be gone: it is judged by the `projects/` folder it is listed
+    /// under, inside the roots and out.
+    #[test]
+    #[serial]
+    fn judges_prompt_history_paths_by_their_projects_folder() {
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let home = sandbox.path();
+        let projects = home.join(".claude").join("projects");
+        std::fs::create_dir_all(&projects).expect("mk projects");
+        let session = "aaaaaaaa-0000-4000-8000-000000000001.prompt-history";
+
+        let gone_folder = projects.join("-work-gone").join(session);
+        assert!(is_safe_history_file_path(&gone_folder).is_ok());
+        assert!(is_safe_session_path(&gone_folder).is_ok());
+
+        let elsewhere = home.join("elsewhere").join("projects");
+        std::fs::create_dir_all(&elsewhere).expect("mk elsewhere");
+        let outside = elsewhere.join("-work").join(session);
+        assert_eq!(
+            is_safe_history_file_path(&outside),
+            Err(OUTSIDE_HISTORY_ROOTS.to_string())
         );
     }
 

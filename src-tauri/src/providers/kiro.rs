@@ -39,9 +39,27 @@ fn open_db() -> Result<Connection, String> {
     Ok(conn)
 }
 
+/// Project identity for a `conversations_v2.key` — shared by scan and search
+/// so search hits group under the scanned project (#672).
+fn project_path_for(key: &str) -> String {
+    format!("kiro://{key}")
+}
+
+/// Display name for a `conversations_v2.key` (its folder leaf).
+fn project_name_for(key: &str) -> String {
+    PathBuf::from(key)
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_string()
+}
+
 /// Scan Kiro projects (grouped by cwd/key)
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
-    let conn = open_db()?;
+    scan_conn(&open_db()?)
+}
+
+fn scan_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT key, COUNT(*) as cnt, MAX(updated_at) as last_upd
@@ -59,14 +77,10 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
         .map_err(|e| e.to_string())?
         .flatten()
         .map(|(key, count, updated)| {
-            let name = PathBuf::from(&key)
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
+            let name = project_name_for(&key);
             ClaudeProject {
                 name,
-                path: format!("kiro://{key}"),
+                path: project_path_for(&key),
                 actual_path: key,
                 session_count: count,
                 message_count: 0,
@@ -97,11 +111,7 @@ pub fn load_sessions(
         )
         .map_err(|e| e.to_string())?;
 
-    let project_name = PathBuf::from(key)
-        .file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .to_string();
+    let project_name = project_name_for(key);
 
     let sessions = stmt
         .query_map([key], |row| {
@@ -178,8 +188,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     if query.is_empty() || limit == 0 {
         return Ok(Vec::new());
     }
+    search_conn(&open_db()?, query, limit)
+}
 
-    let conn = open_db()?;
+fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let pattern = format!("%{query}%");
     let query_lower = query.to_lowercase();
 
@@ -199,7 +211,9 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         .map_err(|e| e.to_string())?;
 
     for row in rows.flatten() {
-        let (_key, conv_id, value) = row;
+        let (key, conv_id, value) = row;
+        let project_name = project_name_for(&key);
+        let project_path = project_path_for(&key);
         let json: Value = match serde_json::from_str(&value) {
             Ok(v) => v,
             Err(_) => continue,
@@ -219,7 +233,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 {
                     if let Some(ref c) = msg.content {
                         if search_json_value_case_insensitive(c, &query_lower) {
-                            msg.project_name = Some("Kiro CLI".to_string());
+                            msg.project_name = Some(project_name.clone());
+                            msg.project_path = Some(project_path.clone());
                             results.push(msg);
                         }
                     }
@@ -234,7 +249,8 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 {
                     if let Some(ref c) = msg.content {
                         if search_json_value_case_insensitive(c, &query_lower) {
-                            msg.project_name = Some("Kiro CLI".to_string());
+                            msg.project_name = Some(project_name.clone());
+                            msg.project_path = Some(project_path.clone());
                             results.push(msg);
                         }
                     }
@@ -244,4 +260,47 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     }
 
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_keys() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE conversations_v2 (key TEXT, conversation_id TEXT, value TEXT, \
+                 created_at INTEGER, updated_at INTEGER);",
+        )
+        .unwrap();
+        let value = r#"{"history":[{"user":{"content":{"Prompt":{"prompt":"needle here"}}}}]}"#;
+        for (key, conv) in [("/work/client-a/app", "ca"), ("/work/client-b/app", "cb")] {
+            conn.execute(
+                "INSERT INTO conversations_v2 VALUES (?1, ?2, ?3, 1, 2)",
+                [key, conv, value],
+            )
+            .unwrap();
+        }
+
+        let projects = scan_conn(&conn).unwrap();
+        let path_of = |key: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == key)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search_conn(&conn, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let expected = if hit.session_id == "ca" { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
+    }
 }

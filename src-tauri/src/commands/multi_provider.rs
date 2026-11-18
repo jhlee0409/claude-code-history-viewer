@@ -1211,10 +1211,11 @@ pub async fn search_all_providers(
         }
     }
 
-    // Central pass over every provider's results (e.g. `sessionIds`, which
-    // every provider sets). Claude and Codex already filtered before their own
-    // limit; providers that ignore filters truncated first, so a narrow scope
-    // can return fewer than `max_results` from them.
+    // Central pass over every provider's results (e.g. `projectPaths` and
+    // `sessionIds`, which every provider's hits carry). Claude and Codex
+    // already filtered before their own limit; providers that ignore filters
+    // truncated first, so a narrow scope can return fewer than `max_results`
+    // from them.
     all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
 
     // Prefer the user's matching prompts, then displayable assistant text,

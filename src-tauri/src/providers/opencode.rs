@@ -134,11 +134,38 @@ fn opencode_project_display_name(name: Option<&str>, worktree: &str) -> String {
 }
 
 fn should_split_global_project(project: &DbProjectRecord) -> bool {
-    project.id == OPENCODE_GLOBAL_PROJECT_ID
-        && match project.name.as_deref().map(str::trim) {
+    is_split_global_project(&project.id, project.name.as_deref())
+}
+
+/// Whether scan lists the sessions of `project_id` under per-directory
+/// virtual projects instead of the project itself: the unnamed `global`
+/// project holds every session started outside a git worktree.
+fn is_split_global_project(project_id: &str, name: Option<&str>) -> bool {
+    project_id == OPENCODE_GLOBAL_PROJECT_ID
+        && match name.map(str::trim) {
             Some(name) => name.is_empty(),
             None => true,
         }
+}
+
+/// The `ClaudeProject.path` scan emits for a project id. Search tags hits
+/// with the same string so they group under the project that lists them.
+fn project_path_for_id(project_id: &str) -> String {
+    format!("opencode://{project_id}")
+}
+
+/// Path of the scanned project whose session list holds a database session
+/// of `project_id` started in `directory`.
+fn db_session_project_path(
+    project_id: &str,
+    project_name: Option<&str>,
+    directory: &str,
+) -> String {
+    if is_split_global_project(project_id, project_name) {
+        project_path_for_id(&global_directory_project_id(directory.trim()))
+    } else {
+        project_path_for_id(project_id)
+    }
 }
 
 /// Detect `OpenCode` installation
@@ -326,7 +353,7 @@ pub(crate) fn scan_projects_from_store_reporting(
 
             projects.push(ClaudeProject {
                 name: project_name,
-                path: format!("opencode://{project_id}"),
+                path: project_path_for_id(&project_id),
                 actual_path: project_path,
                 session_count,
                 message_count: 0,
@@ -980,6 +1007,7 @@ pub fn search_at(
         if !is_safe_storage_id(&project_id) {
             continue;
         }
+        let project_path = project_path_for_id(&project_id);
 
         for session_entry in fs::read_dir(project_entry.path())
             .into_iter()
@@ -1007,13 +1035,14 @@ pub fn search_at(
             let virtual_path = format!("opencode://{project_id}/{session_id}");
 
             if let Ok(messages) = load_messages_at(base_path, db_file, &virtual_path) {
-                for msg in messages {
+                for mut msg in messages {
                     if results.len() >= limit {
                         return Ok(results);
                     }
 
                     if let Some(content) = &msg.content {
                         if super::result_evidence::content_matches(content, &query_lower) {
+                            msg.project_path = Some(project_path.clone());
                             results.push(msg);
                         }
                     }
@@ -1296,7 +1325,7 @@ fn scan_projects_from_db(
 
         projects.push(ClaudeProject {
             name: project_name,
-            path: format!("opencode://{}", project.id),
+            path: project_path_for_id(&project.id),
             actual_path: project.worktree,
             session_count: project.session_count,
             message_count: 0,
@@ -1361,7 +1390,7 @@ fn scan_global_directory_projects(
 
             ClaudeProject {
                 name: opencode_project_display_name(None, &actual_path),
-                path: format!("opencode://{project_id}"),
+                path: project_path_for_id(&project_id),
                 actual_path,
                 session_count,
                 message_count: 0,
@@ -2141,17 +2170,20 @@ fn search_from_db(
     }
 
     let searched_set: HashSet<String> = session_ids.iter().cloned().collect();
+    let project_paths = session_project_paths(&conn, schema);
 
     // Reuse the same connection for loading messages
     let mut results = Vec::new();
     for sid in &session_ids {
+        let project_path = project_paths.get(sid);
         if let Some(messages) = load_messages_with_conn(&conn, sid) {
-            for msg in messages {
+            for mut msg in messages {
                 if results.len() >= limit {
                     return Some((results, searched_set));
                 }
                 if let Some(content) = &msg.content {
                     if super::result_evidence::content_matches(content, query_lower) {
+                        msg.project_path = project_path.cloned();
                         results.push(msg);
                     }
                 }
@@ -2160,6 +2192,42 @@ fn search_from_db(
     }
 
     Some((results, searched_set))
+}
+
+/// `session_id -> ClaudeProject.path` of the scanned project listing each
+/// database session. Sessions without a `project` row are listed by no
+/// scanned project and stay absent.
+fn session_project_paths(
+    conn: &Connection,
+    schema: StoreSchema,
+) -> std::collections::HashMap<String, String> {
+    let Some(sessions) = schema.sessions_sql() else {
+        return std::collections::HashMap::new();
+    };
+    let Ok(mut stmt) = conn.prepare(&format!(
+        "SELECT s.id, s.project_id, s.directory, p.name
+         FROM ({sessions}) s
+         JOIN project p ON p.id = s.project_id"
+    )) else {
+        return std::collections::HashMap::new();
+    };
+    let Ok(rows) = stmt.query_map([], |row| {
+        let session_id: String = row.get(0)?;
+        let project_id: String = row.get(1)?;
+        let directory: String = row.get(2)?;
+        let name: Option<String> = row.get(3)?;
+        Ok((
+            session_id,
+            db_session_project_path(&project_id, name.as_deref(), &directory),
+        ))
+    }) else {
+        return std::collections::HashMap::new();
+    };
+    let mut paths = std::collections::HashMap::new();
+    for (session_id, project_path) in rows.flatten() {
+        paths.insert(session_id, project_path);
+    }
+    paths
 }
 
 // ============================================================================
@@ -3160,6 +3228,87 @@ mod tests {
             10,
         );
         assert!(none_result.is_none());
+    }
+
+    /// #672: hits carry the path of the scanned project listing their
+    /// session, so same-named projects (and split `global` directories) stay
+    /// apart in search.
+    #[test]
+    fn search_tags_hits_with_scanned_project_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        for (project_id, worktree) in [
+            ("proj_a", "/work/client-a/app"),
+            ("proj_b", "/work/client-b/app"),
+            ("global", "/"),
+        ] {
+            conn.execute(
+                "INSERT INTO project (id, worktree, time_created, time_updated)
+                 VALUES (?1, ?2, 1700000000000, 1700000000000)",
+                rusqlite::params![project_id, worktree],
+            )
+            .unwrap();
+        }
+        let sessions = [
+            ("ses_a", "proj_a", "/work/client-a/app"),
+            ("ses_b", "proj_b", "/work/client-b/app"),
+            ("ses_ga", "global", "/scratch/client-a/app"),
+            ("ses_gb", "global", "/scratch/client-b/app"),
+        ];
+        for (session_id, project_id, directory) in sessions {
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+                 VALUES (?1, ?2, 't', ?3, 1700000000000, 1700000000000)",
+                rusqlite::params![session_id, project_id, directory],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data)
+                 VALUES (?1, ?2, 1700000010000, 1700000010000, ?3)",
+                rusqlite::params![
+                    format!("msg_{session_id}"),
+                    session_id,
+                    r#"{"role":"user","time":{"created":1700000010000}}"#
+                ],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+                 VALUES (?1, ?2, ?3, 1700000010000, 1700000010000, ?4)",
+                rusqlite::params![
+                    format!("prt_{session_id}"),
+                    format!("msg_{session_id}"),
+                    session_id,
+                    r#"{"type":"text","text":"needle text"}"#
+                ],
+            )
+            .unwrap();
+        }
+        drop(conn);
+        let base = tmp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_path(&base).unwrap();
+        let results = search_at(&base, OPENCODE_DB_FILE, "needle", 50).unwrap();
+        assert_eq!(results.len(), sessions.len());
+        for (session_id, _, directory) in sessions {
+            let project = projects
+                .iter()
+                .find(|project| {
+                    load_sessions_at(&base, OPENCODE_DB_FILE, &project.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|session| session.actual_session_id == session_id)
+                })
+                .unwrap_or_else(|| panic!("{session_id} is listed by a scanned project"));
+            assert_eq!(project.actual_path, directory);
+            let hit = results
+                .iter()
+                .find(|msg| msg.session_id == session_id)
+                .unwrap_or_else(|| panic!("{session_id} has a hit"));
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+        let paths: HashSet<_> = results.iter().map(|msg| msg.project_path.clone()).collect();
+        assert_eq!(paths.len(), sessions.len());
     }
 
     #[test]

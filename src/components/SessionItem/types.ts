@@ -53,6 +53,8 @@ export interface SessionNameEditorProps {
   supportsResumeCommand: boolean;
   supportsSessionDeletion: boolean;
   supportsRevealInFinder: boolean;
+  /** The session is a file whose path can be copied (default: it is). */
+  supportsCopyFilePath?: boolean;
   supportsSessionMove: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   ignoreBlurRef: React.RefObject<boolean>;
