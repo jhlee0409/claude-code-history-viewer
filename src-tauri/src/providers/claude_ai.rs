@@ -276,9 +276,10 @@ fn locate(path: &Path) -> Result<(Layout, Fingerprint), String> {
             path.display()
         ));
     }
-    let root = crate::utils::strip_windows_extended_prefix(
-        &fs::canonicalize(path).map_err(|e| format!("Cannot resolve {}: {e}", path.display()))?,
-    );
+    // The safe opener compares against a canonical path, including the
+    // verbatim prefix returned by canonicalize on Windows.
+    let root =
+        fs::canonicalize(path).map_err(|e| format!("Cannot resolve {}: {e}", path.display()))?;
     let folder = export_folder(&root)?;
     let conversations = folder.join(CONVERSATIONS_FILE);
     let data = regular_file(&conversations)
