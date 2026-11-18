@@ -549,6 +549,9 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   const conversationBranches = useAppStore((s) => s.conversationBranches);
   const branchSelections = useAppStore((s) => s.branchSelections);
   const selectConversationBranch = useAppStore((s) => s.selectConversationBranch);
+  // Paging progress counts the loaded window against the file's total, both
+  // across every alternative; `messages` is only the shown path.
+  const loadedMessageCount = useAppStore((s) => s.messages.length);
   const branchSwitches = useMemo(() => {
     if (!conversationBranches || conversationBranches.points.length === 0) return NO_BRANCH_SWITCHES;
     const rowUuids: string[] = [];
@@ -567,9 +570,15 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
   }, [flattenedMessages, conversationBranches, branchSelections, isInSubagent]);
   const handleSelectBranch = useCallback(
     (parentUuid: string, headUuid: string) => {
+      // The virtualizer keeps re-asserting its last index scroll (the
+      // open-at-bottom, a jump) for a few seconds; once the rows below the
+      // fork are swapped that index is another message. Pin the current
+      // offset instead so the switcher stays where it was clicked.
+      const viewport = getScrollElement();
+      if (viewport) virtualizer.scrollToOffset(viewport.scrollTop);
       void selectConversationBranch(parentUuid, headUuid);
     },
-    [selectConversationBranch],
+    [selectConversationBranch, getScrollElement, virtualizer],
   );
 
   // Stable selection handler (avoids creating new function per row in render loop)
@@ -1476,7 +1485,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                     pagination.pageSize || messages.length,
                     Math.max(pagination.totalCount - pagination.currentOffset, 0),
                   ),
-                  current: messages.length,
+                  current: loadedMessageCount,
                   total: pagination.totalCount,
                 })}
               >
@@ -1488,7 +1497,7 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
                     pagination.pageSize || messages.length,
                     Math.max(pagination.totalCount - pagination.currentOffset, 0),
                   ),
-                  current: messages.length,
+                  current: loadedMessageCount,
                   total: pagination.totalCount,
                 })}
               </button>

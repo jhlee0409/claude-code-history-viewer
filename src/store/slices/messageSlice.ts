@@ -513,6 +513,19 @@ export const createMessageSlice: StateCreator<
     return next;
   };
 
+  /**
+   * Page back while the loaded window holds nothing on the shown branch
+   * path (#782): the path can start before the newest page, e.g. a search
+   * hit or a recorded resume leaf in an older alternative.
+   */
+  const pageBackToShownPath = async (owns: () => boolean): Promise<void> => {
+    while (owns() && get().pagination.hasMore && selectDisplayedMessages(get()).length === 0) {
+      const before = get().pagination.currentOffset;
+      await loadOlderPage(MESSAGE_PAGE_SIZE);
+      if (get().pagination.currentOffset === before) break;
+    }
+  };
+
   return {
     ...initialMessageState,
 
@@ -731,12 +744,16 @@ export const createMessageSlice: StateCreator<
         return;
       }
 
-      // Update state first to allow UI to render immediately
+      // Update state first to allow UI to render immediately. A window with
+      // nothing on the shown path keeps the spinner while it pages back.
+      const shownEmpty =
+        nextPagination.hasMore &&
+        selectDisplayedMessages({ messages: filteredMessages, conversationBranches, branchSelections }).length === 0;
       set({
         messages: filteredMessages,
         messageUpdateKind,
         pagination: nextPagination,
-        isLoadingMessages: false,
+        isLoadingMessages: shownEmpty,
         conversationBranches,
         branchSelections,
       });
@@ -744,6 +761,7 @@ export const createMessageSlice: StateCreator<
       // Load subagent sessions (non-blocking). windowMessages는 시스템 메시지 필터
       // 적용 전 — meta.json 기반 매핑(주 경로)은 window와 무관하게 동작.
       void get().loadSubagents(sessionPath, windowMessages);
+      if (shownEmpty) await pageBackToShownPath(() => owner.ownsData());
 
       // Search index is built lazily on first search to avoid blocking UI
       // when loading large sessions (47k+ messages with tokenize:"full" is expensive).

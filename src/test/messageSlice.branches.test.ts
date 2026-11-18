@@ -247,6 +247,19 @@ describe("conversation branches in the message slice", () => {
     expect(shown(store)).toContain("old-1");
   });
 
+  it("pages back when the target's alternative lies wholly before the newest page", async () => {
+    // A search hit in the old alternative: the newest page holds only the
+    // resumed one, so the shown path would start out empty.
+    const { file, branches, old } = forkedSession(10, MESSAGE_PAGE_SIZE + 50);
+    backend(file, branches);
+    const store = createStore();
+    store.setState({ targetMessageUuid: "old-3" });
+    await store.getState().selectSession(session());
+    expect(store.getState().branchSelections).toEqual({ fork: "old-0" });
+    expect(shown(store)).toEqual(["u1", "fork", ...old]);
+    expect(store.getState().isLoadingMessages).toBe(false);
+  });
+
   it("keeps the forks object when a reload answers the same forks, and forgets choices for another session", async () => {
     const { file, branches } = forkedSession();
     backend(file, branches);
