@@ -796,6 +796,7 @@ dependencies = [
  "dispatch2",
  "fake",
  "futures",
+ "gio",
  "insta",
  "lazy_static",
  "log",
