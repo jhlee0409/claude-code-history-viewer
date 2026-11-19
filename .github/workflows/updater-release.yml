@@ -172,6 +172,53 @@ jobs:
           updaterJsonPreferNsis: false
           includeUpdaterJson: false
 
+      - name: Verify v1.32.2 Windows installs upgrade in place
+        if: matrix.platform == 'windows-latest' && needs.create-release.outputs.tag == 'v2.0.0'
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $old = Join-Path $env:RUNNER_TEMP 'omnilogue-v1-setup.exe'
+          gh release download v1.32.2 --repo $env:GITHUB_REPOSITORY --pattern '*_x64-setup.exe' --output $old
+          if ($LASTEXITCODE -ne 0) { throw 'Could not retrieve the previous release installer' }
+          Remove-Item Env:GH_TOKEN
+          $candidate = @(Get-ChildItem 'src-tauri/target/release/bundle/nsis' -File -Filter '*_x64-setup.exe')
+          if ($candidate.Count -ne 1) { throw 'Expected one candidate NSIS installer' }
+          $roots = @(
+            'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+          )
+          function Get-InstalledViewer {
+            Get-ItemProperty $roots -ErrorAction SilentlyContinue |
+              Where-Object { $_.DisplayName -in @('Claude Code History Viewer', 'Omnilogue') }
+          }
+          function Install-Viewer([string]$File, [string[]]$Flags) {
+            $result = Start-Process $File -ArgumentList $Flags -Wait -PassThru
+            if ($result.ExitCode -ne 0) { throw "Installer exited with $($result.ExitCode): $File" }
+          }
+          Install-Viewer -File $old -Flags @('/S')
+          $before = @(Get-InstalledViewer)
+          if ($before.Count -ne 1 -or $before[0].DisplayVersion -ne '1.32.2' -or !$before[0].InstallLocation) {
+            throw 'The previous installer did not register exactly one installation'
+          }
+          $metadata = Join-Path $env:USERPROFILE '.claude-history-viewer\user-data.json'
+          if (Test-Path $metadata) { throw 'Expected a clean test runner profile' }
+          New-Item -ItemType Directory -Force -Path (Split-Path $metadata) | Out-Null
+          Set-Content $metadata '{"settings":{},"sessions":{},"projects":{}}'
+          $hash = (Get-FileHash $metadata).Hash
+          Install-Viewer -File $candidate[0].FullName -Flags @('/S', '/UPDATE')
+          $after = @(Get-InstalledViewer)
+          if ($after.Count -ne 1 -or $after[0].DisplayVersion -ne '2.0.0' -or
+              $after[0].PSPath -ne $before[0].PSPath -or
+              $after[0].InstallLocation -ne $before[0].InstallLocation) {
+            throw 'The upgrade did not replace the existing installation in place'
+          }
+          if ((Get-FileHash $metadata).Hash -ne $hash) { throw 'The upgrade changed user metadata' }
+          'Verified NSIS 1.32.2 → 2.0.0 in-place, with one registry entry and unchanged metadata.'
+
       # Create portable Windows zip (no installer required)
       - name: Create portable Windows zip
         if: matrix.platform == 'windows-latest'
@@ -403,6 +450,11 @@ jobs:
             if (windows.asset) {
               const signature = windows.sig ? await fetchSignature(windows.sig.id) : '';
               platforms['windows-x86_64'] = { signature, url: getPublicUrl(windows.asset.name) };
+            }
+            for (const target of ['darwin-aarch64', 'darwin-x86_64', 'linux-x86_64', 'windows-x86_64']) {
+              if (!platforms[target]?.signature?.trim()) {
+                throw new Error(`Cannot generate updater metadata: missing signed asset for ${target}`);
+              }
             }
 
             const latestJson = {
