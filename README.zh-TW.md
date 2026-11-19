@@ -1,577 +1,71 @@
 <div align="center">
-
-<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
-
-# Omnilogue
-
-**AI 程式設計助手的統一歷史檢視器。**
-
-瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
-
-[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
-
-[網站](https://jhlee0409.github.io/omnilogue/) · [下載](https://github.com/jhlee0409/omnilogue/releases) · [回報問題](https://github.com/jhlee0409/omnilogue/issues)
-
-**Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
-
+  <img src="docs/assets/app-icon.png" alt="" width="64" />
+  <h1>Omnilogue</h1>
 </div>
 
----
+**你的 AI 程式開發紀錄，集中一處。**
 
-<p align="center">
-  <img width="49%" alt="Conversation History" src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" />
-  <img width="49%" alt="Analytics Dashboard" src="https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255" />
-</p>
-<p align="center">
-  <img width="49%" alt="Token Statistics" src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" />
-  <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
-</p>
+搜尋並回顧裝置上已有的 Claude Code、Codex CLI、Cursor、GitHub Copilot 等工具的工作階段。Omnilogue 是開放原始碼的桌面應用程式，也提供可自行託管的 WebUI。
 
-## 快速開始
+[下載](https://github.com/jhlee0409/omnilogue/releases/latest) · [官方網站與畫面截圖](https://jhlee0409.github.io/omnilogue/?lang=zh-TW) · [版本紀錄](CHANGELOG.md)
 
-**桌面應用程式** — 下載並執行：
+[English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-| 平台 | 下載 |
-|----------|----------|
-| macOS (通用版) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (可攜版)](https://github.com/jhlee0409/omnilogue/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
-
-**Homebrew** (macOS)：
-
-```bash
-brew install --cask jhlee0409/tap/omnilogue
-```
-
-**無頭伺服器** — 從任何瀏覽器存取：
-
-```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
-cchv-server --serve                       # → http://localhost:3727
-```
-
-Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)。
-
-**選擇模式：**
-
-| 模式 | 適用情境 | 運作方式 |
-|------|----------|----------|
-| 桌面應用程式 | 本機瀏覽 | 在原生應用程式中開啟本機對話檔案 |
-| 無頭伺服器 | 瀏覽器、VPS 或遠端存取 | 透過 WebUI 提供本機對話檔案；請保持啟用驗證 |
-
----
-
-## 為什麼做這個
-
-AI 程式設計助手產生了數千條對話訊息，但它們都沒有提供跨工具回顧歷史的方式。CCHV 解決了這個問題。
-
-**三十三個助手。一個檢視器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent 和 Qoder 工作階段之間無縫切換 — 比較 Token 用量、跨提供者搜尋、在一個介面中分析您的工作流程。
-
-| 提供者 | 資料位置 | 取得內容 |
-|----------|--------------|--------------|
-| **Claude Code** | `~/.claude/projects/` | 完整對話記錄、工具使用、思考過程、成本 |
-| **GitHub Copilot** | `~/.copilot/session-state/`（CLI 與 Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop 和 VS Code Copilot Chat 歷史記錄（唯讀，支援 WSL） |
-| **Gemini CLI** | `~/.gemini/history/` | 包含工具呼叫的對話記錄 |
-| **Antigravity** | `~/.gemini/antigravity/` | 依工作區資料夾分組的完整對話歷史（提示詞、思考過程、工具呼叫），讀取自 `conversation_summaries.db`、`conversations/*.db` 及 `brain/`，並相容 `.token-monitor/rpc-cache/v1/` 下的 Token 監控資料 |
-| **Codex CLI** | `~/.codex/sessions/` | 包含代理回應的工作階段記錄 |
-| **Cline**（含 Roo Code；舊版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（舊版） | Cline 家族的任務式對話記錄 |
-| **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；遷移前的 Cline 家族資料仍歸 Cline |
-| **Cursor** | `~/.cursor/` | Composer 和聊天對話 |
-| **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | 代理逐字稿，與 Cursor IDE 來源相互獨立 |
-| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/`（Windows 為 `%USERPROFILE%\.cursor\acp-sessions`） | 在 JetBrains IDE（GoLand、IntelliJ IDEA 等）中透過 Agent Client Protocol 橋接使用的 Cursor — 唯讀，依工作區呈現提示、回覆、推理過程與工具呼叫 |
-| **Aider** | 專案目錄 | 聊天記錄和編輯日誌 |
-| **OpenCode** | `~/.local/share/opencode/` | 對話工作階段和工具結果 |
-| **ForgeCode** | `~/.forge/.forge.db` | SQLite 資料庫中的對話記錄 |
-| **CodeBuddy Code** | `~/.codebuddy/projects/` | 包含工具呼叫的對話記錄（Claude Code fork 格式） |
-| **Grok CLI** | `~/.grok/sessions/` | Grok CLI 對話、工具呼叫與模型用量 |
-| **Kimi** | `~/.kimi/` | 工作階段記錄，支援 `kimi -r` 恢復 |
-| **Kiro** | `kiro-cli/data.sqlite3` | 以 SQLite 為後端的對話記錄 |
-| **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` 儲存（與 Kiro CLI 提供者共用格式） |
-| **Continue.dev** | `~/.continue/sessions/*.json` | 逐工作階段 JSON，依工作區分組（支援 `CONTINUE_GLOBAL_DIR`） |
-| **PearAI** | `~/.pearai/sessions/` | Continue fork — 相同的工作階段格式 |
-| **Goose** | `…/goose/sessions/sessions.db` | Block 的代理 — SQLite 工作階段 + 訊息 |
-| **Crush** | 逐專案 `./.crush/crush.db` | Charm 的 TUI — SQLite，於常見程式碼根目錄中自動探索 |
-| **llm** | `…/io.datasette.llm/logs.db` | Simon Willison 的 CLI — SQLite conversations/responses，含 Token 計數 |
-| **Open Interpreter** | `~/.openinterpreter/sessions/` | Codex 格式 rollouts（重用 Codex 解析器；支援 `INTERPRETER_HOME` 覆寫） |
-| **Pi** | `~/.pi/agent/sessions/` | 依 cwd 分組的 JSONL 轉錄 — 訊息、思考、工具呼叫、Token 用量 |
-| **oh-my-pi** | `~/.omp/agent/sessions/` | `omp` 分支的 Pi 格式工作階段（共用解析器） |
-| **Mistral Vibe** | `~/.vibe/logs/session/` | 含 reasoning 與工具呼叫的 OpenAI 風格聊天轉錄（支援 `VIBE_HOME` 覆寫） |
-| **Qwen Code** | `~/.qwen/projects/.../chats/` | 逐工作階段 JSONL 逐字稿（工具呼叫、思考過程、Token 用量） |
-| **Zed** | `…/Zed/threads/threads.db` | Agent Panel 執行緒 — SQLite + Zstd 壓縮 JSON |
-| **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 編程智能體 — session/message/part 三表 SQLite 儲存（標題、工具呼叫、思考過程、Token 用量） |
-| **Hermes Agent** | `HERMES_HOME` 中的 `state.db`（預設 `~/.hermes`，Windows 為 `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research 的智能體 — SQLite 儲存中的 CLI、桌面與閘道工作階段（工具呼叫、推理過程、工作階段 Token 用量與費用） |
-| **Claude.ai**（帳戶匯出） | 從 claude.ai → 設定 → 隱私 → 匯出資料 取得的 zip 或解壓縮後的資料夾（在設定中新增） | 唯讀：依 claude.ai 專案分組的對話，可搜尋；匯出不含權杖用量，因此不計入統計 |
-| **Qoder** | `~/.qoder/projects/`（CLI 與桌面應用程式，`QODER_CONFIG_DIR`）、`~/.qoder-cn/projects/`（Qoder CN）、IDE 的 `…/Qoder/SharedClientCache/cli/projects/` | 阿里巴巴的智能體 IDE 與 CLI — Claude Code 格式的對話記錄（工具呼叫、思考過程、子智能體執行，以及 Qoder 有記錄時的 Token 用量） |
-| **OpenHands** | `~/.openhands/sessions/` | 傳統 event-store 對話 |
-| **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 逐工作區聊天（icube 儲存；實驗性，逆向工程） |
-
-無供應商鎖定。無雲端依賴。本機對話檔案，精美呈現。
-
-Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/antigravity`（同時相容 `~/.gemini/antigravity-cli`）。桌面端工作階段會自動從 `conversation_summaries.db` 解析工作區路徑並按資料夾分組呈現；對話轉錄、思考過程與工具呼叫會從 `.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db` 和 `conversations_fts` 多源還原，並保留 Token 監控與編輯器狀態庫後備支援。
-
-## 目錄
-
-- [功能特色](#功能特色)
-- [安裝](#安裝)
-- [從原始碼建置](#從原始碼建置)
-- [伺服器模式 (WebUI)](#伺服器模式-webui)
-- [使用方式](#使用方式)
-- [無障礙](#無障礙)
-- [技術架構](#技術架構)
-- [資料隱私](#資料隱私)
-- [疑難排解](#疑難排解)
-- [貢獻](#貢獻)
-- [授權條款](#授權條款)
-
-## 功能特色
-
-### 核心
-
-| 功能 | 說明 |
-|---------|-------------|
-| **多提供者支援** | 統一檢視 **33 個 AI 程式設計助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent 和 Qoder — 依提供者篩選、跨工具比較 |
-| **對話瀏覽器** | 依專案/工作階段瀏覽對話記錄，支援工作樹分組 |
-| **全域搜尋** | 即時搜尋所有提供者的對話記錄 |
-| **分析儀表板** | 雙模式 Token 統計（帳單 vs 對話）、成本明細、提供者分佈圖表 |
-| **工作階段面板** | 多工作階段視覺化分析，包含像素視圖、屬性篩選和活動時間軸 |
-| **設定管理器** | 具作用域感知的 Claude Code 設定編輯器，支援 MCP 伺服器管理 |
-| **訊息導航器** | 右側可摺疊目錄，快速瀏覽對話內容 |
-| **即時監控** | 即時監控工作階段檔案變更 |
-
-### Provider 說明
-
-| 提供者 | 說明 |
-|---------|-------|
-| **Antigravity** | 透過現有統一 provider 資料流接入。桌面端工作階段依工作區資料夾分組，並從 `brain/` 轉錄、`conversations/*.db` 與 `conversation_summaries.db` 還原完整對話（提示詞、思考過程、工具呼叫），支援 Token 統計、分析儀表板與全域搜尋；在伺服器模式（`--serve`）下 WebUI 會即時更新。 |
-
-### v1.32.0 新增
-
-| 功能 | 說明 |
-|------|------|
-| **在提示之間跳轉** | **Alt+↑ / Alt+↓**（macOS 為 ⌥↑ / ⌥↓）將訊息列表移到你輸入的上一則或下一則提示，訊息面板關閉時同樣可用 |
-| **工作階段小地圖** | 可在訊息列表旁顯示依列類型著色的整段工作階段條帶，點擊或拖曳即可跳轉。設定選單 → **顯示會話小地圖** |
-| **修正還原預覽** | 最近編輯的還原確認會顯示將要變更的內容（WebUI 中同樣可用），並拒絕還原符號連結目標 |
-
-### v1.31.0 新增
-
-| 功能 | 說明 |
-|------|------|
-| **工作階段恢復自訂參數** | 在 設定 → **工作階段恢復參數** 中為每個 CLI 指定額外參數，會同時套用到 **複製恢復命令** 與在終端機中恢復工作階段，提供即時預覽，危險參數會醒目提示 |
-| **修正 Claude Opus 5.5 費用** | Opus 5.5 工作階段先前以 Opus 5 價格計算，現已改用 Opus 5.5 本身的價格；並新增 GPT-6、Gemini 3.8 Flash 與 Grok 4.7 的價格 |
-
-### v1.30.0 新增
-
-| 功能 | 說明 |
-|------|------|
-| **WebUI 安全強化** | `--serve` 模式下，工作階段與專案路徑僅限歷史記錄資料夾，專案設定僅限已知專案 — 若你使用 WebUI，請升級（[安全公告](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)） |
-| **Claude Code 自動標題** | 工作階段清單、統計、匯出與封存中顯示 Claude Code 產生的標題（你手動設定的名稱優先） |
-| **區分你的提示與代理更新** | Messages 面板會區分你輸入的提示、代理更新、指令與注入的情境，並提供「僅顯示我的提示」篩選 |
-
-### v1.29.0 新增
-
-| 功能 | 說明 |
-|------|------|
-| **Z Code 提供者** | 瀏覽 `~/.zcode/cli/db/db.sqlite` 中的 Z Code（Z.ai）工作階段，包含標題、工具呼叫、思考過程與 token 用量 — 共支援 31 個助手 |
-| **子代理費用計入工作階段** | 工作階段的計費 token 與費用現在包含其委派的子代理執行（Claude Code、Z Code）；*僅對話* 模式仍只顯示主對話 |
-| **更快的工作階段清單** | 大型 Claude 與 Codex 歷史的工作階段清單載入速度提升數倍 |
-
-### v1.28.0 新增
-
-| 功能 | 說明 |
-|------|------|
-| **新版 Cline 工作階段** | 新版 Cline（包含 VS Code 擴充功能）將工作階段儲存在 `~/.cline/data/sessions/`，現在會連同標題、完整對話以及 token／費用統計一併顯示。Windows 上也能找到 Cline、Roo Code 和 Kilo Code |
-| **Kilo Code 新儲存區** | 將 Kilo Code 的 OpenCode 核心資料庫（`kilo.db`）作為獨立提供者讀取，支援即時更新與全域統計 |
-| **準確的輸出 token** | 修正串流 Claude Code 回合的輸出 token 少計約 40% 的問題，每個回合的最終用量只計算一次 |
-| **工作階段面板與資料夾合併** | 所選專案的工作階段在可調整寬度的獨立欄位中開啟；多個工具共用的同一資料夾合併為一列，並以提供者標籤顯示 |
-| **更簡潔的對話檢視** | 摺疊列中顯示工具呼叫摘要，連續回合不再重複標題，頂端只保留一個檢視切換器 |
-| **價格表更新** | 所有費率皆已對照官方定價頁面重新驗證，支援 fast／priority 等級，並標示即將停用的模型及其替代模型 |
-| **對話記錄保留期** | Claude Code 的 `cleanupPeriodDays` 可設定長期保留值（如 3650），並清楚標示為 Claude Code 的設定 — 本應用程式不會刪除任何工作階段 |
-
-### v1.23.0 新增
-
-| 功能 | 說明 |
-|------|------|
-| **Grok CLI 提供者** | 瀏覽與搜尋 `~/.grok/sessions/` 中的 Grok CLI 工作階段，並將模型/Token 用量納入分析 |
-| **工作階段連續性** | 將相關的 Claude 逐字稿檔案合併為一個可瀏覽的對話 |
-| **WebUI 深連結** | 支援可分享的連結，直接開啟指定的工作階段與訊息 |
-| **更安全的導覽與恢復** | 全域搜尋選取結果會同步所屬專案/工作階段；不可用工作樹的歷史仍會保留，同時停用無效的恢復操作；Windows 恢復命令同時支援 CMD 與 PowerShell |
-| **提供者探索修正** | 提供者專用與 WSL 專用掃描不再假設本機一定存在 Claude 資料目錄 |
-
-### v1.18.0 新增
-
-| 功能 | 說明 |
-|---------|-------------|
-| **更快的啟動速度** | 提供者掃描器現以並行方式執行而非依序執行，因此與檢視器同時執行的工具鎖住 SQLite 資料庫時，不再拖慢整個掃描 — 消除長達數秒的「Initializing app…」卡頓 |
-| **搜尋結果脈絡** | 全域搜尋結果現會顯示每個符合項目所屬的對話，讓跨工作階段共用相同文字的符合項目易於區分 |
-| **可摺疊的提供者篩選器** | 側邊欄的提供者篩選面板可摺疊，為工作階段清單釋出垂直空間；摺疊後的標頭仍會顯示目前篩選摘要與計數 |
-| **可驗證的專案名稱** | 專案識別優先採用磁碟上的資料夾名稱，而非舊逐字稿中記錄的過期 `cwd`，讓已移動或由 subagent 記錄的專案能正確分組（一次性透明重新掃描） |
-| **修正** | 匯出 subagent 工作階段時現會包含其訊息，而非產生空檔案；OpenCode 全域工作階段依目錄拆分（且空目錄工作階段可正確載入）；OpenCode 工作階段快取設有上限，避免記憶體無限增長 |
-
-### v1.17.0 新增
-
-| 功能 | 說明 |
-|---------|-------------|
-| **十一個新提供者** | 瀏覽 **Continue.dev** 和 **PearAI**（`~/.continue` / `~/.pearai` 工作階段 JSON）、**Goose**（SQLite）、**Crush**（逐專案 SQLite）、**llm**（Simon Willison 的 CLI）、**Amazon Q CLI**、**Open Interpreter**（Codex 格式 rollouts）、**Qwen Code**、**Zed**（Agent Panel 執行緒 — SQLite + Zstd）、**OpenHands** 和 **Trae** 的歷史記錄 — 另透過 Cline 家族讀取器支援 **Kilo Code**。涵蓋範圍從 14 個助手擴增至 25 個。 |
-| **Kiro Windows 路徑修正** | Kiro CLI 資料庫在 Windows 上現透過 `data_local_dir()`（`%LOCALAPPDATA%`）解析，而非錯誤的 `AppData\Roaming` |
-
-### v1.16.0 新增
-
-| 功能 | 說明 |
-|---------|-------------|
-| **GitHub Copilot 提供者** | 唯讀檢視 **Copilot CLI**（`~/.copilot/session-state`）、**Copilot Desktop** 和 **VS Code Copilot Chat**（`workspaceStorage/.../chatSessions`）的歷史記錄 — 支援 WSL 及全域搜尋 |
-| **無頭工作階段匯出** | 新增 `--export <session-id\|/abs/path.jsonl> [--format html\|json] [--output <file>]` 旗標，不啟動 GUI 即產出 HTML 或 JSON 報告後結束 — 適用於 SSH/CI |
-| **一鍵完整備份** | Archive Manager 的「Full Backup」卡片可一次將所有 Claude Code 專案的每個工作階段複製到封存中，讓歷史記錄不受 Claude Code 自動清理影響 |
-| **Skill 與 Subagent 分析** | 新增「Most Used Skills」/「Most Used Subagents」區段，依名稱拆解 Claude 的 `Skill` 和 `Agent` 呼叫，支援專案與全域範圍 |
-| **修正** | 字型大小設定現套用至整個應用程式（訊息檢視器、分析、工作階段面板、設定），不再僅限左側面板；系統垃圾桶不可用時（例如 Windows 資源回收筒被停用），工作階段刪除會回退為永久刪除 |
-
-### v1.15.0 新增
-
-| 功能 | 說明 |
-|---------|-------------|
-| **三個新提供者** | 瀏覽 **Cursor Agent**（agent-transcripts，與 Cursor IDE 來源相互獨立）、**Kimi**（`~/.kimi`，支援 `kimi -r` 恢復）和 **Kiro**（以 SQLite 為後端的 `kiro-cli`）的歷史記錄 |
-| **Codex 原生重新命名與刪除** | 重新命名 Codex 工作階段 — 標題寫入 `state_5.sqlite` 並顯示於 `codex` resume 選單，rollout 逐字稿保持不可變 — 並透過新的應用程式內確認對話框刪除工作階段；支援 `CODEX_HOME`（sessions + archived） |
-| **更快的掃描與搜尋** | Codex 專案清單僅掃描 session-meta 行（mmap + memchr），且各提供者獨立掃描，緩慢的提供者不再阻塞快速的提供者；工作階段內搜尋索引移至 Web Worker，大型工作階段不再凍結 UI |
-| **精確的 Claude 專案路徑** | 專案名稱與 `claude --resume` 工作目錄現從工作階段中繼資料解析，而非有損的資料夾編碼（首次啟動時進行一次性透明重新掃描） |
-| **修正** | 移除虛擬化訊息歷史中的空白間隙；修正 macOS 上 Kimi 自動重新整理；修正多位元組工作區資料夾名稱導致的 Cursor 掃描崩潰 |
-
-### v1.14.0
-
-| 功能 | 說明 |
-|---------|-------------|
-| **CodeBuddy Code 提供者** | 新增 CodeBuddy Code — 與其他 AI 程式設計助手一同瀏覽其對話記錄 |
-| **WebUI 帳號登入** | `--serve` 模式新增可選的帳號驗證（Argon2id + 伺服器端工作階段 + CSRF）、唯讀模式，以及供反向代理託管使用的 base-path 支援 |
-| **持久化訊息篩選器** | 角色與內容類型篩選器現可跨工作階段切換與應用程式重啟保留 |
-| **Subagent 工作階段穩定性** | 修正多 subagent 點擊對應，以及開啟大型 subagent 工作階段時偶發的崩潰 |
-| **Linux IME 輸入** | 修正 Linux 搜尋框中的 ibus/fcitx 輸入（韓文、中文、日文） |
-
-### v1.13.0
-
-| 功能 | 說明 |
-|---------|-------------|
-| **macOS 自訂標題列** | 可拖曳的覆蓋層標題列取代傳統 macOS 標題列 — 螢幕空間運用更一致；Linux/Windows 不受影響 |
-| **工作階段來源篩選** | 基於 Claude Code 的 `entrypoint` 欄位按建立位置（CLI、VS Code 或 Desktop）篩選工作階段 |
-| **Codex Resume 支援** | 右鍵「複製 Resume 命令」現支援 Codex 工作階段，並自動加入 `cd '<cwd>' && ` 前置字串 — 貼上執行即可回到原目錄 |
-| **計價準確性** | 修正 `claude-opus-4-7` 3 倍超額計費；新增 `gpt-5.4` / `gpt-5.5` 計價並支援 Codex 快取 Token 處理 |
-| **macOS 更新器穩定化** | 針對 Tauri v2 macOS relaunch bug 的 OS 級原生重新啟動回退 — 不再顯示「請手動重啟」 |
-
-> 歷史版本：v1.12.0 及更早請參閱 [CHANGELOG.md](./CHANGELOG.md)。
-
-### 更多
-
-| 功能 | 說明 |
-|---------|-------------|
-| **工作階段右鍵選單** | 複製工作階段 ID、resume 命令、檔案路徑；刪除工作階段、顯示 JSONL 檔案；原生重新命名整合搜尋 |
-| **ANSI 色彩渲染** | 以原始 ANSI 色彩顯示終端輸出 |
-| **多語言支援** | 英語、韓語、日語、簡體中文、繁體中文 |
-| **最近編輯** | 檢視檔案修改歷史記錄並還原 |
-| **自動更新** | 內建更新程式，支援略過或延後更新 |
+![Omnilogue 畫面顯示範例對話、專案側欄、工具呼叫及訊息大綱](docs/assets/transcript.webp)
 
 ## 安裝
 
-### Homebrew (macOS)
+為 **macOS**（Apple 晶片與 Intel）、**Windows**（x64）或 **Linux**（x86-64）[選擇桌面安裝檔](https://jhlee0409.github.io/omnilogue/?lang=zh-TW#downloads)。已安裝的使用者可以直接更新，保留收藏和設定。
 
-```bash
-brew tap jhlee0409/tap
-brew install --cask omnilogue
-```
+macOS 也可透過 [Homebrew](docs/HOMEBREW.md) 安裝：
 
-或使用完整 Cask 路徑直接安裝：
-
-```bash
+```sh
 brew install --cask jhlee0409/tap/omnilogue
 ```
 
-如果出現 `No Cask with this name exists`，請使用上面的完整路徑命令。
+Flatpak 和其他 Linux 套件請參考 [Linux 指南](LINUX_BUILD.md#flatpak)。
 
-升級：
+## 核心功能
 
-```bash
-brew upgrade --cask omnilogue
+- **找回需要的對話。** 依專案或工具瀏覽紀錄，跨工作階段搜尋。
+- **回顧工作脈絡。** 沿著對話分支回顧，在步驟間跳轉，檢視工具呼叫和檔案修改。
+- **掌握用量。** 紀錄資訊充足時，可查看權杖用量和預估 API 費用，也能個別查看子代理的活動。
+- **紀錄保留在本機。** 桌面應用程式直接讀取本機對話檔案，不上傳紀錄，也不要求註冊 Omnilogue 帳號。
+
+<a name="core"></a>
+<details>
+<summary>支援的工具和紀錄來源</summary>
+
+Aider、Amazon Q CLI、Antigravity、Claude Code、claude.ai 帳號匯出、Cline（含 Roo Code）、CodeBuddy Code、Codex CLI、Continue.dev、Crush、Cursor（含 Cursor Agent 和 Cursor ACP）、ForgeCode、Gemini CLI、GitHub Copilot、Goose、Grok CLI、Hermes Agent、Kilo Code、Kimi、Kiro、llm、Mistral Vibe、oh-my-pi、Open Interpreter、OpenCode、OpenHands、PearAI、Pi、Qoder、Qwen Code、Trae、Z Code 和 Zed。
+
+</details>
+
+## 伺服器模式（WebUI）
+
+要從瀏覽器檢視，請在自己的裝置上執行伺服器。以下範例僅允許同一台裝置連線：
+
+```sh
+brew install jhlee0409/tap/cchv-server
+cchv-server --serve --host 127.0.0.1
 ```
 
-解除安裝：
-
-```bash
-brew uninstall --cask omnilogue
-```
-
-> **從手動安裝 (.dmg) 遷移？**
-> 為避免衝突，請先在 Finder 中將現有應用程式移至垃圾桶，然後透過 Homebrew 安裝。
-> 請只使用**一種**安裝方式 — 不要混合使用手動安裝和 Homebrew。
-> 接著執行：
-> ```bash
-> brew tap jhlee0409/tap
-> brew install --cask omnilogue
-> ```
-
-### Flatpak (Linux)
-
-每個版本都附帶 `.flatpak` 套件。從[發行頁面](https://github.com/jhlee0409/omnilogue/releases/latest)下載後執行：
-
-```bash
-flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
-flatpak run io.github.jhlee0409.Omnilogue
-```
-
-所需的 GNOME 執行環境會從 Flathub 安裝。此套件不會自動更新：應用程式提示有新版本時，請以相同方式安裝該版本的 `.flatpak`。沙盒可以讀取你的家目錄，但只會寫入各助理的歷史紀錄資料夾、應用程式本身的設定與下載資料夾。這對重新命名、刪除與編輯設定的影響請見 [LINUX_BUILD.md](LINUX_BUILD.md#flatpak)。
+開啟 `http://127.0.0.1:3727`。預先編譯的執行檔、Docker 和網路存取驗證請參考[伺服器指南](docs/server-guide.md)。
 
 ## 從原始碼建置
 
-```bash
+需要 Node.js 20.19+（或 22.12+）、pnpm 和穩定版 Rust 工具鏈。Linux 使用者請查看[建置需求](LINUX_BUILD.md)。
+
+```sh
 git clone https://github.com/jhlee0409/omnilogue.git
-cd claude-code-history-viewer
-
-# Option 1: Using just (recommended)
-brew install just    # or: cargo install just
-just setup
-just dev             # Development
-just tauri-build     # Production build
-
-# Option 2: Using pnpm directly
+cd omnilogue
 pnpm install
-pnpm tauri:dev       # Development
-pnpm tauri:build     # Production build
+pnpm tauri:dev
 ```
 
-**需求**：Node.js 20.19+（或 22.12+）、pnpm、Rust 工具鏈
+執行 `pnpm tauri:build` 可建立桌面應用程式套件。
 
-## 伺服器模式 (WebUI)
+## 專案連結
 
-無需桌面環境，作為無頭 HTTP 伺服器執行 — 適合 VPS、遠端伺服器或 Docker。伺服器二進位檔內嵌前端 — **只需一個檔案**。
+[工作階段看板指南](docs/USER_GUIDE.md) · [回報問題](https://github.com/jhlee0409/omnilogue/issues) · [MIT 授權](LICENSE)
 
-> **初次部署伺服器？** 請參閱完整的[伺服器模式指南](docs/server-guide.md)（[한국어](docs/server-guide.ko.md)），涵蓋本機測試、VPS 設定、Docker 等逐步說明。
-
-### 快速安裝
-
-```bash
-# Homebrew (macOS / Linux)
-brew install jhlee0409/tap/cchv-server
-
-# Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
-```
-
-兩種方式都會將 `cchv-server` 安裝至您的 PATH。
-
-### 啟動伺服器
-
-```bash
-cchv-server --serve
-```
-
-輸出：
-
-```
-🔑 Auth token: b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
-   Open in browser: http://192.168.1.10:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
-👁 File watcher active: /home/user/.claude/projects
-🚀 WebUI server running at http://0.0.0.0:3727
-```
-
-在瀏覽器中開啟 URL — 權杖會自動儲存。
-
-### 預建二進位檔
-
-| 平台 | 資產 |
-|----------|-------|
-| Linux x64 | `cchv-server-linux-x64.tar.gz` |
-| Linux ARM64 | `cchv-server-linux-arm64.tar.gz` |
-| macOS ARM | `cchv-server-macos-arm64.tar.gz` |
-| macOS x64 | `cchv-server-macos-x64.tar.gz` |
-
-從 [Releases](https://github.com/jhlee0409/omnilogue/releases) 下載。
-
-**CLI 選項：**
-
-| 旗標 | 預設值 | 說明 |
-|------|---------|-------------|
-| `--serve` | — | **必要。** 啟動 HTTP 伺服器而非桌面應用程式 |
-| `--port <number>` | `3727` | 伺服器連接埠 |
-| `--host <address>` | `0.0.0.0` | 繫結位址（僅本機：`127.0.0.1`） |
-| `--token <value>` | 自動 (uuid v4) | 自訂驗證權杖 |
-| `--no-auth` | — | 停用驗證（不建議在公開網路使用） |
-| `--dist <path>` | 內嵌 | 使用外部 `dist/` 目錄取代內嵌前端 |
-
-### 驗證
-
-所有 `/api/*` 端點受 Bearer 權杖驗證保護。權杖在每次伺服器啟動時自動產生並輸出至 stderr。
-
-- **瀏覽器存取**：使用啟動時輸出的 `?token=...` URL。權杖自動儲存至 `localStorage`。
-- **API 存取**：包含 `Authorization: Bearer <token>` 請求標頭。
-- **自訂權杖**：`--token my-secret-token` 設定自訂權杖。
-- **環境變數**：`CCHV_TOKEN=your-token cchv-server --serve`（適用於 systemd/Docker）。
-- **停用**：`--no-auth` 完全略過驗證（僅在可信任的網路使用）。
-
-### 即時更新
-
-伺服器監控 `~/.claude/projects/` 的檔案變更，並透過 SSE（Server-Sent Events）將更新推送至瀏覽器。在另一個終端機使用 Claude Code 時，檢視器會自動更新 — 無需手動重新整理。
-
-### Docker
-
-```bash
-docker compose up -d
-```
-
-啟動後檢查權杖：
-
-```bash
-docker compose logs webui
-# 🔑 Auth token: ... ← paste this URL in your browser
-```
-
-`docker-compose.yml` 將 `~/.claude`、`~/.codex` 和 `~/.local/share/opencode` 作為唯讀磁碟區掛載。
-
-> 範例 Docker 設定只掛載 Claude、Codex 和 OpenCode。若要瀏覽其他提供者，請將其本機資料目錄以唯讀磁碟區掛載到容器內該提供者預期的路徑，然後重新啟動容器。
-
-### systemd 服務
-
-在 Linux 上持續運行伺服器，使用提供的 systemd 範本：
-
-```bash
-sudo cp contrib/cchv.service /etc/systemd/system/
-sudo systemctl edit --full cchv.service   # Set User= to your username
-sudo systemctl enable --now cchv.service
-```
-
-### 從原始碼建置（僅伺服器）
-
-```bash
-just serve-build           # Build frontend + embed into server binary
-just serve-build-run       # Build and run (embedded assets)
-
-# Or run in development (external dist/):
-just serve-dev             # Build frontend + run server with --dist
-```
-
-### 健康檢查
-
-```
-GET /health
-→ { "status": "ok" }
-```
-
-## 使用方式
-
-1. 啟動應用程式
-2. 自動掃描所有 33 個支援提供者（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 見上方提供者表格）的對話資料
-3. 在左側邊欄瀏覽專案 — 使用分頁列依提供者篩選
-4. 點擊工作階段檢視訊息
-5. 使用分頁切換訊息、分析、Token 統計、最近編輯和工作階段面板
-
-### 命令列旗標
-
-使用以下任一選擇器啟動應用程式並預先聚焦於指定工作階段：
-
-```bash
-# Full UUID
-claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
-
-# UUID prefix (8+ hex-or-dash chars, up to 36) — first match wins
-claude-code-history-viewer --session 1265cd74
-
-# Equals form also works
-claude-code-history-viewer --session=1265cd74
-
-# Exact Claude session-folder name under ~/.claude/projects/
-claude-code-history-viewer --session-folder my-project
-
-# Case-insensitive substring match against session titles
-claude-code-history-viewer --session-title "auth bug"
-```
-
-`--session` 接受完整 UUID、UUID 前綴或 `.jsonl` 工作階段檔案的絕對路徑。`--session-folder` 精確比對 Claude 工作階段資料夾名稱；`--session-title` 以不分大小寫的標題子字串搜尋，符合多個工作階段時可能顯示選擇器。若同時提供多個選擇器，優先順序為 `--session` > `--session-folder` > `--session-title`。
-
-已註冊協定的桌面環境也支援以下深層連結格式：
-
-```text
-file:///absolute/path/to/session.jsonl
-claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
-claude-code-history-viewer://session-folder/my-project
-claude-code-history-viewer://session-title/auth%20bug
-```
-
-檢視器會掃描所有已知專案並導覽至符合的工作階段；若無任何相符項目，則以一般流程啟動。
-
-## 無障礙
-
-為鍵盤操作、低視力和螢幕閱讀器使用者提供無障礙功能。
-
-- 鍵盤優先導覽：
-  - 專案瀏覽器、主內容區、訊息導航器和設定的跳轉連結
-  - `ArrowUp/ArrowDown/Home/End` 導覽專案樹，支援輸入預先搜尋，`*` 展開同層群組
-  - `ArrowUp/ArrowDown/Home/End` 導覽訊息導航器，`Enter` 開啟聚焦的訊息
-- 視覺無障礙：
-  - 持久化的全域字型大小縮放（`90%`、`100%`、`110%`、`120%`、`130%`）
-  - 設定中高對比度模式切換
-- 螢幕閱讀器支援：
-  - 地標和樹/列表語意（`navigation`、`tree`、`treeitem`、`group`、`listbox`、`option`）
-  - 狀態/載入和專案樹導覽/選取變更的即時播報
-  - 透過 `aria-describedby` 提供內嵌鍵盤說明描述
-
-## 技術架構
-
-| 層級 | 技術 |
-|-------|------------|
-| **後端** | ![Rust](https://img.shields.io/badge/Rust-000?logo=rust&logoColor=white) ![Tauri](https://img.shields.io/badge/Tauri_v2-24C8D8?logo=tauri&logoColor=white) |
-| **前端** | ![React](https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white) |
-| **狀態管理** | ![Zustand](https://img.shields.io/badge/Zustand-433E38?logo=react&logoColor=white) |
-| **建置工具** | ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white) |
-| **國際化** | ![i18next](https://img.shields.io/badge/i18next-26A69A?logo=i18next&logoColor=white) 5 種語言 |
-
-## 資料隱私
-
-**桌面模式以本機為主。** 對話檔案從本機磁碟讀取；不會上傳對話資料，也沒有分析、追蹤或遙測。
-
-**伺服器模式**會刻意將本機檔案提供給能夠存取伺服器的瀏覽器和用戶端。僅限本機使用時請繫結至 `127.0.0.1`；向網路公開前請保持權杖驗證啟用。
-
-## 疑難排解
-
-| 問題 | 解決方案 |
-|---------|----------|
-| 「找不到 Claude 資料」 | 請確認 `~/.claude` 存在且包含對話記錄 |
-| 缺少某個提供者 | 檢查提供者表中的資料路徑。要新增其他 Claude 目錄，請開啟**設定 → 自訂 Claude 目錄**。使用 Docker 時，將該提供者的資料目錄作為唯讀磁碟區掛載。 |
-| 無法連線至 WebUI | `cchv-server` 預設使用 `3727` 連接埠。使用啟動時輸出的 URL；遠端連線時檢查連接埠衝突以及防火牆/代理規則。 |
-| 「Unauthorized」/ HTTP 401 | 使用啟動時輸出的權杖 URL，或傳送 `Authorization: Bearer <token>`。固定權杖可透過 `--token` 或 `CCHV_TOKEN` 設定。 |
-| 效能問題 | 大量歷史記錄可能導致初始載入較慢 — 應用程式使用虛擬捲動技術 |
-| 更新問題 | 如果自動更新失敗，請從 [Releases](https://github.com/jhlee0409/omnilogue/releases) 手動下載 |
-
-## 貢獻
-
-歡迎貢獻！以下是參與方式：
-
-1. Fork 此儲存庫
-2. 建立功能分支 (`git checkout -b feat/my-feature`)
-3. 在提交前執行檢查：
-   ```bash
-   pnpm exec tsc --build .   # TypeScript
-   pnpm vitest run            # Tests
-   pnpm lint                  # Lint
-   just rust-check-all        # Rust 格式檢查、clippy 和測試
-   pnpm run i18n:validate     # 語系一致性
-   ```
-4. 提交變更 (`git commit -m 'feat: add my feature'`)
-5. 推送至分支 (`git push origin feat/my-feature`)
-6. 開啟 Pull Request
-
-請參閱 [開發指令](CLAUDE.md#development-commands) 以取得完整可用指令清單。
-
-## 授權條款
-
-[MIT](LICENSE) — 可自由用於個人和商業用途。
-
-Omnilogue 是獨立的開源專案，與其讀取工作階段紀錄的 Anthropic、OpenAI、GitHub、Google 等任何廠商均無關聯、認可或贊助關係。Claude 與 Claude Code 是 Anthropic, PBC 的商標，其他名稱為其各自擁有者的商標。
-
----
-
-<div align="center">
-
-如果這個專案對您有幫助，請考慮給它一顆星星！
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
-
-</div>
+Omnilogue 是獨立專案，與這些工具的提供者沒有隸屬或合作關係。

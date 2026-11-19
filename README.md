@@ -1,577 +1,71 @@
 <div align="center">
-
-<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
-
-# Omnilogue
-
-**The unified history viewer for AI coding assistants.**
-
-Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
-
-[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
-
-[Website](https://jhlee0409.github.io/omnilogue/) · [Download](https://github.com/jhlee0409/omnilogue/releases) · [Report Bug](https://github.com/jhlee0409/omnilogue/issues)
-
-**Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
-
+  <img src="docs/assets/app-icon.png" alt="" width="64" />
+  <h1>Omnilogue</h1>
 </div>
 
----
+**Your AI coding history, in one place.**
 
-<p align="center">
-  <img width="49%" alt="Conversation History" src="https://github.com/user-attachments/assets/9a18304d-3f08-4563-a0e6-dd6e6dfd227e" />
-  <img width="49%" alt="Analytics Dashboard" src="https://github.com/user-attachments/assets/0f869344-4a7c-4f1f-9de3-701af10fc255" />
-</p>
-<p align="center">
-  <img width="49%" alt="Token Statistics" src="https://github.com/user-attachments/assets/d30f3709-1afb-4f76-8f06-1033a3cb7f4a" />
-  <img width="49%" alt="Recent Edits" src="https://github.com/user-attachments/assets/8c9fbff3-55dd-4cfc-a135-ddeb719f3057" />
-</p>
+Search and revisit sessions already on your machine, from Claude Code, Codex CLI, Cursor, GitHub Copilot, and more. Omnilogue is an open-source desktop app with an optional self-hosted WebUI.
 
-## Quick Start
+[Download](https://github.com/jhlee0409/omnilogue/releases/latest) · [Website and screenshots](https://jhlee0409.github.io/omnilogue/) · [Changelog](CHANGELOG.md)
 
-**Desktop app** — download and run:
+[English](README.md) · [한국어](README.ko.md) · [日本語](README.ja.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-| Platform | Download |
-|----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/omnilogue/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
-
-**Homebrew** (macOS):
-
-```bash
-brew install --cask jhlee0409/tap/omnilogue
-```
-
-**Headless server** — access from any browser:
-
-```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
-cchv-server --serve                       # → http://localhost:3727
-```
-
-See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
-
-**Choose a mode:**
-
-| Mode | Best for | What it does |
-|------|----------|--------------|
-| Desktop app | Local browsing | Opens local conversation files in a native app |
-| Headless server | Browser, VPS, or remote access | Serves local conversation files through the WebUI; keep authentication enabled |
-
----
-
-## Why This Exists
-
-AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
-
-**Thirty-three assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, and Qoder sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
-
-| Provider | Data Location | What You Get |
-|----------|--------------|--------------|
-| **Claude Code** | `~/.claude/projects/` | Full conversation history, tool use, thinking, costs |
-| **GitHub Copilot** | `~/.copilot/session-state/` (CLI & Desktop), VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI, Copilot Desktop, and VS Code Copilot Chat history (read-only, WSL-aware) |
-| **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
-| **Antigravity** | `~/.gemini/antigravity/` | Workspace-grouped sessions with full conversation history (prompts, thinking, tool calls) from `conversation_summaries.db`, `conversations/*.db`, and `brain/`, plus token monitor data under `.token-monitor/rpc-cache/v1/` |
-| **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
-| **Cline** (incl. Roo Code; legacy Kilo Code) | `~/.cline/data/sessions/` (current Cline) and VS Code `globalStorage/<ext>/tasks/` (older versions) | Task-based history across the Cline family |
-| **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | OpenCode-core store since May 2026; the pre-migration Cline-family store stays under Cline |
-| **Cursor** | `~/.cursor/` | Composer and chat conversations |
-| **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent transcripts, distinct from the Cursor IDE source |
-| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/` (`%USERPROFILE%\.cursor\acp-sessions` on Windows) | Cursor in JetBrains IDEs (GoLand, IntelliJ IDEA, …) through the Agent Client Protocol bridge — read-only; prompts, replies, reasoning and tool calls, grouped by workspace |
-| **Aider** | Project directories | Chat history and edit logs |
-| **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
-| **ForgeCode** | `~/.forge/.forge.db` | Conversation history from SQLite database |
-| **CodeBuddy Code** | `~/.codebuddy/projects/` | Conversation history with tool calls (Claude Code fork format) |
-| **Grok CLI** | `~/.grok/sessions/` | Grok CLI conversations, tool calls, and model usage |
-| **Kimi** | `~/.kimi/` | Session history with `kimi -r` resume |
-| **Kiro** | `kiro-cli/data.sqlite3` | SQLite-backed conversation history |
-| **Amazon Q CLI** | `…/amazon-q/data.sqlite3` | SQLite `conversations` store (shares format with the Kiro CLI provider) |
-| **Continue.dev** | `~/.continue/sessions/*.json` | Per-session JSON, grouped by workspace (honors `CONTINUE_GLOBAL_DIR`) |
-| **PearAI** | `~/.pearai/sessions/` | Continue fork — same session format |
-| **Goose** | `…/goose/sessions/sessions.db` | Block's agent — SQLite sessions + messages |
-| **Crush** | per-project `./.crush/crush.db` | Charm's TUI — SQLite, discovered across common code roots |
-| **llm** | `…/io.datasette.llm/logs.db` | Simon Willison's CLI — SQLite conversations/responses with token counts |
-| **Open Interpreter** | `~/.openinterpreter/sessions/` | Codex-format rollouts (reuses the Codex parser; `INTERPRETER_HOME` override) |
-| **Pi** | `~/.pi/agent/sessions/` | Per-cwd JSONL transcripts — messages, thinking, tool calls, token usage |
-| **oh-my-pi** | `~/.omp/agent/sessions/` | Pi-format sessions from the `omp` fork (shared parser) |
-| **Mistral Vibe** | `~/.vibe/logs/session/` | OpenAI-style chat transcripts with reasoning and tool calls (`VIBE_HOME` override) |
-| **Qwen Code** | `~/.qwen/projects/.../chats/` | Per-session JSONL transcripts (tool calls, thinking, token usage) |
-| **Zed** | `…/Zed/threads/threads.db` | Agent Panel threads — SQLite + Zstd-compressed JSON |
-| **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai's GLM coding agent — session/message/part SQLite store (titles, tool calls, thinking, token usage) |
-| **Hermes Agent** | `state.db` in `HERMES_HOME` (default `~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows) + `profiles/<name>/` | Nous Research's agent — CLI, desktop and gateway sessions from its SQLite store (tool calls, reasoning, session token usage and cost) |
-| **Claude.ai** (account export) | The zip from claude.ai → Settings → Privacy → Export data, or its extracted folder, added in Settings | Read-only: conversations grouped by claude.ai Project, searchable; no token usage in exports, so not counted in statistics |
-| **Qoder** | `~/.qoder/projects/` (CLI and desktop app; `QODER_CONFIG_DIR`), `~/.qoder-cn/projects/` (Qoder CN), IDE `…/Qoder/SharedClientCache/cli/projects/` | Alibaba's agentic IDE and CLI — Claude Code-format transcripts (tool calls, thinking, subagent runs, token usage where Qoder records it) |
-| **OpenHands** | `~/.openhands/sessions/` | Classic event-store conversations |
-| **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | Per-workspace chat (icube store; experimental, reverse-engineered) |
-
-No vendor lock-in. No cloud dependency. Your local conversation files, beautifully rendered.
-
-Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigravity` (alongside `~/.gemini/antigravity-cli`). Desktop sessions are automatically grouped by workspace directory from `conversation_summaries.db`. Transcripts, thinking processes, and tool calls are parsed from `.system_generated/logs/` (`transcript_full.jsonl`, `transcript.jsonl`, `overview.txt`), `conversations/<session_id>.db`, and `conversations_fts`, with token monitor and editor state store fallbacks.
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Build from Source](#build-from-source)
-- [Server Mode (WebUI)](#server-mode-webui)
-- [Usage](#usage)
-- [Accessibility](#accessibility)
-- [Tech Stack](#tech-stack)
-- [Data Privacy](#data-privacy)
-- [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
-- [License](#license)
-
-## Features
-
-### Core
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-Provider Support** | Unified viewer for **33 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, and Qoder — filter by provider, compare across tools |
-| **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
-| **Global Search** | Search across all conversations from all providers instantly |
-| **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
-| **Session Board** | Multi-session visual analysis with pixel view, attribute brushing, and activity timeline |
-| **Settings Manager** | Scope-aware Claude Code settings editor with MCP server management |
-| **Message Navigator** | Right-side collapsible TOC for quick conversation navigation |
-| **Real-time Monitoring** | Live session file watching for instant updates |
-
-### Provider Notes
-
-| Provider | Notes |
-|---------|-------|
-| **Antigravity** | Loaded through the standard provider pipeline. Desktop sessions are grouped by workspace folder, with full conversations (prompts, thinking, tool calls) recovered from `brain/` transcripts, `conversations/*.db`, and `conversation_summaries.db`, plus token stats, analytics, and global search. In server mode (`--serve`) the WebUI refreshes them live. |
-
-### New in v1.32.0
-
-| Feature | Description |
-|---------|-------------|
-| **Jump between prompts** | **Alt+↑ / Alt+↓** (⌥↑ / ⌥↓ on macOS) moves the message list to the previous or next prompt you typed, with or without the Messages panel open |
-| **Session minimap** | Optional strip beside the message list that shows the whole session by row kind; click or drag to move. Settings menu → **Show session minimap** |
-| **Restore preview fixed** | Recent Edits' restore confirmation shows what will change (now in the WebUI too) and refuses symlinked targets |
-
-### New in v1.31.0
-
-| Feature | Description |
-|---------|-------------|
-| **Custom resume arguments** | Settings → **Session Resume Arguments** adds extra flags per CLI, used by **Copy Resume Command** and when resuming sessions in a terminal, with a live preview; dangerous flags are highlighted |
-| **Correct Claude Opus 5.5 cost** | Opus 5.5 sessions are priced at Opus 5.5's own rates (they were billed at Opus 5's); pricing added for GPT-6, Gemini 3.8 Flash and Grok 4.7 |
-
-### New in v1.30.0
-
-| Feature | Description |
-|---------|-------------|
-| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)) |
-| **Claude Code auto titles** | Sessions show the title Claude Code generated, in the session list, stats, export and archives (your own rename still wins) |
-| **Prompts vs. agent updates** | The Messages panel marks your typed prompts, agent updates, commands and injected context, with a "Show my prompts only" filter |
-
-### New in v1.29.0
-
-| Feature | Description |
-|---------|-------------|
-| **Z Code provider** | Browse Z Code (Z.ai) sessions from `~/.zcode/cli/db/db.sqlite` with titles, tool calls, thinking and token usage — 31 assistants in total |
-| **Subagent cost in its session** | A session's billed tokens and cost now include the subagent runs it delegated to (Claude Code and Z Code); *Conversation Only* still shows the main thread |
-| **Faster session lists** | Large Claude and Codex histories load their session lists several times faster |
-
-### New in v1.28.0
-
-| Feature | Description |
-|---------|-------------|
-| **Current Cline sessions** | Recent Cline releases (the VS Code extension included) store sessions in `~/.cline/data/sessions/`; they now appear with titles, full transcripts, and token/cost stats. Cline, Roo Code and Kilo Code are also discovered on Windows |
-| **Kilo Code's new store** | Kilo Code's OpenCode-core database (`kilo.db`) is read as its own provider, with live refresh and global stats |
-| **Accurate output tokens** | Streamed Claude Code turns were undercounted by roughly 40%; each turn now counts its final usage once |
-| **Sessions pane & merged folders** | The selected project's sessions open in their own resizable column, and a folder used by several tools is one explorer row with provider chips |
-| **Cleaner transcripts** | Tool calls are summarized in the collapsed row, repeated headers on continued turns are gone, and the header has one view switcher |
-| **Pricing refresh** | Every rate re-verified against official pricing pages, fast/priority tiers priced, and retiring models flagged with their replacement |
-| **Transcript retention** | Claude Code's `cleanupPeriodDays` accepts long retention (e.g. 3650) and is clearly labelled as Claude Code's setting — this app never deletes sessions |
-
-### New in v1.23.0
-
-| Feature | Description |
-|---------|-------------|
-| **Grok CLI provider** | Browse Grok CLI sessions from `~/.grok/sessions/`, search across them, and include model/token usage in analytics |
-| **Session continuity** | Related Claude transcript files are merged into one browsable conversation |
-| **WebUI deep links** | Shareable links can open a specific session and message directly |
-| **Safer navigation and resume** | Global-search selection syncs the owning project/session; unavailable worktree history stays visible with invalid resume actions disabled; Windows resume commands work in both CMD and PowerShell |
-| **Provider discovery fixes** | Provider-specific and WSL-only scans no longer assume a native Claude data directory exists |
-
-### New in v1.18.0
-
-| Feature | Description |
-|---------|-------------|
-| **Faster startup** | Provider scanners now run concurrently instead of sequentially, so a locked SQLite database from a tool running alongside the viewer no longer stalls the whole scan — eliminating multi-second "Initializing app…" hangs |
-| **Search result context** | Global search results now show which conversation each match belongs to, so matches that share the same text across sessions are easy to tell apart |
-| **Collapsible provider filter** | The sidebar provider-filter panel can collapse to reclaim vertical space for the session list; the collapsed header still surfaces the active filter summary and count |
-| **Verifiable project names** | Project identity prefers the on-disk folder name over a stale `cwd` recorded in old transcripts, so moved or subagent-recorded projects group correctly (one-time transparent re-scan) |
-| **Fixes** | Exporting a subagent session now includes its messages instead of producing an empty file; OpenCode global sessions split by directory (and empty-directory sessions load correctly); the OpenCode session cache is bounded to prevent unbounded memory growth |
-
-### New in v1.17.0
-
-| Feature | Description |
-|---------|-------------|
-| **Eleven new providers** | Browse history from **Continue.dev** & **PearAI** (`~/.continue` / `~/.pearai` session JSON), **Goose** (SQLite), **Crush** (per-project SQLite), **llm** (Simon Willison's CLI), **Amazon Q CLI**, **Open Interpreter** (Codex-format rollouts), **Qwen Code**, **Zed** (Agent Panel threads — SQLite + Zstd), **OpenHands**, and **Trae** — plus **Kilo Code** via the Cline-family reader. Coverage grows from 14 to 25 assistants. |
-| **Kiro Windows path fix** | Kiro CLI database now resolves via `data_local_dir()` (`%LOCALAPPDATA%`) on Windows instead of the incorrect `AppData\Roaming` |
-
-### New in v1.16.0
-
-| Feature | Description |
-|---------|-------------|
-| **GitHub Copilot Provider** | Read-only history from **Copilot CLI** (`~/.copilot/session-state`), **Copilot Desktop**, and **VS Code Copilot Chat** (`workspaceStorage/.../chatSessions`) — WSL-aware, with global search |
-| **Headless Session Export** | New `--export <session-id\|/abs/path.jsonl> [--format html\|json] [--output <file>]` flag renders an HTML or JSON report and exits without launching the GUI — for SSH/CI use |
-| **One-Click Full Backup** | An Archive Manager "Full Backup" card copies every session from all Claude Code projects into archives in one action, so history survives Claude Code's automatic cleanup |
-| **Skill & Subagent Analytics** | New "Most Used Skills" / "Most Used Subagents" sections break Claude `Skill` and `Agent` calls out by name, at project and global scope |
-| **Fixes** | The font-size setting now applies to the whole app (message viewer, analytics, session board, settings), not just the left panel; session delete falls back to permanent deletion when the system trash is unavailable (e.g. Windows Recycle Bin disabled) |
-
-### New in v1.15.0
-
-| Feature | Description |
-|---------|-------------|
-| **Three New Providers** | Browse history from **Cursor Agent** (agent-transcripts, distinct from the Cursor IDE source), **Kimi** (`~/.kimi`, with `kimi -r` resume), and **Kiro** (SQLite-backed `kiro-cli`) |
-| **Codex Native Rename & Delete** | Rename Codex sessions — the title is written to `state_5.sqlite` and shows in the `codex` resume picker, while the rollout transcript stays immutable — and delete sessions through a new in-app confirmation dialog; honors `CODEX_HOME` (sessions + archived) |
-| **Faster Scans & Search** | Codex project lists scan only the session-meta line (mmap + memchr) and each provider scans independently, so a slow provider no longer blocks fast ones; in-session search indexing moved to a Web Worker so large sessions no longer freeze the UI |
-| **Accurate Claude Project Paths** | Project name and the `claude --resume` working directory are now resolved from session metadata instead of the lossy folder encoding (one-time transparent re-scan on first launch) |
-| **Fixes** | Removed blank gaps in the virtualized message history; fixed Kimi auto-refresh on macOS; fixed a Cursor scan crash on multibyte workspace-folder names |
-
-### v1.14.0
-
-| Feature | Description |
-|---------|-------------|
-| **CodeBuddy Code Provider** | Added CodeBuddy Code — browse its conversation history alongside your other AI coding assistants |
-| **WebUI Account Login** | `--serve` mode gains optional account authentication (Argon2id + server-side sessions + CSRF), a read-only mode, and base-path support for reverse-proxy hosting |
-| **Persistent Message Filters** | Role and content-type filters now persist across session switches and app restarts |
-| **Subagent Session Stability** | Fixed multi-subagent click mapping and an occasional crash when opening large subagent sessions |
-| **Linux IME Input** | Fixed ibus/fcitx input (Korean, Chinese, Japanese) in the search box on Linux |
-
-### v1.13.0
-
-| Feature | Description |
-|---------|-------------|
-| **macOS Custom Title Bar** | Draggable overlay header replaces the legacy macOS title bar for consistent screen-space use; Linux/Windows unaffected |
-| **Session Source Filter** | Filter sessions by where they were created — CLI, VS Code, or Desktop — using Claude Code's `entrypoint` field |
-| **Codex Resume Support** | Right-click "Copy Resume Command" now works for Codex sessions and prefixes `cd '<cwd>' && ` so paste-and-run lands in the original directory |
-| **Pricing Accuracy** | Fixed `claude-opus-4-7` 3× overcharge; added `gpt-5.4` / `gpt-5.5` pricing with Codex cached-token handling |
-| **macOS Updater Reliability** | Native OS-level relaunch fallback for the Tauri v2 macOS relaunch bug — no more "please quit and reopen" |
-
-> Older releases: see [CHANGELOG.md](./CHANGELOG.md) for v1.12.0 and earlier.
-
-### More
-
-| Feature | Description |
-|---------|-------------|
-| **Session Context Menu** | Copy session ID, resume command, file path; delete session, show JSONL file; native rename with search integration |
-| **ANSI Color Rendering** | Terminal output displayed with original ANSI colors |
-| **Multi-language** | English, Korean, Japanese, Chinese (Simplified & Traditional) |
-| **Recent Edits** | View file modification history and restore |
-| **Auto-update** | Built-in updater with skip/postpone options |
+![Omnilogue showing a sample conversation, project sidebar, tool calls, and message outline](docs/assets/transcript.webp)
 
 ## Installation
 
-### Homebrew (macOS)
+[Choose a desktop download](https://jhlee0409.github.io/omnilogue/#downloads) for **macOS** (Apple silicon and Intel), **Windows** (x64), or **Linux** (x86-64). Existing installs can update in place and keep their favorites and settings.
 
-```bash
-brew tap jhlee0409/tap
-brew install --cask omnilogue
-```
+On macOS, you can also install with [Homebrew](docs/HOMEBREW.md):
 
-Or install directly with the full cask path:
-
-```bash
+```sh
 brew install --cask jhlee0409/tap/omnilogue
 ```
 
-If you see `No Cask with this name exists`, run the full cask path command above.
+For Flatpak and other Linux packages, see the [Linux guide](LINUX_BUILD.md#flatpak).
 
-To upgrade:
+## Features
 
-```bash
-brew upgrade --cask omnilogue
-```
+- **Find a conversation again.** Browse by project or assistant and search across sessions.
+- **Review what happened.** Follow conversation branches, jump between steps, and inspect tool calls and file edits.
+- **Understand usage.** Review tokens and estimated API costs where the logs provide enough data, with separate visibility into subagent work.
+- **Keep history local.** The desktop app reads conversation files on disk; it does not upload session data or require an Omnilogue account.
 
-To uninstall:
+<a name="core"></a>
+<details>
+<summary>Supported assistants and history sources</summary>
 
-```bash
-brew uninstall --cask omnilogue
-```
+Aider, Amazon Q CLI, Antigravity, Claude Code, claude.ai account exports, Cline (including Roo Code), CodeBuddy Code, Codex CLI, Continue.dev, Crush, Cursor (including Cursor Agent and Cursor ACP), ForgeCode, Gemini CLI, GitHub Copilot, Goose, Grok CLI, Hermes Agent, Kilo Code, Kimi, Kiro, llm, Mistral Vibe, oh-my-pi, Open Interpreter, OpenCode, OpenHands, PearAI, Pi, Qoder, Qwen Code, Trae, Z Code, and Zed.
 
-> **Migrating from manual (.dmg) installation?**
-> Move the existing app to Trash in Finder before installing via Homebrew to avoid conflicts.
-> Choose **one** installation method — do not mix manual and Homebrew installs.
-> Then run:
-> ```bash
-> brew tap jhlee0409/tap
-> brew install --cask omnilogue
-> ```
-
-### Flatpak (Linux)
-
-Each release includes a `.flatpak` bundle. Download it from the [releases page](https://github.com/jhlee0409/omnilogue/releases/latest), then:
-
-```bash
-flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
-flatpak run io.github.jhlee0409.Omnilogue
-```
-
-The GNOME runtime it needs is installed from Flathub. The bundle does not update itself: when the app announces a new version, install that release's `.flatpak` the same way. The sandbox can read your home folder, but writes only to the assistants' history folders, the app's own settings and Downloads. See [LINUX_BUILD.md](LINUX_BUILD.md#flatpak) for what that means for renaming, deleting and editing settings.
-
-## Build from Source
-
-```bash
-git clone https://github.com/jhlee0409/omnilogue.git
-cd claude-code-history-viewer
-
-# Option 1: Using just (recommended)
-brew install just    # or: cargo install just
-just setup
-just dev             # Development
-just tauri-build     # Production build
-
-# Option 2: Using pnpm directly
-pnpm install
-pnpm tauri:dev       # Development
-pnpm tauri:build     # Production build
-```
-
-**Requirements**: Node.js 20.19+ (or 22.12+), pnpm, Rust toolchain
+</details>
 
 ## Server Mode (WebUI)
 
-Run the viewer as a headless HTTP server — no desktop environment required. Ideal for VPS, remote servers, or Docker. The server binary embeds the frontend — **a single file is all you need**.
+Want to use a browser? Run the optional server on your own machine. This example binds it to loopback only:
 
-> **New to server deployment?** See the full [Server Mode Guide](docs/server-guide.md) ([한국어](docs/server-guide.ko.md)) for step-by-step instructions covering local testing, VPS setup, Docker, and more.
-
-### Quick Install
-
-```bash
-# Homebrew (macOS / Linux)
+```sh
 brew install jhlee0409/tap/cchv-server
-
-# Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
+cchv-server --serve --host 127.0.0.1
 ```
 
-Both methods install `cchv-server` to your PATH.
+Open `http://127.0.0.1:3727`. See the [server guide](docs/server-guide.md) for prebuilt binaries, Docker, and authentication for network access.
 
-### Start the Server
+## Build from Source
 
-```bash
-cchv-server --serve
+Requires Node.js 20.19+ (or 22.12+), pnpm, and a stable Rust toolchain. On Linux, see the [build prerequisites](LINUX_BUILD.md).
+
+```sh
+git clone https://github.com/jhlee0409/omnilogue.git
+cd omnilogue
+pnpm install
+pnpm tauri:dev
 ```
 
-Output:
+Run `pnpm tauri:build` to create a desktop bundle.
 
-```
-🔑 Auth token: b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
-   Open in browser: http://192.168.1.10:3727?token=b77f41d4-ec24-4102-8f7a-8a942d6dd4a0
-👁 File watcher active: /home/user/.claude/projects
-🚀 WebUI server running at http://0.0.0.0:3727
-```
+## Project links
 
-Open the URL in your browser — the token is saved automatically.
+[Session Board guide](docs/USER_GUIDE.md) · [Report an issue](https://github.com/jhlee0409/omnilogue/issues) · [MIT License](LICENSE)
 
-### Pre-built Binaries
-
-| Platform | Asset |
-|----------|-------|
-| Linux x64 | `cchv-server-linux-x64.tar.gz` |
-| Linux ARM64 | `cchv-server-linux-arm64.tar.gz` |
-| macOS ARM | `cchv-server-macos-arm64.tar.gz` |
-| macOS x64 | `cchv-server-macos-x64.tar.gz` |
-
-Download from [Releases](https://github.com/jhlee0409/omnilogue/releases).
-
-**CLI options:**
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--serve` | — | **Required.** Starts the HTTP server instead of the desktop app |
-| `--port <number>` | `3727` | Server port |
-| `--host <address>` | `0.0.0.0` | Bind address (`127.0.0.1` for local only) |
-| `--token <value>` | auto (uuid v4) | Custom authentication token |
-| `--no-auth` | — | Disable authentication (not recommended for public networks) |
-| `--dist <path>` | embedded | Override built-in frontend with external `dist/` directory |
-
-### Authentication
-
-All `/api/*` endpoints are protected by Bearer token authentication. The token is auto-generated on each server start and printed to stderr.
-
-- **Browser access**: Use the `?token=...` URL printed at startup. The token is saved to `localStorage` automatically.
-- **API access**: Include `Authorization: Bearer <token>` header.
-- **Custom token**: `--token my-secret-token` to set your own.
-- **Environment variable**: `CCHV_TOKEN=your-token cchv-server --serve` (useful for systemd/Docker).
-- **Disable**: `--no-auth` to skip authentication entirely (only use on trusted networks).
-
-### Real-time Updates
-
-The server watches `~/.claude/projects/` for file changes and pushes updates to the browser via Server-Sent Events (SSE). When you use Claude Code in another terminal, the viewer updates automatically — no manual refresh needed.
-
-### Docker
-
-```bash
-docker compose up -d
-```
-
-Check the token after startup:
-
-```bash
-docker compose logs webui
-# 🔑 Auth token: ... ← paste this URL in your browser
-```
-
-The `docker-compose.yml` mounts `~/.claude`, `~/.codex`, and `~/.local/share/opencode` as read-only volumes.
-
-> The sample Docker setup mounts Claude, Codex, and OpenCode only. To browse another provider, add its local data directory as a read-only volume at the path that provider expects inside the container, then restart the container.
-
-### systemd Service
-
-For persistent server on Linux, use the provided systemd template:
-
-```bash
-sudo cp contrib/cchv.service /etc/systemd/system/
-sudo systemctl edit --full cchv.service   # Set User= to your username
-sudo systemctl enable --now cchv.service
-```
-
-### Build from Source (Server Only)
-
-```bash
-just serve-build           # Build frontend + embed into server binary
-just serve-build-run       # Build and run (embedded assets)
-
-# Or run in development (external dist/):
-just serve-dev             # Build frontend + run server with --dist
-```
-
-### Health Check
-
-```
-GET /health
-→ { "status": "ok" }
-```
-
-## Usage
-
-1. Launch the app
-2. It automatically scans for conversation data from all 33 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
-3. Browse projects in the left sidebar — filter by provider using the tab bar
-4. Click a session to view messages
-5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
-
-### Command-line flags
-
-Launch the app pre-focused on a specific session with one of these selectors:
-
-```bash
-# Full UUID
-claude-code-history-viewer --session 1265cd74-caa9-472e-b343-c4f44b5cf12c
-
-# UUID prefix (8+ hex-or-dash chars, up to 36) — first match wins
-claude-code-history-viewer --session 1265cd74
-
-# Equals form also works
-claude-code-history-viewer --session=1265cd74
-
-# Exact Claude session-folder name under ~/.claude/projects/
-claude-code-history-viewer --session-folder my-project
-
-# Case-insensitive substring match against session titles
-claude-code-history-viewer --session-title "auth bug"
-```
-
-`--session` accepts a full UUID, UUID prefix, or absolute path to a `.jsonl` file. `--session-folder` matches an exact Claude session-folder name, while `--session-title` performs a case-insensitive title substring search and may show a picker when multiple sessions match. If multiple selectors are supplied, precedence is `--session` > `--session-folder` > `--session-title`.
-
-The app also accepts these deep-link forms from a registered desktop environment:
-
-```text
-file:///absolute/path/to/session.jsonl
-claude-code-history-viewer://session/1265cd74-caa9-472e-b343-c4f44b5cf12c
-claude-code-history-viewer://session-folder/my-project
-claude-code-history-viewer://session-title/auth%20bug
-```
-
-The viewer scans every known project, navigates to the matching session, and falls back to normal startup if no session matches.
-
-## Accessibility
-
-The app includes accessibility features for keyboard-only, low-vision, and screen-reader users.
-
-- Keyboard-first navigation:
-  - Skip links for Project Explorer, Main Content, Message Navigator, and Settings
-  - Project tree navigation with `ArrowUp/ArrowDown/Home/End`, type-ahead search, and `*` to expand sibling groups
-  - Message navigator navigation with `ArrowUp/ArrowDown/Home/End` and `Enter` to open the focused message
-- Visual accessibility:
-  - Persistent global font size scaling (`90%`, `100%`, `110%`, `120%`, `130%`)
-  - High contrast mode toggle in settings
-- Screen reader support:
-  - Landmark and tree/list semantics (`navigation`, `tree`, `treeitem`, `group`, `listbox`, `option`)
-  - Live announcements for status/loading and project tree navigation/selection changes
-  - Inline keyboard-help descriptions via `aria-describedby`
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| **Backend** | ![Rust](https://img.shields.io/badge/Rust-000?logo=rust&logoColor=white) ![Tauri](https://img.shields.io/badge/Tauri_v2-24C8D8?logo=tauri&logoColor=white) |
-| **Frontend** | ![React](https://img.shields.io/badge/React_19-61DAFB?logo=react&logoColor=black) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white) |
-| **State** | ![Zustand](https://img.shields.io/badge/Zustand-433E38?logo=react&logoColor=white) |
-| **Build** | ![Vite](https://img.shields.io/badge/Vite-646CFF?logo=vite&logoColor=white) |
-| **i18n** | ![i18next](https://img.shields.io/badge/i18next-26A69A?logo=i18next&logoColor=white) 5 languages |
-
-## Data Privacy
-
-**Desktop mode is local-first.** Conversation files are read from local disk; no conversation data is uploaded, and there is no analytics, tracking, or telemetry.
-
-**Server mode** intentionally serves local files to browsers and clients that can reach the server. Keep it bound to `127.0.0.1` for local-only use, or keep token authentication enabled before exposing it to a network.
-
-## Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| "No Claude data found" | Make sure `~/.claude` exists with conversation history |
-| A provider is missing | Check its data path in the provider table. For an additional Claude directory, open **Settings → Custom Claude Directories**. In Docker, add the provider's data directory as a read-only volume. |
-| Cannot connect to the WebUI | `cchv-server` defaults to port `3727`. Use the startup URL, check for port conflicts, and verify firewall or proxy rules when connecting remotely. |
-| "Unauthorized" / HTTP 401 | Use the token URL printed at startup or send `Authorization: Bearer <token>`. For a fixed token, use `--token` or `CCHV_TOKEN`. |
-| Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
-| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/omnilogue/releases) |
-
-## Contributing
-
-Contributions are welcome! Here's how to get started:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feat/my-feature`)
-3. Run checks before committing:
-   ```bash
-   pnpm exec tsc --build .   # TypeScript
-   pnpm vitest run            # Tests
-   pnpm lint                  # Lint
-   just rust-check-all        # Rust format, clippy, and tests
-   pnpm run i18n:validate     # Locale consistency
-   ```
-4. Commit your changes (`git commit -m 'feat: add my feature'`)
-5. Push to the branch (`git push origin feat/my-feature`)
-6. Open a Pull Request
-
-See [Development Commands](CLAUDE.md#development-commands) for the full list of available commands.
-
-## License
-
-[MIT](LICENSE) — free for personal and commercial use.
-
-Omnilogue is an independent open-source project, not affiliated with, endorsed by, or sponsored by Anthropic, OpenAI, GitHub, Google, or any other vendor whose session logs it reads. Claude and Claude Code are trademarks of Anthropic, PBC; other names are trademarks of their respective owners.
-
----
-
-<div align="center">
-
-If this project helps you, consider giving it a star!
-
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
-
-</div>
+Omnilogue is an independent project and is not affiliated with the assistants whose history it reads.
