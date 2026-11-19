@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Refreshed the public website with real Omnilogue screens, localized platform downloads, and separate desktop and self-hosted setup paths.
+
 ## [2.0.0] - 2026-11-19
 
 **Omnilogue 2.0** is the first major release under the new name, formerly Claude Code History Viewer. The app retains its installation identifiers and existing user-data locations for in-place updates.
