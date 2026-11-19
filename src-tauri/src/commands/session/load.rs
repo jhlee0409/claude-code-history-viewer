@@ -2119,7 +2119,7 @@ fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>
 /// records, hidden system subtypes, meta lines, a summary). Shared with the
 /// providers that write this format (Qoder) so their messages are built and
 /// filtered exactly as Claude's are. An empty `timestamp` is left for
-/// [`fill_missing_timestamps`](super::timestamp_fill::fill_missing_timestamps).
+/// [`fill_missing_timestamps`].
 pub(crate) fn parse_viewer_line(line_num: usize, line: &mut [u8]) -> Option<ClaudeMessage> {
     parse_line_simd(line_num, line, false).filter(|msg| {
         if is_system_message_type(&msg.message_type) {

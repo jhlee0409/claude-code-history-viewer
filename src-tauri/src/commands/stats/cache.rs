@@ -972,7 +972,7 @@ pub(super) fn compose_session_token(
     }
 }
 
-/// [`compose_session_token`] before finalisation, so it can be merged with
+/// [`compose_session_token_accum`] before finalisation, so it can be merged with
 /// the other transcripts of the same session (#577).
 pub(super) fn compose_session_token_accum(
     aggregate: &FileAggregate,

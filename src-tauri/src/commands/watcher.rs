@@ -64,7 +64,7 @@ struct ActiveWatcher {
     _debouncer: Debouncer<RecommendedWatcher>,
 }
 
-/// What [`WatcherState::sync`] did.
+/// What `WatcherState::sync` did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WatcherSync {
     /// A watcher now runs on this many roots.
@@ -160,7 +160,7 @@ where
     Some((debouncer, watched))
 }
 
-/// Start the desktop watcher over [`collect_watch_paths`], or bring it up to
+/// Start the desktop watcher over `collect_watch_paths`, or bring it up to
 /// date with them. Blocking: priming walks every watched tree.
 pub fn sync_desktop_watcher(app_handle: &AppHandle) -> WatcherSync {
     let handle = app_handle.clone();

@@ -4,13 +4,13 @@
 //! - this file: the wire contract, request validation, the half-open
 //!   membership rule and the [`get_usage_breakdown`] command (Tauri and the
 //!   Axum route `/api/get_usage_breakdown` call the same function);
-//! - [`contribution`]: one record per accepted row, file-wide dedup and
+//! - `contribution`: one record per accepted row, file-wide dedup and
 //!   pricing source before any interval is applied;
-//! - [`contribution_cache`]: per-file cache, `(size, mtime)`-validated, 64 MiB LRU;
-//! - [`sources`]: scope → session files per provider, and what failed;
-//! - [`aggregate`]: contributions → intervals, sessions and coverage, and
+//! - `contribution_cache`: per-file cache, `(size, mtime)`-validated, 64 MiB LRU;
+//! - `sources`: scope → session files per provider, and what failed;
+//! - `aggregate`: contributions → intervals, sessions and coverage, and
 //!   the session cap with its remainder row (ADR 0003);
-//! - [`ranking`]: the session order of the cap, priced like the frontend.
+//! - `ranking`: the session order of the cap, priced like the frontend.
 //!
 //! The wire shape is pinned against the TypeScript types by the shared
 //! fixture `src/test/fixtures/usageBreakdown.contract.json`.
