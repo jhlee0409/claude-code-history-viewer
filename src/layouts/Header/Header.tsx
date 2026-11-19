@@ -218,9 +218,9 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
 
       {/* Left: history + location. flex-1 on both sides keeps the tabs centred. */}
       <div className="relative z-10 flex min-w-0 flex-1 basis-0 items-center gap-1">
-        <div className="pointer-events-none flex shrink-0 items-center gap-1">
+        <div className={cn("pointer-events-none shrink-0 items-center gap-1", location.length > 0 ? "hidden md:flex" : "flex")}>
           <img src={getAssetPath("app-icon.png")} alt="" width={24} height={24} />
-          <span className={cn("text-list font-semibold text-foreground", location.length > 0 && "hidden md:inline")}>
+          <span className="text-list font-semibold text-foreground">
             {t("common.appName")}
           </span>
         </div>
