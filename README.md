@@ -1,21 +1,21 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **The unified history viewer for AI coding assistants.**
 
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[Website](https://jhlee0409.github.io/claude-code-history-viewer/) · [Download](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [Report Bug](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[Website](https://jhlee0409.github.io/omnilogue/) · [Download](https://github.com/jhlee0409/omnilogue/releases) · [Report Bug](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -38,20 +38,20 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
 
 | Platform | Download |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS):
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **Headless server** — access from any browser:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -70,19 +70,20 @@ See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
 
 AI coding assistants generate thousands of conversation messages, but none of them provide a way to look back at your history across tools. CCHV solves this.
 
-**Thirty-one assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, and Z Code sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
+**Thirty-three assistants. One viewer.** Switch between Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (incl. Roo Code), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, and Qoder sessions seamlessly — compare token usage, search across providers, and analyze your workflow in a single interface.
 
 | Provider | Data Location | What You Get |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | Full conversation history, tool use, thinking, costs |
 | **GitHub Copilot** | `~/.copilot/session-state/` (CLI & Desktop), VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI, Copilot Desktop, and VS Code Copilot Chat history (read-only, WSL-aware) |
 | **Gemini CLI** | `~/.gemini/history/` | Conversation history with tool calls |
-| **Antigravity** | `~/.gemini/antigravity/` | Conversation state under `brain/` plus token monitor data under `.token-monitor/rpc-cache/v1/` |
+| **Antigravity** | `~/.gemini/antigravity/` | Workspace-grouped sessions with full conversation history (prompts, thinking, tool calls) from `conversation_summaries.db`, `conversations/*.db`, and `brain/`, plus token monitor data under `.token-monitor/rpc-cache/v1/` |
 | **Codex CLI** | `~/.codex/sessions/` | Session rollouts with agent responses |
 | **Cline** (incl. Roo Code; legacy Kilo Code) | `~/.cline/data/sessions/` (current Cline) and VS Code `globalStorage/<ext>/tasks/` (older versions) | Task-based history across the Cline family |
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | OpenCode-core store since May 2026; the pre-migration Cline-family store stays under Cline |
 | **Cursor** | `~/.cursor/` | Composer and chat conversations |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent transcripts, distinct from the Cursor IDE source |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/` (`%USERPROFILE%\.cursor\acp-sessions` on Windows) | Cursor in JetBrains IDEs (GoLand, IntelliJ IDEA, …) through the Agent Client Protocol bridge — read-only; prompts, replies, reasoning and tool calls, grouped by workspace |
 | **Aider** | Project directories | Chat history and edit logs |
 | **OpenCode** | `~/.local/share/opencode/` | Conversation sessions and tool results |
 | **ForgeCode** | `~/.forge/.forge.db` | Conversation history from SQLite database |
@@ -103,12 +104,15 @@ AI coding assistants generate thousands of conversation messages, but none of th
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | Per-session JSONL transcripts (tool calls, thinking, token usage) |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel threads — SQLite + Zstd-compressed JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai's GLM coding agent — session/message/part SQLite store (titles, tool calls, thinking, token usage) |
+| **Hermes Agent** | `state.db` in `HERMES_HOME` (default `~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows) + `profiles/<name>/` | Nous Research's agent — CLI, desktop and gateway sessions from its SQLite store (tool calls, reasoning, session token usage and cost) |
+| **Claude.ai** (account export) | The zip from claude.ai → Settings → Privacy → Export data, or its extracted folder, added in Settings | Read-only: conversations grouped by claude.ai Project, searchable; no token usage in exports, so not counted in statistics |
+| **Qoder** | `~/.qoder/projects/` (CLI and desktop app; `QODER_CONFIG_DIR`), `~/.qoder-cn/projects/` (Qoder CN), IDE `…/Qoder/SharedClientCache/cli/projects/` | Alibaba's agentic IDE and CLI — Claude Code-format transcripts (tool calls, thinking, subagent runs, token usage where Qoder records it) |
 | **OpenHands** | `~/.openhands/sessions/` | Classic event-store conversations |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | Per-workspace chat (icube store; experimental, reverse-engineered) |
 
 No vendor lock-in. No cloud dependency. Your local conversation files, beautifully rendered.
 
-Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigravity` and then reads session state from `brain/` plus usage/cache artifacts from `.token-monitor/rpc-cache/v1/`; this matches the current runtime layout and root resolver in `src-tauri/src/commands/antigravity.rs`.
+Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigravity` (alongside `~/.gemini/antigravity-cli`). Desktop sessions are automatically grouped by workspace directory from `conversation_summaries.db`. Transcripts, thinking processes, and tool calls are parsed from `.system_generated/logs/` (`transcript_full.jsonl`, `transcript.jsonl`, `overview.txt`), `conversations/<session_id>.db`, and `conversations_fts`, with token monitor and editor state store fallbacks.
 
 ## Table of Contents
 
@@ -130,7 +134,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Provider Support** | Unified viewer for **31 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, and Z Code — filter by provider, compare across tools |
+| **Multi-Provider Support** | Unified viewer for **33 AI coding assistants** — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (incl. Roo Code), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, and Qoder — filter by provider, compare across tools |
 | **Conversation Browser** | Navigate conversations by project/session with worktree grouping |
 | **Global Search** | Search across all conversations from all providers instantly |
 | **Analytics Dashboard** | Dual-mode token stats (billing vs conversation), cost breakdown, and provider distribution charts |
@@ -143,7 +147,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Provider | Notes |
 |---------|-------|
-| **Antigravity** | Loaded through the standard provider pipeline. Sessions come from the token monitor cache and participate in project/session views, token stats, analytics, and global search without a separate UI mode. |
+| **Antigravity** | Loaded through the standard provider pipeline. Desktop sessions are grouped by workspace folder, with full conversations (prompts, thinking, tool calls) recovered from `brain/` transcripts, `conversations/*.db`, and `conversation_summaries.db`, plus token stats, analytics, and global search. In server mode (`--serve`) the WebUI refreshes them live. |
 
 ### New in v1.32.0
 
@@ -164,7 +168,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)) |
+| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)) |
 | **Claude Code auto titles** | Sessions show the title Claude Code generated, in the session list, stats, export and archives (your own rename still wins) |
 | **Prompts vs. agent updates** | The Messages panel marks your typed prompts, agent updates, commands and injected context, with a "Show my prompts only" filter |
 
@@ -273,13 +277,13 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 Or install directly with the full cask path:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 If you see `No Cask with this name exists`, run the full cask path command above.
@@ -287,13 +291,13 @@ If you see `No Cask with this name exists`, run the full cask path command above
 To upgrade:
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 To uninstall:
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **Migrating from manual (.dmg) installation?**
@@ -302,13 +306,24 @@ brew uninstall --cask claude-code-history-viewer
 > Then run:
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
+
+### Flatpak (Linux)
+
+Each release includes a `.flatpak` bundle. Download it from the [releases page](https://github.com/jhlee0409/omnilogue/releases/latest), then:
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+The GNOME runtime it needs is installed from Flathub. The bundle does not update itself: when the app announces a new version, install that release's `.flatpak` the same way. The sandbox can read your home folder, but writes only to the assistants' history folders, the app's own settings and Downloads. See [LINUX_BUILD.md](LINUX_BUILD.md#flatpak) for what that means for renaming, deleting and editing settings.
 
 ## Build from Source
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -338,7 +353,7 @@ Run the viewer as a headless HTTP server — no desktop environment required. Id
 brew install jhlee0409/tap/cchv-server
 
 # Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 Both methods install `cchv-server` to your PATH.
@@ -369,7 +384,7 @@ Open the URL in your browser — the token is saved automatically.
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
+Download from [Releases](https://github.com/jhlee0409/omnilogue/releases).
 
 **CLI options:**
 
@@ -443,7 +458,7 @@ GET /health
 ## Usage
 
 1. Launch the app
-2. It automatically scans for conversation data from all 31 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
+2. It automatically scans for conversation data from all 33 supported providers (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI, and more — see the provider table above)
 3. Browse projects in the left sidebar — filter by provider using the tab bar
 4. Click a session to view messages
 5. Use tabs to switch between Messages, Analytics, Token Stats, Recent Edits, and Session Board
@@ -523,7 +538,7 @@ The app includes accessibility features for keyboard-only, low-vision, and scree
 | Cannot connect to the WebUI | `cchv-server` defaults to port `3727`. Use the startup URL, check for port conflicts, and verify firewall or proxy rules when connecting remotely. |
 | "Unauthorized" / HTTP 401 | Use the token URL printed at startup or send `Authorization: Bearer <token>`. For a fixed token, use `--token` or `CCHV_TOKEN`. |
 | Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
-| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) |
+| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/omnilogue/releases) |
 
 ## Contributing
 
@@ -549,12 +564,14 @@ See [Development Commands](CLAUDE.md#development-commands) for the full list of 
 
 [MIT](LICENSE) — free for personal and commercial use.
 
+Omnilogue is an independent open-source project, not affiliated with, endorsed by, or sponsored by Anthropic, OpenAI, GitHub, Google, or any other vendor whose session logs it reads. Claude and Claude Code are trademarks of Anthropic, PBC; other names are trademarks of their respective owners.
+
 ---
 
 <div align="center">
 
 If this project helps you, consider giving it a star!
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

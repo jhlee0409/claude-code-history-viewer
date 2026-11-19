@@ -17,6 +17,10 @@ enum EditsProvider {
     ForgeCode,
     Kilo,
     OpenCode,
+    /// Another provider's project (oh-my-pi, Pi, Gemini, …), whose edits are
+    /// not read: it has none here, and its files are never opened as Claude
+    /// history (#643).
+    NotRecorded,
 }
 
 fn detect_project_provider(project_path: &str) -> EditsProvider {
@@ -28,16 +32,36 @@ fn detect_project_provider(project_path: &str) -> EditsProvider {
         EditsProvider::Kilo
     } else if project_path.starts_with("opencode://") {
         EditsProvider::OpenCode
-    } else {
+    } else if crate::commands::stats::is_claude_project_path(project_path) {
         EditsProvider::Claude
+    } else {
+        EditsProvider::NotRecorded
     }
 }
 
-/// Whether recent edits for this project are read through a provider (its
-/// path is a provider id) rather than from the project directory on disk.
+/// Where the recent edits of a project are read from, for the `WebUI` guard.
 #[cfg(feature = "webui-server")]
-pub(crate) fn is_provider_edits_project(project_path: &str) -> bool {
-    detect_project_provider(project_path) != EditsProvider::Claude
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum EditsSource {
+    /// The project folder on disk (Claude history).
+    History,
+    /// The provider its id names.
+    Provider,
+    /// Nowhere: another provider's project is answered with no edits, and
+    /// nothing of it is opened (#643).
+    NotRecorded,
+}
+
+#[cfg(feature = "webui-server")]
+pub(crate) fn edits_source(project_path: &str) -> EditsSource {
+    match detect_project_provider(project_path) {
+        EditsProvider::Claude => EditsSource::History,
+        EditsProvider::NotRecorded => EditsSource::NotRecorded,
+        EditsProvider::Codex
+        | EditsProvider::ForgeCode
+        | EditsProvider::Kilo
+        | EditsProvider::OpenCode => EditsSource::Provider,
+    }
 }
 
 /// Whether `session_path` is a provider id minted by the same provider as
@@ -48,7 +72,7 @@ pub(crate) fn is_provider_session_of_project(project_path: &str, session_path: &
         EditsProvider::OpenCode => &["opencode://"],
         EditsProvider::Kilo => &["kilo://"],
         EditsProvider::ForgeCode => &["forgecode://", "forgecode-db://"],
-        EditsProvider::Codex | EditsProvider::Claude => &[],
+        EditsProvider::Codex | EditsProvider::Claude | EditsProvider::NotRecorded => &[],
     };
     schemes
         .iter()
@@ -109,10 +133,12 @@ fn apply_edit(content: &str, old_str: &str, new_str: &str, replace_all: bool) ->
     }
 }
 
-/// Process a single session file and extract edit information
+/// Process a single session file and extract edit information. `root` is
+/// the canonical project folder: the file is read inside it only
+/// (`session_files::open_session_file`).
 #[allow(unsafe_code)] // Required for mmap performance optimization
-fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsResult> {
-    let file = session_files::open_regular_file(file_path).ok()?;
+fn process_session_file_for_edits(file_path: &Path, root: &Path) -> Option<SessionEditsResult> {
+    let (file, _) = session_files::open_session_file(file_path, root).ok()?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
     // for the duration of the mmap's lifetime. Session files are append-only.
@@ -295,6 +321,7 @@ fn process_session_file_for_edits(file_path: &PathBuf) -> Option<SessionEditsRes
 fn resolve_provider_project_cwd(provider: EditsProvider, project_path: &str) -> Option<String> {
     match provider {
         EditsProvider::Claude => Some(project_path.to_string()),
+        EditsProvider::NotRecorded => None,
         EditsProvider::Codex => {
             let cwd = project_path
                 .strip_prefix("codex://")
@@ -786,8 +813,8 @@ fn collect_provider_edits(
         EditsProvider::ForgeCode => providers::forgecode::load_sessions(project_path, false)?,
         EditsProvider::Kilo => providers::kilo::load_sessions(project_path, false)?,
         EditsProvider::OpenCode => providers::opencode::load_sessions(project_path, false)?,
-        EditsProvider::Claude => {
-            return Err("Claude provider should use legacy edits path".to_string())
+        EditsProvider::Claude | EditsProvider::NotRecorded => {
+            return Err("Only provider projects are read through their provider".to_string())
         }
     };
 
@@ -809,7 +836,7 @@ fn collect_provider_edits(
             EditsProvider::ForgeCode => providers::forgecode::load_messages(&session.file_path)?,
             EditsProvider::Kilo => providers::kilo::load_messages(&session.file_path)?,
             EditsProvider::OpenCode => providers::opencode::load_messages(&session.file_path)?,
-            EditsProvider::Claude => Vec::new(),
+            EditsProvider::Claude | EditsProvider::NotRecorded => Vec::new(),
         };
         all_edits.extend(collect_provider_recent_edits_from_messages(
             &messages,
@@ -928,12 +955,9 @@ fn validate_session_file_in_project(
         return Err("Invalid session file path: outside the project directory".to_string());
     }
 
-    // Residual risk, accepted and recorded rather than silently ignored: the
-    // caller reopens this path by name, so an entry swapped between here and
-    // `File::open` would not be caught. Closing that fully means handing an open
-    // handle down to `process_session_file_for_edits`, which is a larger change
-    // than this belongs to. The remaining window needs a local attacker with
-    // write access to the user's own session directory.
+    // The caller reopens this path by name, through
+    // `session_files::open_session_file`: an entry swapped for a symlink or a
+    // FIFO between here and the open is refused there (#698).
     Ok(resolved)
 }
 
@@ -1021,11 +1045,16 @@ fn collect_all_recent_edits(
     session_file_path: Option<&str>,
 ) -> Result<(Vec<RecentFileEdit>, Option<String>), String> {
     let provider = detect_project_provider(project_path);
+    if provider == EditsProvider::NotRecorded {
+        return Ok((Vec::new(), None));
+    }
     if provider != EditsProvider::Claude {
         return collect_provider_edits(provider, project_path, session_file_path);
     }
 
-    // Phase 1: Collect the session files to scan
+    // Phase 1: Collect the session files to scan. Each is read inside the
+    // project folder, resolved before the walk (#698).
+    let project_root = fs::canonicalize(project_path);
     let session_files: Vec<PathBuf> = match session_file_path {
         Some(path) => vec![validate_session_file_in_project(path, project_path)?],
         // Regular files only, never through a symlink (`session_files`): the
@@ -1035,10 +1064,13 @@ fn collect_all_recent_edits(
     };
 
     // Phase 2: Process files in parallel
-    let file_results: Vec<SessionEditsResult> = session_files
-        .par_iter()
-        .filter_map(process_session_file_for_edits)
-        .collect();
+    let file_results: Vec<SessionEditsResult> = match &project_root {
+        Ok(root) => session_files
+            .par_iter()
+            .filter_map(|path| process_session_file_for_edits(path, root))
+            .collect(),
+        Err(_) => Vec::new(),
+    };
 
     // Phase 3: Aggregate results with pre-allocated capacity
     let total_edits_estimate: usize = file_results.iter().map(|r| r.edits.len()).sum();
@@ -1188,6 +1220,7 @@ pub async fn read_restore_target(
             return Err("File is too large to preview".to_string());
         }
 
+        // Not a history file: the restore target in the user's project.
         let file = match fs::File::open(&file_path) {
             Ok(f) => f,
             Err(e) if not_found(&e) => return Ok(None),
@@ -1340,7 +1373,8 @@ mod tests {
         let path =
             create_test_jsonl_file(&dir, "s.jsonl", &format!("{single}\n{multi}\n{not_all}\n"));
 
-        let result = process_session_file_for_edits(&path).unwrap();
+        let root = dir.path().canonicalize().unwrap();
+        let result = process_session_file_for_edits(&path, &root).unwrap();
         let after = |file: &str| {
             result
                 .edits
@@ -1438,7 +1472,9 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn recorded_edit_target_admits_only_files_the_project_edited() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let project = root.to_string_lossy().to_string();
@@ -1459,7 +1495,9 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn recorded_edit_target_respects_session_scope() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, session_a, _b) = project_with_two_sessions();
         let root = dir.path();
         let project = root.to_string_lossy().to_string();
@@ -1496,7 +1534,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn restore_writes_a_recorded_edit_target() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let target = root.join("alpha.txt");
@@ -1520,7 +1560,9 @@ mod tests {
     // ------------------------------------------------------------------
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn read_restore_target_reads_a_recorded_edit_target() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let target = root.join("alpha.txt");
@@ -1538,7 +1580,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn read_restore_target_reports_a_missing_recorded_file_as_none() {
+        let _home = crate::test_utils::SandboxHome::new();
         // The fixture records `beta.txt` but never writes it: restoring would
         // create it, which the preview shows as "creating", not "unreadable".
         let (dir, _a, _b) = project_with_two_sessions();
@@ -1556,7 +1600,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn read_restore_target_refuses_what_restore_refuses() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let project = root.to_string_lossy().to_string();
@@ -1619,7 +1665,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn restore_target_that_is_a_symlink_is_refused_by_read_and_restore() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let elsewhere = TempDir::new().unwrap();
@@ -1641,7 +1689,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn unrecorded_path_gets_the_same_refusal_whether_or_not_it_is_a_symlink() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let elsewhere = TempDir::new().unwrap();
@@ -1666,7 +1716,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn restore_target_under_a_symlinked_parent_is_refused() {
+        let _home = crate::test_utils::SandboxHome::new();
         let dir = TempDir::new().unwrap();
         let root = dir.path().to_path_buf();
         let elsewhere = TempDir::new().unwrap();
@@ -1689,7 +1741,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn read_restore_target_refuses_an_oversized_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         let target = root.join("alpha.txt");
@@ -1711,7 +1765,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn read_restore_target_refuses_a_non_regular_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let root = dir.path();
         // A directory where the recorded file used to be.
@@ -1730,7 +1786,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_absent_params_reproduce_the_previous_shape() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
 
         let result = get_recent_edits(
@@ -1752,7 +1810,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_session_file_path_scopes_to_one_session() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, session_a, _b) = project_with_two_sessions();
 
         let result = get_recent_edits(
@@ -1809,7 +1869,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_equal_timestamps_paginate_without_repeating_or_dropping() {
+        let _home = crate::test_utils::SandboxHome::new();
         // Ties used to fall back on `HashMap` iteration order, which differs
         // between requests, so page 2 could repeat a row from page 1 and lose
         // another. One tool call writing several files produces exactly this.
@@ -1847,7 +1909,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_limit_is_clamped() {
+        let _home = crate::test_utils::SandboxHome::new();
         // Each returned row costs a stat call, so an unbounded caller-supplied
         // limit is an unbounded synchronous syscall loop.
         let (dir, _a, _b) = project_with_two_sessions();
@@ -1898,7 +1962,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_session_file_path_survives_a_session_id_change_mid_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         // A resumed session can write a different `sessionId` partway through
         // the same JSONL. `actual_session_id` only ever reports the first id in
         // the file, so filtering by id would silently drop everything after the
@@ -2079,7 +2145,9 @@ mod tests {
     // ubuntu job runs it.
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_session_file_path_through_a_symlinked_directory_is_rejected() {
+        let _home = crate::test_utils::SandboxHome::new();
         // R12. `symlink_metadata` resolves the intermediate components before
         // reporting on the final one, so a symlinked directory mid-path passed
         // the single check while `walkdir` refused to descend that same
@@ -2114,7 +2182,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_a_symlinked_project_root_is_tolerated() {
+        let _home = crate::test_utils::SandboxHome::new();
         // The project root itself being a symlink is fine: the walk starts at
         // its resolved form, so the link is never one of the components it
         // inspects. Distinct from the ancestor case below, which was what an
@@ -2145,7 +2215,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_a_symlinked_ancestor_above_the_project_is_tolerated() {
+        let _home = crate::test_utils::SandboxHome::new();
         // A genuine ancestor: `link` is above the project root, and the root
         // itself is an ordinary directory reached through it. This is the macOS
         // shape, where `/var` links to `/private/var`. Walking to `/` would
@@ -2176,9 +2248,46 @@ mod tests {
         );
     }
 
+    /// Another provider's project (oh-my-pi, Pi) has no recorded edits: its
+    /// files are never read as Claude history, even when one is shaped like
+    /// it, while the same file in a Claude project is (#643).
+    #[cfg(unix)]
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn another_providers_project_has_no_recorded_edits() {
+        let home = crate::test_utils::SandboxHome::new();
+        let claude = home.path().join(".claude/projects/-test-project");
+        let ompi = home.path().join(".omp/agent/sessions/--test-project--");
+        let pi = home.path().join(".pi/agent/sessions/--test-project--");
+        for dir in [&claude, &ompi, &pi] {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(dir.join("s.jsonl"), ONE_EDIT_LINE).unwrap();
+        }
+
+        let mut counts = Vec::new();
+        for dir in [&claude, &ompi, &pi] {
+            let project = dir.to_string_lossy().to_string();
+            for session in [None, Some(dir.join("s.jsonl"))] {
+                let page = get_recent_edits(
+                    project.clone(),
+                    None,
+                    None,
+                    session.map(|s| s.to_string_lossy().to_string()),
+                    None,
+                )
+                .await
+                .unwrap_or_else(|e| panic!("{project}: {e}"));
+                counts.push(page.total_edits_count);
+            }
+        }
+        assert_eq!(counts, [1, 1, 0, 0, 0, 0]);
+    }
+
     #[cfg(target_os = "windows")]
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_a_differently_cased_spelling_stays_under_the_policy() {
+        let _home = crate::test_utils::SandboxHome::new();
         // The boundary that bounds the symlink walk is compared on normalized
         // parts. Were it a raw lexical prefix test, this spelling would fail it,
         // skip the walk entirely, and still pass containment once canonicalized
@@ -2207,7 +2316,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_edit_grouping_keeps_every_edit_newest_first() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
 
         let result = get_recent_edits(
@@ -2241,7 +2352,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_has_more_follows_the_active_grouping() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         let path = dir.path().to_string_lossy().to_string();
 
@@ -2259,7 +2372,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_message_uuid_is_carried_through() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
 
         let result = get_recent_edits(
@@ -2285,7 +2400,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_exists_on_disk_reflects_the_filesystem() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
         // alpha.txt is on disk; beta.txt and gamma.txt were never created.
         fs::write(dir.path().join("alpha.txt"), "still here").unwrap();
@@ -2312,7 +2429,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_exists_on_disk_is_only_computed_for_returned_rows() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (dir, _a, _b) = project_with_two_sessions();
 
         let result = get_recent_edits(
@@ -2418,7 +2537,9 @@ mod tests {
 
     #[cfg(unix)]
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_restore_file_does_not_write_through_a_linked_temp_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (temp_dir, file_path) = project_recording_edit_to("linked_temp.txt");
         let elsewhere = TempDir::new().unwrap();
         let outside = elsewhere.path().join("outside.txt");
@@ -2439,7 +2560,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_restore_file_success() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (temp_dir, file_path) = project_recording_edit_to("test_restore.txt");
 
         let result = restore_file(
@@ -2458,7 +2581,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_restore_file_atomic_write_no_temp_file_left() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (temp_dir, file_path) = project_recording_edit_to("atomic_test.txt");
         let temp_path = temp_dir.path().join("atomic_test.tmp.restore");
 
@@ -2479,7 +2604,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_restore_file_overwrites_existing() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (temp_dir, file_path) = project_recording_edit_to("existing.txt");
 
         // Create existing file
@@ -2499,7 +2626,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_restore_file_creates_parent_dirs() {
+        let _home = crate::test_utils::SandboxHome::new();
         let (temp_dir, file_path) = project_recording_edit_to("nested/dir/file.txt");
 
         let result = restore_file(
@@ -2516,7 +2645,9 @@ mod tests {
 
     // Test get_recent_edits
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_empty_dir() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         let result = get_recent_edits(
@@ -2536,7 +2667,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_with_write_operation() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         // Create a JSONL file with Write tool usage
@@ -2560,7 +2693,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_with_edit_operation() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         // Create a JSONL file with Edit tool result
@@ -2584,7 +2719,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_with_multi_edit() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         // Create a JSONL file with multi-edit result
@@ -2607,7 +2744,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_keeps_latest_per_file() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         // Two edits to the same file
@@ -2636,7 +2775,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_with_create_type() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         // File with "type": "create" in toolUseResult
@@ -2663,7 +2804,9 @@ mod tests {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_get_recent_edits_filters_by_project_cwd() {
+        let _home = crate::test_utils::SandboxHome::new();
         let temp_dir = TempDir::new().unwrap();
 
         // One edit in project, one outside

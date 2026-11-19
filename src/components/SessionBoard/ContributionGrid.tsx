@@ -4,6 +4,7 @@ import { Tooltip, TooltipTrigger } from "../ui/tooltip";
 import { ChartTooltip } from "../ui/chart-tooltip";
 import { cn } from "@/lib/utils";
 import type { DailyBar } from "./useActivityData";
+import { useFormat } from "@/lib/format/useFormat";
 
 interface ContributionGridProps {
   dailyBars: DailyBar[];
@@ -24,28 +25,13 @@ const MIN_LABEL_GAP_PX = 44; // minimum pixel distance between label centres
 // Bar color ramp using the app's heatmap CSS variables.
 // Zero-day bars use a subtly visible "empty" tick.
 function getBarColor(intensity: number, isSelected: boolean): string {
-  if (isSelected) return "var(--chart-1)"; // amber accent when active
+  if (isSelected) return "var(--accent)"; // brand accent when active
   if (intensity === 0) return "var(--heatmap-empty)";
   if (intensity <= 0.33) return "var(--heatmap-low)";
   if (intensity <= 0.66) return "var(--heatmap-medium)";
   return "var(--heatmap-high)";
 }
 
-// Short date label: "2/8" style
-function formatShortLabel(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-// Verbose date for tooltip title: "Mon, Feb 8"
-function formatDateLabel(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 /**
  * Select which bar indices should receive an axis label.
@@ -83,6 +69,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
   selectedDate,
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
 
   const maxCount = useMemo(() => {
     let max = 0;
@@ -99,7 +86,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
 
   if (dailyBars.length === 0) {
     return (
-      <div className="text-xs text-muted-foreground py-2 text-center">
+      <div className="text-list text-muted-foreground py-2 text-center">
         {t("analytics.timeline.noActivity")}
       </div>
     );
@@ -196,7 +183,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                       aria-hidden={!isClickable ? true : undefined}
                       aria-label={
                         isClickable
-                          ? `${formatDateLabel(bar.date)}: ${t(
+                          ? `${fmt.dayKey(bar.date, "short")}: ${t(
                               bar.sessionCount === 1
                                 ? "analytics.timeline.session"
                                 : "analytics.timeline.sessions",
@@ -210,7 +197,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                         "transition-opacity duration-100",
                         isClickable && "cursor-pointer hover:opacity-75",
                         isSelected &&
-                          "ring-1 ring-offset-[1px] ring-offset-background ring-[var(--chart-1)]"
+                          "ring-1 ring-offset-[1px] ring-offset-background ring-accent"
                       )}
                       style={{
                         backgroundColor: fillColor,
@@ -218,7 +205,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                         opacity: bar.sessionCount === 0 ? 0.3 : 1,
                         // Selected bar gets a faint glow
                         boxShadow: isSelected
-                          ? "0 0 6px var(--chart-1)"
+                          ? "0 0 6px var(--accent)"
                           : undefined,
                       }}
                       onClick={isClickable ? () => handleBarClick(bar) : undefined}
@@ -229,7 +216,7 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                   </foreignObject>
                 </TooltipTrigger>
                 <ChartTooltip
-                  title={formatDateLabel(bar.date)}
+                  title={fmt.dayKey(bar.date, "short")}
                   rows={
                     bar.sessionCount > 0
                       ? [
@@ -262,13 +249,13 @@ export const ContributionGrid: React.FC<ContributionGridProps> = ({
                 x={cx}
                 y={CHART_HEIGHT + AXIS_HEIGHT - 3}
                 textAnchor="middle"
-                fontSize={9}
+                style={{ fontSize: "var(--text-caption)" }}
                 fontFamily="'JetBrains Mono', ui-monospace, monospace"
                 fill="var(--muted-foreground)"
                 opacity={0.6}
                 aria-hidden="true"
               >
-                {formatShortLabel(bar.date)}
+                {fmt.dayKey(bar.date, "numeric")}
               </text>
             );
           })}

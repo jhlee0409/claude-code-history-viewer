@@ -1,9 +1,11 @@
 import { useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { useLanguageStore } from "@/store/useLanguageStore";
+import { listenForSettingChanges, listenForUserMetadataChanges } from "@/services/settingsSync";
 import { type SupportedLanguage } from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useFileWatcher } from "./useFileWatcher";
+import { useEffectiveHighContrast } from "./useHighContrast";
 
 /**
  * App initialization side effects:
@@ -11,6 +13,7 @@ import { useFileWatcher } from "./useFileWatcher";
  * - Font scale CSS variable
  * - High contrast mode
  * - i18n language sync
+ * - Settings and user metadata changed in another window
  * - Message restoration on view switch
  */
 export function useAppInitialization(deps: {
@@ -20,9 +23,9 @@ export function useAppInitialization(deps: {
   const { language, loadLanguage } = useLanguageStore();
 
   const initializeApp = useAppStore((s) => s.initializeApp);
-  const selectSession = useAppStore((s) => s.selectSession);
+  const reloadCurrent = useAppStore((s) => s.reloadCurrent);
   const fontScale = useAppStore((s) => s.fontScale);
-  const highContrast = useAppStore((s) => s.highContrast);
+  const highContrast = useEffectiveHighContrast();
   const watcherEnabled = useAppStore((s) => s.watcherEnabled);
   const triggerSessionRefresh = useAppStore((s) => s.triggerSessionRefresh);
 
@@ -66,7 +69,7 @@ export function useAppInitialization(deps: {
     );
   }, [fontScale]);
 
-  // High contrast mode
+  // High contrast mode: the user's choice, else the OS prefers-contrast setting
   useEffect(() => {
     document.documentElement.classList.toggle("high-contrast", highContrast);
   }, [highContrast]);
@@ -97,19 +100,28 @@ export function useAppInitialization(deps: {
     };
   }, [language, i18nInstance]);
 
-  // Restore messages when switching back to messages view with empty messages
+  // Settings and user metadata saved in another window (issue #656). The
+  // theme is the ThemeProvider's own.
+  useEffect(() => {
+    const stopSettings = listenForSettingChanges((key, value) => {
+      if (key === "language") useLanguageStore.getState().applySharedLanguage(value);
+      else useAppStore.getState().applySharedSetting(key, value);
+    });
+    const stopMetadata = listenForUserMetadataChanges((metadata) =>
+      useAppStore.getState().applySharedMetadata(metadata)
+    );
+    return () => {
+      stopSettings();
+      stopMetadata();
+    };
+  }, []);
+
+  // Restore messages when switching back to the conversation screen with
+  // nothing loaded. A reload of the place, not a navigation.
   useEffect(() => {
     if (!deps.isMessagesView) return;
-    const { selectedSession: session, messages: msgs } =
-      useAppStore.getState();
-    if (session != null && msgs.length === 0) {
-      void (async () => {
-        try {
-          await selectSession(session);
-        } catch (error) {
-          console.error("Failed to restore session messages:", error);
-        }
-      })();
-    }
-  }, [deps.isMessagesView, selectSession]);
+    reloadCurrent("restore").catch((error) => {
+      console.error("Failed to restore session messages:", error);
+    });
+  }, [deps.isMessagesView, reloadCurrent]);
 }

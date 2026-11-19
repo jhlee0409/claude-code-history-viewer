@@ -1,3 +1,5 @@
+use crate::commands::stats::session_files;
+use crate::providers;
 use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 use lru::LruCache;
 use notify::{RecommendedWatcher, RecursiveMode};
@@ -6,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -17,8 +19,6 @@ pub struct FileWatchEvent {
     pub session_path: String,
     pub event_type: String,
 }
-
-type WatcherMap = Arc<Mutex<Option<Debouncer<RecommendedWatcher>>>>;
 
 /// LRU cache for `OpenCode` session-to-project mappings, capped at 10,000 entries.
 /// Each entry is ~150 bytes, bounding memory at ~1.5MB regardless of watcher activity.
@@ -48,118 +48,322 @@ struct FileSignature {
 
 static WATCHED_FILE_SIGNATURES: OnceLock<Mutex<HashMap<PathBuf, FileSignature>>> = OnceLock::new();
 
-/// Start watching the Claude projects directory for file changes
-#[tauri::command]
-pub async fn start_file_watcher(
-    app_handle: AppHandle,
-    claude_folder_path: String,
-    custom_claude_paths: Option<Vec<super::multi_provider::CustomClaudePathParam>>,
-) -> Result<String, String> {
-    let base_path = PathBuf::from(&claude_folder_path);
-    let projects_path = base_path.join("projects");
+/// The desktop app's one file watcher, shared by every window: each window's
+/// `useFileWatcher` listens for the `session-file-changed` events it emits.
+///
+/// Started at launch (`sync_desktop_watcher` in `setup`), brought up to date
+/// when the custom Claude directories change, stopped on exit. The `WebUI`
+/// server runs its own watcher (`start_server_file_watcher` in `lib.rs`).
+#[derive(Default)]
+pub struct WatcherState(Mutex<Option<ActiveWatcher>>);
 
-    // Reject symlinks to prevent symlink attacks
-    let base_meta = std::fs::symlink_metadata(&base_path)
-        .map_err(|e| format!("Cannot read metadata for base path: {e}"))?;
-    if base_meta.file_type().is_symlink() {
-        return Err("Claude folder path must not be a symlink".to_string());
-    }
+/// A running watcher and the roots it was registered on.
+struct ActiveWatcher {
+    roots: Vec<PathBuf>,
+    /// Kept alive for the watcher to run; dropping it stops the watcher.
+    _debouncer: Debouncer<RecommendedWatcher>,
+}
 
-    let projects_meta = std::fs::symlink_metadata(&projects_path)
-        .map_err(|e| format!("Cannot read metadata for projects path: {e}"))?;
-    if projects_meta.file_type().is_symlink() {
-        return Err("Projects directory must not be a symlink".to_string());
-    }
+/// What [`WatcherState::sync`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WatcherSync {
+    /// A watcher now runs on this many roots.
+    Started(usize),
+    /// The watcher already ran on the same roots and was kept.
+    Running,
+    /// No root could be watched; no watcher runs.
+    Disabled,
+}
 
-    // Canonicalize and verify path traversal safety
-    let canonical_base = std::fs::canonicalize(&base_path)
-        .map_err(|e| format!("Failed to canonicalize base path: {e}"))?;
-    let canonical_projects = std::fs::canonicalize(&projects_path)
-        .map_err(|e| format!("Failed to canonicalize projects path: {e}"))?;
-
-    if !canonical_projects.starts_with(&canonical_base) {
-        return Err("Projects path escapes the allowed base directory".to_string());
-    }
-
-    // Verify it is a directory
-    if !canonical_projects.is_dir() {
-        return Err(format!(
-            "Projects path is not a directory: {}",
-            canonical_projects.display()
-        ));
-    }
-
-    // Create a debounced watcher
-    let app_handle_clone = app_handle.clone();
-    let mut debouncer = new_debouncer(
-        Duration::from_millis(500),
-        move |result: Result<Vec<DebouncedEvent>, notify::Error>| match result {
-            Ok(events) => {
-                for event in events {
-                    handle_file_event(&app_handle_clone, &event);
-                }
+impl WatcherState {
+    /// Run one watcher over `roots`, calling `on_event` for each debounced
+    /// event. Idempotent: the running watcher is kept when its roots are the
+    /// same; otherwise it is replaced.
+    fn sync<F>(&self, collect_roots: impl FnOnce() -> Vec<PathBuf>, on_event: F) -> WatcherSync
+    where
+        F: Fn(&DebouncedEvent) + Send + 'static,
+    {
+        let mut slot = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let roots = collect_roots();
+        if slot.as_ref().is_some_and(|active| active.roots == roots) {
+            return WatcherSync::Running;
+        }
+        // Stop the old watcher before registering the new one.
+        *slot = None;
+        match watch_roots(roots, on_event) {
+            Some((debouncer, roots)) => {
+                let watched = roots.len();
+                *slot = Some(ActiveWatcher {
+                    roots,
+                    _debouncer: debouncer,
+                });
+                WatcherSync::Started(watched)
             }
-            Err(error) => {
-                log::error!("File watcher error: {error:?}");
-            }
-        },
-    )
-    .map_err(|e| format!("Failed to create file watcher: {e}"))?;
-
-    // Start watching the canonicalized projects directory recursively
-    debouncer
-        .watcher()
-        .watch(&canonical_projects, RecursiveMode::Recursive)
-        .map_err(|e| format!("Failed to watch directory: {e}"))?;
-    prime_watch_signatures(&canonical_projects);
-
-    // Also watch custom Claude directories if provided
-    if let Some(custom_paths) = custom_claude_paths {
-        for custom in &custom_paths {
-            let custom_base = PathBuf::from(&custom.path);
-            match crate::utils::validate_custom_claude_path(&custom_base) {
-                Ok(canonical_projects) => {
-                    if debouncer
-                        .watcher()
-                        .watch(&canonical_projects, RecursiveMode::Recursive)
-                        .is_ok()
-                    {
-                        prime_watch_signatures(&canonical_projects);
-                        log::info!(
-                            "File watcher added custom path: {}",
-                            canonical_projects.display()
-                        );
-                    }
-                }
-                Err(e) => {
-                    log::warn!("Skipping invalid custom watch path: {e}");
-                }
-            }
+            None => WatcherSync::Disabled,
         }
     }
 
-    // Store the debouncer in app state to prevent it from being dropped
-    let watcher_state: tauri::State<WatcherMap> = app_handle.state();
-    let mut watcher = watcher_state.lock().unwrap();
-    *watcher = Some(debouncer);
-
-    log::info!("File watcher started for: {}", canonical_projects.display());
-    Ok("watcher-started".to_string())
+    /// Stop the watcher; `false` when none was running.
+    pub(crate) fn stop(&self) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take()
+            .is_some()
+    }
 }
 
-/// Stop the file watcher
+/// Create a debounced watcher on every root that can be registered, with
+/// the roots registered successfully; `None` when there is none.
+fn watch_roots<F>(
+    roots: Vec<PathBuf>,
+    on_event: F,
+) -> Option<(Debouncer<RecommendedWatcher>, Vec<PathBuf>)>
+where
+    F: Fn(&DebouncedEvent) + Send + 'static,
+{
+    if roots.is_empty() {
+        log::warn!("No history directory found; real-time file watcher disabled");
+        return None;
+    }
+    let mut debouncer = new_debouncer(
+        Duration::from_millis(500),
+        move |result: Result<Vec<DebouncedEvent>, notify::Error>| match result {
+            Ok(events) => events.iter().for_each(&on_event),
+            Err(error) => log::error!("File watcher error: {error:?}"),
+        },
+    )
+    .map_err(|error| log::error!("Failed to create file watcher: {error}"))
+    .ok()?;
+
+    let mut watched = roots;
+    watched.retain(
+        |root| match debouncer.watcher().watch(root, RecursiveMode::Recursive) {
+            Ok(()) => {
+                prime_watch_signatures(root);
+                log::info!("File watcher active: {}", root.display());
+                true
+            }
+            Err(error) => {
+                log::warn!("Failed to watch {}: {error}", root.display());
+                false
+            }
+        },
+    );
+    if watched.is_empty() {
+        log::warn!("Real-time updates disabled (no watch path could be registered)");
+        return None;
+    }
+    Some((debouncer, watched))
+}
+
+/// Start the desktop watcher over [`collect_watch_paths`], or bring it up to
+/// date with them. Blocking: priming walks every watched tree.
+pub fn sync_desktop_watcher(app_handle: &AppHandle) -> WatcherSync {
+    let handle = app_handle.clone();
+    app_handle
+        .state::<WatcherState>()
+        .sync(collect_watch_paths, move |event| {
+            handle_file_event(&handle, event);
+        })
+}
+
+/// Run [`sync_desktop_watcher`] off the async runtime.
+pub(crate) async fn sync_desktop_watcher_async(
+    app_handle: AppHandle,
+) -> Result<WatcherSync, String> {
+    tauri::async_runtime::spawn_blocking(move || sync_desktop_watcher(&app_handle))
+        .await
+        .map_err(|e| format!("Task join error: {e}"))
+}
+
+/// Ensure the shared desktop watcher runs. Idempotent: the app starts it at
+/// launch, so this normally answers `watcher-running`.
+#[tauri::command]
+pub async fn start_file_watcher(app_handle: AppHandle) -> Result<String, String> {
+    match sync_desktop_watcher_async(app_handle).await? {
+        WatcherSync::Started(_) => Ok("watcher-started".to_string()),
+        WatcherSync::Running => Ok("watcher-running".to_string()),
+        WatcherSync::Disabled => Err("No history directory could be watched".to_string()),
+    }
+}
+
+/// Stop the shared desktop watcher (every window stops receiving updates).
 #[tauri::command]
 pub async fn stop_file_watcher(app_handle: AppHandle) -> Result<(), String> {
-    let watcher_state: tauri::State<WatcherMap> = app_handle.state();
-    let mut watcher = watcher_state.lock().unwrap();
-
-    if watcher.is_some() {
-        *watcher = None;
+    if app_handle.state::<WatcherState>().stop() {
         log::info!("File watcher stopped");
         Ok(())
     } else {
         Err("No active file watcher found".to_string())
     }
+}
+
+/// A provider's `get_base_path`, used to build the watch-path tables below.
+type BasePathFn = fn() -> Option<String>;
+
+/// The Claude roots under `home`: `~/.claude/projects` and the `projects/` of
+/// each valid custom Claude directory in `user-data.json`.
+fn claude_watch_roots(home: &Path) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    let claude_projects = home.join(".claude").join("projects");
+    if claude_projects.is_dir() {
+        paths.push(claude_projects);
+    }
+
+    let user_data = home.join(".claude-history-viewer").join("user-data.json");
+    paths.extend(
+        super::metadata::custom_claude_dirs_in(&user_data)
+            .iter()
+            .filter_map(|dir| crate::utils::validate_custom_claude_path(Path::new(dir)).ok()),
+    );
+    paths
+}
+
+/// Collect available provider directories to watch for live session file
+/// updates: the desktop watcher and the `WebUI` server watcher use the same.
+pub(crate) fn collect_watch_paths() -> Vec<PathBuf> {
+    use std::collections::HashSet;
+
+    let mut paths: Vec<PathBuf> = crate::utils::home_dir()
+        .map(|home| claude_watch_roots(&home))
+        .unwrap_or_default();
+
+    // Kimi Code (the `~/.kimi-code` rewrite) sessions. Symlinked sessions
+    // roots are not registered — `is_dir()` follows symlinks, and watching
+    // through one would observe directories outside the store.
+    if let Some(kimi_code_root) = providers::kimi_code::default_root() {
+        let sessions = kimi_code_root.join("sessions");
+        let is_real_dir = std::fs::symlink_metadata(&sessions)
+            .map(|meta| meta.file_type().is_dir())
+            .unwrap_or(false);
+        if is_real_dir {
+            paths.push(sessions);
+        }
+    }
+
+    if let Some(opencode_base) = providers::opencode::get_base_path() {
+        let base = PathBuf::from(&opencode_base);
+        let storage = base.join("storage");
+        let session = storage.join("session");
+        let message = storage.join("message");
+        if session.is_dir() {
+            paths.push(session);
+        }
+        if message.is_dir() {
+            paths.push(message);
+        }
+        // Watch opencode.db for SQLite-based storage changes
+        let db_path = base.join("opencode.db");
+        if db_path.is_file() {
+            paths.push(base);
+        }
+    }
+
+    // Kilo Code keeps its OpenCode-core sessions in kilo.db (no file-backed
+    // session/message storage dirs), so watching the store root covers it.
+    // Symlinked roots/databases are not registered — `is_file()` follows
+    // symlinks, and watching through one would observe paths outside the
+    // store (same hardening as the Kimi Code block above).
+    if let Some(kilo_base) = providers::kilo::get_base_path() {
+        let base = PathBuf::from(&kilo_base);
+        let is_real = |path: &Path, check: fn(&std::fs::FileType) -> bool| {
+            std::fs::symlink_metadata(path)
+                .map(|meta| check(&meta.file_type()))
+                .unwrap_or(false)
+        };
+        if is_real(&base, std::fs::FileType::is_dir)
+            && is_real(
+                &base.join(providers::kilo::DB_FILE),
+                std::fs::FileType::is_file,
+            )
+        {
+            paths.push(base);
+        }
+    }
+
+    // Providers whose base path is itself the directory to watch. For Pi and
+    // oh-my-pi, get_base_path() is already the sessions root.
+    let flat_bases: [BasePathFn; 14] = [
+        providers::pi::get_base_path,
+        providers::ompi::get_base_path,
+        providers::codebuddy::get_base_path,
+        providers::cursor_agent::get_base_path,
+        providers::continue_dev::get_base_path,
+        providers::pearai::get_base_path,
+        providers::goose::get_base_path,
+        providers::llm::get_base_path,
+        providers::amazon_q::get_base_path,
+        providers::qwen::get_base_path,
+        providers::zcode::get_base_path,
+        providers::zed::get_base_path,
+        providers::openhands::get_base_path,
+        providers::trae::get_base_path,
+    ];
+    paths.extend(
+        flat_bases
+            .iter()
+            .filter_map(|base| base())
+            .map(PathBuf::from)
+            .filter(|dir| dir.is_dir()),
+    );
+
+    // Providers that keep sessions in sub-directories of their base path.
+    let nested_bases: [(BasePathFn, &[&str]); 5] = [
+        (
+            providers::codex::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::kimi::get_base_path, &["sessions"]),
+        (
+            providers::openinterpreter::get_base_path,
+            &["sessions", "archived_sessions"],
+        ),
+        (providers::vibe::get_base_path, &["logs/session"]),
+        (providers::copilot_cli::get_base_path, &["session-state"]),
+    ];
+    for (get_base, subs) in nested_bases {
+        if let Some(base) = get_base() {
+            paths.extend(
+                subs.iter()
+                    .map(|sub| PathBuf::from(&base).join(sub))
+                    .filter(|dir| dir.is_dir()),
+            );
+        }
+    }
+
+    for vscode_base in providers::vscode::get_base_paths() {
+        let ws_storage = vscode_base.join("workspaceStorage");
+        if ws_storage.is_dir() {
+            paths.push(ws_storage);
+        }
+    }
+
+    // The whole desktop store, not just `brain/` and `conversations/`:
+    // `conversation_summaries.db` lives at its root, the rpc-cache under
+    // `.token-monitor/`, and a sub-directory created after startup is covered
+    // too. Files outside the session layout are filtered by the extractor.
+    if let Some(ag_root) = crate::commands::antigravity::resolve_antigravity_root() {
+        if std::fs::symlink_metadata(&ag_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_root);
+        }
+    }
+
+    // The CLI store root, so a `brain/` created after startup is covered.
+    if let Some(ag_cli_root) = providers::antigravity_cli::default_root() {
+        if std::fs::symlink_metadata(&ag_cli_root).is_ok_and(|m| m.file_type().is_dir()) {
+            paths.push(ag_cli_root);
+        }
+    }
+
+    let mut seen = HashSet::new();
+    paths
+        .into_iter()
+        .filter(|p| seen.insert(p.clone()))
+        .collect::<Vec<_>>()
 }
 
 /// Convert a debounced filesystem event into a [`FileWatchEvent`] if applicable.
@@ -223,7 +427,7 @@ pub fn prime_watch_signatures(root: &Path) {
         .filter_map(Result::ok)
     {
         let path = entry.path();
-        if extract_provider_paths(path).is_none() {
+        if classify_antigravity_path(path).is_none() && extract_provider_paths(path).is_none() {
             continue;
         }
         if let Some(signature) = file_signature(path) {
@@ -282,7 +486,16 @@ fn file_signature(path: &Path) -> Option<FileSignature> {
 
 /// Extract provider-specific project/session identifiers from changed file path.
 fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
-    let ext = path.extension()?.to_str()?;
+    // Antigravity's stores mix transcripts, databases and markdown; they are
+    // recognised by location rather than by extension alone.
+    if let Some(change) = classify_antigravity_path(path) {
+        return Some(resolve_antigravity_change(change));
+    }
+    let Some(ext) = path.extension().and_then(|ext| ext.to_str()) else {
+        // Vibe's unified store points at the current generation through an
+        // extensionless `CURRENT` file.
+        return extract_vibe_paths(path);
+    };
     match ext {
         // Claude + Codex rollout logs
         "jsonl" => {
@@ -315,6 +528,124 @@ fn extract_provider_paths(path: &Path) -> Option<(String, String)> {
         // broad refresh for every project in that store
         "db" | "db-wal" => extract_opencode_db_event(path),
         _ => None,
+    }
+}
+
+/// What a changed file under an Antigravity store belongs to.
+#[derive(Debug, PartialEq, Eq)]
+enum AntigravityChange {
+    /// A file of desktop session `session_id` in the store at `root`.
+    DesktopSession { root: PathBuf, session_id: String },
+    /// `conversation_summaries.db` (or its WAL): any desktop session's title,
+    /// step count or recovered text, or a new session, may have changed.
+    DesktopSummaries,
+    /// A file of antigravity-cli conversation `session_id` in the store at `root`.
+    CliSession { root: PathBuf, session_id: String },
+}
+
+/// Classify a path under `~/.gemini/antigravity` or `~/.gemini/antigravity-cli`
+/// from its location alone — no file is read, so priming the watcher's
+/// signatures over a whole store stays cheap. Desktop session files are:
+/// - `brain/<id>/**` transcripts, labels and metadata;
+/// - `conversations/<id>.db` and its WAL;
+/// - `.token-monitor/rpc-cache/v1/<id>/{usage,steps}.jsonl`;
+///
+/// and `conversation_summaries.db` (or its WAL) at the root covers them all.
+/// CLI session files are `brain/<id>/**` transcripts.
+fn classify_antigravity_path(path: &Path) -> Option<AntigravityChange> {
+    use crate::commands::antigravity::is_valid_antigravity_session_id;
+
+    let components: Vec<_> = path.components().collect();
+    let gemini_idx = components.iter().position(|c| c.as_os_str() == ".gemini")?;
+    let name_at = |offset: usize| -> Option<&str> {
+        components.get(gemini_idx + offset)?.as_os_str().to_str()
+    };
+    let depth = components.len() - gemini_idx;
+    let store = name_at(1)?;
+    let root = || components_to_path(&components[..=gemini_idx + 1]);
+    let is_session_text = || {
+        matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some("jsonl" | "json" | "md" | "txt")
+        )
+    };
+
+    match (store, name_at(2)?) {
+        ("antigravity" | "antigravity-cli", "brain") if depth >= 5 && is_session_text() => {
+            let session_id = name_at(3)?.to_string();
+            if !is_valid_antigravity_session_id(&session_id) {
+                return None;
+            }
+            Some(if store == "antigravity" {
+                AntigravityChange::DesktopSession {
+                    root: root(),
+                    session_id,
+                }
+            } else {
+                AntigravityChange::CliSession {
+                    root: root(),
+                    session_id,
+                }
+            })
+        }
+        ("antigravity", "conversations") if depth == 4 => {
+            let file_name = name_at(3)?;
+            let session_id = file_name
+                .strip_suffix(".db-wal")
+                .or_else(|| file_name.strip_suffix(".db"))?;
+            is_valid_antigravity_session_id(session_id).then(|| AntigravityChange::DesktopSession {
+                root: root(),
+                session_id: session_id.to_string(),
+            })
+        }
+        ("antigravity", ".token-monitor")
+            if depth == 7
+                && name_at(3) == Some("rpc-cache")
+                && name_at(4) == Some("v1")
+                && matches!(name_at(6), Some("usage.jsonl" | "steps.jsonl")) =>
+        {
+            let session_id = name_at(5)?;
+            is_valid_antigravity_session_id(session_id).then(|| AntigravityChange::DesktopSession {
+                root: root(),
+                session_id: session_id.to_string(),
+            })
+        }
+        ("antigravity", "conversation_summaries.db" | "conversation_summaries.db-wal")
+            if depth == 3 =>
+        {
+            Some(AntigravityChange::DesktopSummaries)
+        }
+        _ => None,
+    }
+}
+
+/// The `(project_path, session_path)` the UI holds for an Antigravity change.
+///
+/// Desktop projects are keyed by workspace (`antigravity://<workspace>`, or
+/// `antigravity://` for sessions without one), and which workspace a session
+/// belongs to is only known from `conversation_summaries.db` and the editor's
+/// state store — too costly to query per file event. The project side is the
+/// `antigravity://*` wildcard, which the frontend resolves to the selected
+/// desktop project; the session side is the session's own `file_path`
+/// (rpc-cache dir, `brain/<id>`, or `conversations/<id>.db`). A summaries
+/// database change names no session, so only the project list refreshes.
+fn resolve_antigravity_change(change: AntigravityChange) -> (String, String) {
+    let desktop_projects = format!("{}*", crate::providers::antigravity::DESKTOP_SCHEME);
+    match change {
+        AntigravityChange::DesktopSession { root, session_id } => (
+            desktop_projects,
+            crate::commands::antigravity::desktop_session_file_path(&root, &session_id)
+                .to_string_lossy()
+                .into_owned(),
+        ),
+        AntigravityChange::DesktopSummaries => (desktop_projects.clone(), desktop_projects),
+        AntigravityChange::CliSession { root, session_id } => (
+            crate::providers::antigravity_cli::project_path_for_conversation(&root, &session_id),
+            root.join("brain")
+                .join(&session_id)
+                .to_string_lossy()
+                .into_owned(),
+        ),
     }
 }
 
@@ -393,40 +724,52 @@ fn extract_codex_paths(path: &Path) -> Option<(String, String)> {
 }
 
 /// Extract Mistral Vibe session identifiers from files under
-/// `~/.vibe/logs/session/{session_dir}/`.
+/// `~/.vibe/logs/session/{session_dir}/` (legacy transcripts) or
+/// `~/.vibe/logs/session/unified/{session_id}/` (unified session store).
 fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
-    let filename = path.file_name()?.to_str()?;
-    if !matches!(filename, "messages.jsonl" | "meta.json") {
+    // Cheap pre-filter: `extract_provider_paths` dispatches every `.json` /
+    // `.jsonl` under the watched roots here, and resolving the Vibe home
+    // reads env/home — it must not happen for unrelated providers' files.
+    if !is_vibe_candidate_file(path) {
         return None;
     }
 
     let sessions_root = crate::providers::vibe::get_base_path()
         .map(PathBuf::from)
         .map(|base| base.join("logs/session"))?;
+    let canonical_root = sessions_root.canonicalize().unwrap_or(sessions_root);
     let canonical_path = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    let session_dir = canonical_path.parent()?;
-    let relative = session_dir
-        .strip_prefix(
-            sessions_root
-                .canonicalize()
-                .unwrap_or(sessions_root.clone()),
-        )
-        .ok()?;
 
-    if relative.components().count() != 1 {
+    // The session directory is the nearest ancestor holding `meta.json`.
+    let mut session_dir = canonical_path.parent()?.to_path_buf();
+    loop {
+        if session_dir.join("meta.json").is_file() {
+            break;
+        }
+        if session_dir == canonical_root || !session_dir.starts_with(&canonical_root) {
+            return None;
+        }
+        session_dir = session_dir.parent()?.to_path_buf();
+    }
+
+    // One component: legacy transcript dir; two components: `unified/<id>`.
+    let relative = session_dir.strip_prefix(&canonical_root).ok()?;
+    if relative.components().count() > 2 {
         return None;
     }
 
+    if !is_relevant_vibe_file(&canonical_path, &session_dir) {
+        return None;
+    }
+
+    // Read inside the sessions root, never through a link or a FIFO named
+    // `meta.json` (`session_files::open_session_file`).
     let metadata_path = session_dir.join("meta.json");
-    if std::fs::symlink_metadata(&metadata_path)
-        .map(|m| m.file_type().is_symlink())
-        .unwrap_or(false)
-    {
-        return None;
-    }
-    let cwd = std::fs::read_to_string(&metadata_path)
+    let (mut file, _) = session_files::open_session_file(&metadata_path, &canonical_root).ok()?;
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut file, &mut content).ok()?;
+    let cwd = serde_json::from_str::<serde_json::Value>(&content)
         .ok()
-        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|metadata| {
             metadata
                 .get("environment")
@@ -439,6 +782,60 @@ fn extract_vibe_paths(path: &Path) -> Option<(String, String)> {
         format!("vibe://{cwd}"),
         session_dir.to_string_lossy().to_string(),
     ))
+}
+
+/// Only files that change the rendered conversation should trigger a
+/// refresh: session metadata, the legacy transcript, and the unified store's
+/// chunks, generation manifests and journal.
+fn is_relevant_vibe_file(path: &Path, session_dir: &Path) -> bool {
+    let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if matches!(filename, "meta.json" | "messages.jsonl" | "CURRENT") {
+        return true;
+    }
+    let Ok(relative) = path.strip_prefix(session_dir) else {
+        return false;
+    };
+    let in_store_subdir = relative
+        .components()
+        .next()
+        .and_then(|first| first.as_os_str().to_str())
+        .is_some_and(|first| matches!(first, "chunks" | "generations" | "journal"));
+    if in_store_subdir {
+        return matches!(
+            path.extension().and_then(|ext| ext.to_str()),
+            Some("json" | "jsonl")
+        );
+    }
+    false
+}
+
+/// Filesystem-free candidate check: session metadata and transcript files by
+/// name, plus unified-store files by their two nearest ancestor directory
+/// names (`chunks/`, `generations/<gen>/`, `journal/`).
+fn is_vibe_candidate_file(path: &Path) -> bool {
+    let Some(filename) = path.file_name().and_then(|name| name.to_str()) else {
+        return false;
+    };
+    if matches!(filename, "meta.json" | "messages.jsonl" | "CURRENT") {
+        return true;
+    }
+    if !matches!(
+        path.extension().and_then(|ext| ext.to_str()),
+        Some("json" | "jsonl")
+    ) {
+        return false;
+    }
+    let parent = path.parent().and_then(|parent| parent.file_name());
+    let grandparent = path
+        .parent()
+        .and_then(|parent| parent.parent())
+        .and_then(|grandparent| grandparent.file_name());
+    [parent, grandparent]
+        .into_iter()
+        .flatten()
+        .any(|name| matches!(name.to_str(), Some("chunks" | "generations" | "journal")))
 }
 
 /// Extract Pi / oh-my-pi session identifiers from `.jsonl` files under
@@ -698,6 +1095,133 @@ mod tests {
     use super::*;
     use serial_test::serial;
     use tempfile::TempDir;
+
+    fn temp_roots(count: usize) -> (TempDir, Vec<PathBuf>) {
+        let dir = TempDir::new().unwrap();
+        let roots = (0..count)
+            .map(|i| {
+                let root = dir.path().join(format!("root-{i}"));
+                std::fs::create_dir_all(&root).unwrap();
+                root
+            })
+            .collect();
+        (dir, roots)
+    }
+
+    #[test]
+    fn watcher_sync_is_idempotent_and_follows_root_changes() {
+        let (_dir, roots) = temp_roots(2);
+        let state = WatcherState::default();
+
+        let one = vec![roots[0].clone()];
+        assert_eq!(state.sync(|| one.clone(), |_| {}), WatcherSync::Started(1));
+        assert_eq!(state.sync(|| one, |_| {}), WatcherSync::Running);
+
+        assert_eq!(
+            state.sync(|| roots.clone(), |_| {}),
+            WatcherSync::Started(2)
+        );
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Running);
+
+        assert!(state.stop());
+        assert!(!state.stop());
+    }
+
+    #[test]
+    fn watcher_sync_without_a_watchable_root_runs_nothing() {
+        let (dir, roots) = temp_roots(1);
+        let state = WatcherState::default();
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(1));
+
+        assert_eq!(state.sync(Vec::new, |_| {}), WatcherSync::Disabled);
+        assert!(!state.stop(), "the old watcher is stopped, not kept");
+        let missing = vec![dir.path().join("missing")];
+        assert_eq!(state.sync(|| missing, |_| {}), WatcherSync::Disabled);
+        assert!(!state.stop());
+    }
+
+    #[test]
+    fn watcher_retries_a_root_that_failed_to_register() {
+        let (dir, mut roots) = temp_roots(1);
+        let missing = dir.path().join("not-yet");
+        roots.push(missing.clone());
+        let state = WatcherState::default();
+
+        assert_eq!(
+            state.sync(|| roots.clone(), |_| {}),
+            WatcherSync::Started(1)
+        );
+        std::fs::create_dir(&missing).unwrap();
+        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(2));
+    }
+
+    #[test]
+    fn watcher_reports_a_session_file_written_after_start() {
+        let (_dir, roots) = temp_roots(1);
+        let state = WatcherState::default();
+        let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
+        let tx = Mutex::new(tx);
+        state.sync(
+            || roots.clone(),
+            move |event| {
+                let _ = tx.lock().unwrap().send(event.path.clone());
+            },
+        );
+
+        let session = roots[0].join("session.jsonl");
+        std::fs::write(&session, "{}\n").unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let seen = loop {
+            let left = deadline.saturating_duration_since(std::time::Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(path) if path.ends_with("session.jsonl") => break true,
+                Ok(_) => {}
+                Err(_) => break false,
+            }
+        };
+        assert!(seen, "no event for {}", session.display());
+        state.stop();
+    }
+
+    #[test]
+    fn claude_watch_roots_has_default_and_valid_custom_roots() {
+        let home = TempDir::new().unwrap();
+        let default = home.path().join(".claude").join("projects");
+        std::fs::create_dir_all(&default).unwrap();
+        let custom = home.path().join("work-claude");
+        std::fs::create_dir_all(custom.join("projects")).unwrap();
+        let without_projects = home.path().join("empty-claude");
+        std::fs::create_dir_all(&without_projects).unwrap();
+
+        let config = home.path().join(".claude-history-viewer");
+        std::fs::create_dir_all(&config).unwrap();
+        let user_data = serde_json::json!({
+            "settings": { "customClaudePaths": [
+                { "path": custom.to_string_lossy(), "label": "Work" },
+                { "path": without_projects.to_string_lossy(), "label": "Empty" },
+                { "path": "relative/claude", "label": "Relative" },
+            ]}
+        });
+        std::fs::write(config.join("user-data.json"), user_data.to_string()).unwrap();
+
+        let roots = claude_watch_roots(home.path());
+        assert_eq!(
+            roots,
+            vec![
+                default,
+                std::fs::canonicalize(custom.join("projects")).unwrap()
+            ]
+        );
+    }
+
+    #[test]
+    fn claude_watch_roots_without_user_data_is_the_default_root() {
+        let home = TempDir::new().unwrap();
+        assert_eq!(claude_watch_roots(home.path()), Vec::<PathBuf>::new());
+        let default = home.path().join(".claude").join("projects");
+        std::fs::create_dir_all(&default).unwrap();
+        assert_eq!(claude_watch_roots(home.path()), vec![default]);
+    }
 
     #[test]
     fn test_extract_paths() {
@@ -1105,5 +1629,246 @@ mod tests {
             "OpenCode cache must stay bounded at 10,000 entries, got {}",
             guard.len()
         );
+    }
+
+    /// A sandboxed Antigravity layout: `<home>/.gemini/{antigravity,antigravity-cli}`.
+    /// The CLI path also runs the other providers' extractors, which resolve
+    /// the home directory.
+    fn antigravity_stores(home: &Path) -> (PathBuf, PathBuf) {
+        let gemini = home.join(".gemini");
+        let desktop = gemini.join("antigravity");
+        let cli = gemini.join("antigravity-cli");
+        std::fs::create_dir_all(&desktop).unwrap();
+        std::fs::create_dir_all(&cli).unwrap();
+        (desktop, cli)
+    }
+
+    #[test]
+    #[serial]
+    /// Desktop projects are keyed by workspace, so a desktop change refreshes
+    /// the selected desktop project through the `antigravity://*` wildcard;
+    /// the session side names the session's own `file_path`.
+    fn test_extract_antigravity_desktop_paths() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (root, _) = antigravity_stores(home.path());
+        let path_of = |path: &Path| path.to_string_lossy().into_owned();
+
+        // A brain transcript names the brain session directory.
+        let brain_session = root.join("brain").join("sess-123");
+        let logs = brain_session.join(".system_generated").join("logs");
+        std::fs::create_dir_all(&logs).unwrap();
+        let transcript = logs.join("transcript_full.jsonl");
+        assert_eq!(
+            extract_provider_paths(&transcript),
+            Some(("antigravity://*".to_string(), path_of(&brain_session)))
+        );
+        assert_eq!(
+            extract_provider_paths(&brain_session.join("task.md")),
+            Some(("antigravity://*".to_string(), path_of(&brain_session)))
+        );
+        assert_eq!(
+            extract_provider_paths(&brain_session.join("shot.png")),
+            None
+        );
+
+        // A database-only session (no brain/<id>) is listed by its `.db`.
+        let conversations = root.join("conversations");
+        std::fs::create_dir_all(&conversations).unwrap();
+        let db = conversations.join("sess-456.db");
+        std::fs::write(&db, b"").unwrap();
+        for changed in [db.clone(), conversations.join("sess-456.db-wal")] {
+            assert_eq!(
+                extract_provider_paths(&changed),
+                Some(("antigravity://*".to_string(), path_of(&db)))
+            );
+        }
+
+        // A session with rpc-cache usage is listed by its rpc-cache directory.
+        let rpc_session = root
+            .join(".token-monitor")
+            .join("rpc-cache")
+            .join("v1")
+            .join("sess-789");
+        std::fs::create_dir_all(&rpc_session).unwrap();
+        std::fs::write(rpc_session.join("usage.jsonl"), b"{}\n").unwrap();
+        std::fs::create_dir_all(root.join("brain").join("sess-789")).unwrap();
+        for changed in [
+            rpc_session.join("usage.jsonl"),
+            root.join("brain").join("sess-789").join("task.md"),
+        ] {
+            assert_eq!(
+                extract_provider_paths(&changed),
+                Some(("antigravity://*".to_string(), path_of(&rpc_session)))
+            );
+        }
+
+        // The summaries database names no single session.
+        for name in ["conversation_summaries.db", "conversation_summaries.db-wal"] {
+            assert_eq!(
+                extract_provider_paths(&root.join(name)),
+                Some(("antigravity://*".to_string(), "antigravity://*".to_string()))
+            );
+        }
+        assert_eq!(extract_provider_paths(&root.join("other.db")), None);
+        assert_eq!(
+            extract_provider_paths(&root.join("brain").join("bad id").join("task.md")),
+            None
+        );
+    }
+
+    #[test]
+    #[serial]
+    /// A CLI change names the workspace project `history.jsonl` puts the
+    /// conversation in, not the store root.
+    fn test_extract_antigravity_cli_paths() {
+        let home = crate::test_utils::SandboxHome::new();
+        let (_, cli) = antigravity_stores(home.path());
+        std::fs::write(
+            cli.join("history.jsonl"),
+            "{\"conversationId\":\"cli-789\",\"workspace\":\"/work/cli-proj\"}\n",
+        )
+        .unwrap();
+        let session = cli.join("brain").join("cli-789");
+        let transcript = session
+            .join(".system_generated")
+            .join("logs")
+            .join("transcript_full.jsonl");
+
+        assert_eq!(
+            extract_provider_paths(&transcript),
+            Some((
+                "antigravity-cli:///work/cli-proj".to_string(),
+                session.to_string_lossy().into_owned()
+            ))
+        );
+
+        let unindexed = cli.join("brain").join("cli-000").join("overview.txt");
+        assert_eq!(
+            extract_provider_paths(&unindexed).map(|(project, _)| project),
+            Some("antigravity-cli://unknown".to_string())
+        );
+        assert_eq!(extract_provider_paths(&cli.join("history.jsonl")), None);
+    }
+
+    /// Build a sandboxed Vibe home with one legacy and one unified session.
+    /// Returns `(vibe_home, legacy_session_dir, unified_session_dir)`.
+    fn setup_vibe_home(temp: &TempDir) -> (PathBuf, PathBuf, PathBuf) {
+        let vibe_home = temp.path().join(".vibe");
+        let legacy_dir = vibe_home.join("logs/session/session_legacy");
+        let unified_dir =
+            vibe_home.join("logs/session/unified/7abdeb96-ca90-7e2a-1257-a26093d8f6e9");
+        for dir in [&legacy_dir, &unified_dir] {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(
+                dir.join("meta.json"),
+                r#"{ "environment": { "working_directory": "/tmp/vibe-watch-demo" } }"#,
+            )
+            .unwrap();
+        }
+        std::fs::create_dir_all(unified_dir.join("chunks")).unwrap();
+        std::fs::create_dir_all(unified_dir.join("generations/0000000000000001")).unwrap();
+        std::fs::create_dir_all(unified_dir.join("journal")).unwrap();
+        (vibe_home, legacy_dir, unified_dir)
+    }
+
+    /// A legacy `messages.jsonl` path maps to its session.
+    #[test]
+    #[serial]
+    fn test_extract_vibe_paths_legacy_transcript() {
+        let temp = TempDir::new().unwrap();
+        let (vibe_home, legacy_dir, _unified_dir) = setup_vibe_home(&temp);
+        let old_vibe_home = std::env::var_os("VIBE_HOME");
+        std::env::set_var("VIBE_HOME", &vibe_home);
+
+        let messages = legacy_dir.join("messages.jsonl");
+        std::fs::write(&messages, "{}\n").unwrap();
+        let result = extract_vibe_paths(&messages);
+
+        if let Some(vibe_home) = old_vibe_home {
+            std::env::set_var("VIBE_HOME", vibe_home);
+        } else {
+            std::env::remove_var("VIBE_HOME");
+        }
+
+        let (project_path, session_path) = result.expect("legacy transcript maps to its session");
+        assert_eq!(project_path, "vibe:///tmp/vibe-watch-demo");
+        assert_eq!(
+            session_path,
+            legacy_dir.canonicalize().unwrap().to_string_lossy()
+        );
+    }
+
+    /// Unified-store files (chunks, manifests, journal, `CURRENT`) map to their
+    /// session through the watcher's dispatcher.
+    #[test]
+    #[serial]
+    fn test_extract_vibe_paths_unified_store() {
+        let temp = TempDir::new().unwrap();
+        let (vibe_home, _legacy_dir, unified_dir) = setup_vibe_home(&temp);
+        let old_vibe_home = std::env::var_os("VIBE_HOME");
+        std::env::set_var("VIBE_HOME", &vibe_home);
+
+        let chunk = unified_dir.join("chunks/aaa.json");
+        std::fs::write(&chunk, "[]").unwrap();
+        let manifest = unified_dir.join("generations/0000000000000001/manifest.json");
+        std::fs::write(&manifest, "{}").unwrap();
+        let journal = unified_dir.join("journal/0000000000000001.jsonl");
+        std::fs::write(&journal, "{}\n").unwrap();
+        let current = unified_dir.join("CURRENT");
+        std::fs::write(&current, "{}").unwrap();
+        // A file outside the store subdirectories is not relevant.
+        let loops = unified_dir.join("scheduled-loops.json");
+        std::fs::write(&loops, "{}").unwrap();
+
+        let cases = [
+            extract_provider_paths(&chunk),
+            extract_provider_paths(&manifest),
+            extract_provider_paths(&journal),
+            extract_provider_paths(&current),
+        ];
+        let irrelevant = extract_vibe_paths(&loops);
+
+        if let Some(vibe_home) = old_vibe_home {
+            std::env::set_var("VIBE_HOME", vibe_home);
+        } else {
+            std::env::remove_var("VIBE_HOME");
+        }
+
+        let expected_session = unified_dir
+            .canonicalize()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        for result in cases {
+            let (project_path, session_path) =
+                result.expect("unified store file maps to its session");
+            assert_eq!(project_path, "vibe:///tmp/vibe-watch-demo");
+            assert_eq!(session_path, expected_session);
+        }
+        assert!(irrelevant.is_none(), "unrelated session file is ignored");
+    }
+
+    /// Files outside the sessions tree are ignored.
+    #[test]
+    #[serial]
+    fn test_extract_vibe_paths_ignores_files_outside_sessions() {
+        let temp = TempDir::new().unwrap();
+        let (vibe_home, _legacy_dir, _unified_dir) = setup_vibe_home(&temp);
+        let old_vibe_home = std::env::var_os("VIBE_HOME");
+        std::env::set_var("VIBE_HOME", &vibe_home);
+
+        // `logs/session/active/` holds lock files, not sessions.
+        let lock = vibe_home.join("logs/session/active/0b4a395e.lock.json");
+        std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
+        std::fs::write(&lock, "{}").unwrap();
+        let result = extract_vibe_paths(&lock);
+
+        if let Some(vibe_home) = old_vibe_home {
+            std::env::set_var("VIBE_HOME", vibe_home);
+        } else {
+            std::env::remove_var("VIBE_HOME");
+        }
+
+        assert!(result.is_none(), "active lock files are not sessions");
     }
 }

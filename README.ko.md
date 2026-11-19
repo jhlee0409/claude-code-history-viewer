@@ -1,21 +1,21 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 코딩 어시스턴트를 위한 통합 히스토리 뷰어.**
 
 **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, **Grok CLI**의 대화 기록을 탐색, 검색, 분석하세요 — 데스크톱 앱 또는 헤드리스 서버로. 100% 오프라인.
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[웹사이트](https://jhlee0409.github.io/claude-code-history-viewer/) · [다운로드](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [버그 제보](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[웹사이트](https://jhlee0409.github.io/omnilogue/) · [다운로드](https://github.com/jhlee0409/omnilogue/releases) · [버그 제보](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -38,20 +38,20 @@
 
 | 플랫폼 | 다운로드 |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (포터블)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (포터블)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS):
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **헤드리스 서버** — 브라우저에서 접근:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -70,19 +70,20 @@ Docker, VPS, systemd 설정은 [서버 모드](#서버-모드-webui)를 참고�
 
 AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 도구 간에 히스토리를 돌아볼 방법을 제공하지 않습니다. CCHV가 이를 해결합니다.
 
-**서른한 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code 포함), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
+**서른세 가지 어시스턴트. 하나의 뷰어.** Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Codex CLI, Cline (Roo Code 포함), Kilo Code, Cursor, Cursor Agent, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, Qoder 세션을 자유롭게 전환하고 — 토큰 사용량을 비교하고, 프로바이더 간 검색하고, 워크플로를 하나의 인터페이스에서 분석하세요.
 
 | 프로바이더 | 데이터 위치 | 제공 내용 |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 전체 대화 기록, 도구 사용, 사고 과정, 비용 |
 | **GitHub Copilot** | `~/.copilot/session-state/` (CLI & Desktop), VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI, Copilot Desktop, VS Code Copilot Chat 기록 (읽기 전용, WSL 인식) |
 | **Gemini CLI** | `~/.gemini/history/` | 도구 호출이 포함된 대화 기록 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/` 아래의 대화 상태와 `.token-monitor/rpc-cache/v1/` 아래의 토큰 모니터 데이터 |
+| **Antigravity** | `~/.gemini/antigravity/` | 워크스페이스별로 그룹화된 완전한 대화 기록 (프롬프트, 사고 과정, 도구 호출)을 `conversation_summaries.db`, `conversations/*.db`, `brain/`에서 추출하며, `.token-monitor/rpc-cache/v1/`의 토큰 모니터 데이터와도 연동 |
 | **Codex CLI** | `~/.codex/sessions/` | 에이전트 응답이 포함된 세션 롤아웃 |
 | **Cline** (Roo Code 포함, 구 Kilo Code) | `~/.cline/data/sessions/` (최신 Cline) 및 VS Code `globalStorage/<ext>/tasks/` (이전 버전) | Cline 계열 전반의 태스크 기반 기록 |
 | **Kilo Code** | `~/.local/share/kilo/` (`kilo.db`) | 2026년 5월부터 OpenCode 코어. 마이그레이션 전 Cline 계열 데이터는 Cline에 유지 |
 | **Cursor** | `~/.cursor/` | Composer 및 채팅 대화 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | 에이전트 트랜스크립트 (Cursor IDE 소스와 별개) |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/` (Windows는 `%USERPROFILE%\.cursor\acp-sessions`) | JetBrains IDE(GoLand, IntelliJ IDEA 등)에서 Agent Client Protocol 브리지로 쓰는 Cursor — 읽기 전용, 프롬프트·응답·추론·도구 호출, 워크스페이스별 그룹 |
 | **Aider** | 프로젝트 디렉토리 | 채팅 기록 및 편집 로그 |
 | **OpenCode** | `~/.local/share/opencode/` | 대화 세션 및 도구 결과 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 데이터베이스의 대화 기록 |
@@ -103,12 +104,15 @@ AI 코딩 어시스턴트는 수천 개의 대화 메시지를 생성하지만, 
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | 세션별 JSONL 트랜스크립트 (도구 호출, 사고 과정, 토큰 사용량) |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 스레드 — SQLite + Zstd 압축 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai의 GLM 코딩 에이전트 — session/message/part 구조 SQLite 스토어 (제목, 도구 호출, 추론, 토큰 사용량) |
+| **Hermes Agent** | `HERMES_HOME`의 `state.db` (기본값 `~/.hermes`, Windows는 `%LOCALAPPDATA%\hermes`) + `profiles/<name>/` | Nous Research의 에이전트 — SQLite 스토어의 CLI·데스크톱·게이트웨이 세션 (도구 호출, 추론, 세션 토큰 사용량 및 비용) |
+| **Claude.ai** (계정 내보내기) | claude.ai → 설정 → 개인정보 → 데이터 내보내기로 받은 zip 또는 압축을 푼 폴더 (설정에서 추가) | 읽기 전용: claude.ai 프로젝트별 대화, 검색 가능; 내보내기에 토큰 사용량이 없어 통계에는 포함되지 않음 |
+| **Qoder** | `~/.qoder/projects/` (CLI·데스크톱 앱, `QODER_CONFIG_DIR`), `~/.qoder-cn/projects/` (Qoder CN), IDE의 `…/Qoder/SharedClientCache/cli/projects/` | Alibaba의 에이전트형 IDE·CLI — Claude Code 형식 트랜스크립트 (도구 호출, 사고 과정, 서브에이전트 실행, Qoder가 기록한 경우 토큰 사용량) |
 | **OpenHands** | `~/.openhands/sessions/` | 클래식 이벤트 스토어 대화 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 워크스페이스별 채팅 (icube 스토어; 실험적, 리버스 엔지니어링 기반) |
 
 벤더 종속 없음. 클라우드 의존 없음. 로컬 대화 파일을 아름답게 렌더링합니다.
 
-Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 해석한 뒤 `brain/`에서 세션 상태를, `.token-monitor/rpc-cache/v1/`에서 사용량/캐시 아티팩트를 읽습니다. 이는 현재 런타임 레이아웃 및 `src-tauri/src/commands/antigravity.rs`의 루트 리졸버와 일치합니다.
+Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity` (및 `~/.gemini/antigravity-cli`)로 해석합니다. 데스크톱 세션은 `conversation_summaries.db`에서 워크스페이스 경로를 자동으로 파싱하여 폴더별로 그룹화됩니다. 대화 기록, 사고 과정 및 도구 호출은 `.system_generated/logs/` (`transcript_full.jsonl`, `transcript.jsonl`, `overview.txt`), `conversations/<session_id>.db`, `conversations_fts`에서 복원되며, 토큰 모니터 및 편집기 상태 저장소 폴백을 제공합니다.
 
 ## 목차
 
@@ -130,7 +134,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 기능 | 설명 |
 |---------|-------------|
-| **멀티 프로바이더** | **31개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code 포함), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code — 프로바이더별 필터링, 도구 간 비교 |
+| **멀티 프로바이더** | **33개 AI 코딩 어시스턴트**를 위한 통합 뷰어 — Claude Code, GitHub Copilot, Gemini CLI, Codex CLI, Cursor / Cursor Agent, Cline (Roo Code 포함), Kilo Code, Aider, OpenCode, ForgeCode, CodeBuddy Code, Grok CLI, Kimi, Kiro, Antigravity, Amazon Q CLI, Continue.dev, PearAI, Goose, Crush, llm, Open Interpreter, Pi, oh-my-pi, Mistral Vibe, Qwen Code, Zed, OpenHands, Trae, Z Code, Hermes Agent, Qoder — 프로바이더별 필터링, 도구 간 비교 |
 | **대화 브라우저** | 프로젝트/세션별 대화 탐색 (워크트리 그룹핑 지원) |
 | **글로벌 검색** | 모든 프로바이더의 대화에서 즉시 검색 |
 | **분석 대시보드** | 듀얼 모드 토큰 통계 (빌링 vs 대화), 비용 브레이크다운, 프로바이더 분포 차트 |
@@ -143,7 +147,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 프로바이더 | 설명 |
 |---------|-------|
-| **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 세션은 token monitor 캐시에서 가져오며, 별도 UI 모드 없이 프로젝트/세션 보기, 토큰 통계, 분석 대시보드, 글로벌 검색에 바로 참여합니다. |
+| **Antigravity** | 표준 프로바이더 파이프라인으로 로드됩니다. 데스크톱 세션은 워크스페이스 폴더별로 그룹화되며, `brain/` 대화 기록, `conversations/*.db`, `conversation_summaries.db`에서 전체 대화(프롬프트, 사고 과정, 도구 호출)를 복원하고 토큰 통계, 분석 대시보드, 글로벌 검색을 지원합니다. 서버 모드(`--serve`)에서는 WebUI가 실시간으로 갱신합니다. |
 
 ### v1.32.0 신규
 
@@ -164,7 +168,7 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 | 기능 | 설명 |
 |------|------|
-| **WebUI 보안 강화** | `--serve` 모드에서 세션·프로젝트 경로는 기록 폴더 안으로, 프로젝트 설정은 알려진 프로젝트로 제한됩니다 — WebUI를 쓰신다면 업그레이드하세요 ([보안 권고](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)) |
+| **WebUI 보안 강화** | `--serve` 모드에서 세션·프로젝트 경로는 기록 폴더 안으로, 프로젝트 설정은 알려진 프로젝트로 제한됩니다 — WebUI를 쓰신다면 업그레이드하세요 ([보안 권고](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)) |
 | **Claude Code 자동 제목** | 세션 목록, 통계, 내보내기, 아카이브에 Claude Code가 생성한 제목이 표시됩니다(직접 바꾼 이름이 우선) |
 | **내 프롬프트와 에이전트 업데이트 구분** | Messages 패널이 직접 입력한 프롬프트, 에이전트 업데이트, 명령, 주입된 컨텍스트를 구분해 보여주고 "내 프롬프트만 표시" 필터를 제공합니다 |
 
@@ -273,13 +277,13 @@ Antigravity 참고: 뷰어는 Antigravity 루트를 `~/.gemini/antigravity`로 �
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 또는 전체 Cask 경로로 바로 설치:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 `No Cask with this name exists` 오류가 나오면 위의 전체 경로 명령을 사용하세요.
@@ -287,13 +291,13 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 업그레이드:
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 제거:
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **기존 수동 설치(.dmg)에서 전환하시나요?**
@@ -302,13 +306,24 @@ brew uninstall --cask claude-code-history-viewer
 > 그런 다음 실행하세요:
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
+
+### Flatpak (Linux)
+
+릴리스마다 `.flatpak` 번들이 포함됩니다. [릴리스 페이지](https://github.com/jhlee0409/omnilogue/releases/latest)에서 내려받은 뒤 다음을 실행하세요.
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+필요한 GNOME 런타임은 Flathub에서 설치됩니다. 번들은 스스로 업데이트하지 않으므로, 앱이 새 버전을 알리면 해당 릴리스의 `.flatpak`을 같은 방법으로 설치하세요. 샌드박스는 홈 폴더를 읽을 수 있지만 쓰기는 각 어시스턴트의 기록 폴더, 앱 자체 설정, 다운로드 폴더에만 합니다. 이름 변경·삭제·설정 편집에 미치는 영향은 [LINUX_BUILD.md](LINUX_BUILD.md#flatpak)를 참고하세요.
 
 ## 소스에서 빌드
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # 방법 1: just 사용 (권장)
@@ -338,7 +353,7 @@ pnpm tauri:build     # 프로덕션 빌드
 brew install jhlee0409/tap/cchv-server
 
 # 또는 원라인 스크립트
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 두 방법 모두 `cchv-server`를 PATH에 설치합니다.
@@ -369,7 +384,7 @@ cchv-server --serve
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)에서 다운로드하세요.
+[Releases](https://github.com/jhlee0409/omnilogue/releases)에서 다운로드하세요.
 
 **CLI 옵션:**
 
@@ -443,7 +458,7 @@ GET /health
 ## 사용법
 
 1. 앱 실행
-2. 지원하는 31개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
+2. 지원하는 33개 프로바이더 (Claude Code, Codex CLI, Gemini CLI, Cursor, Cline, Continue.dev, Goose, Zed, Qwen Code, Amazon Q CLI 등 — 위 프로바이더 표 참조)에서 대화 데이터 자동 스캔
 3. 좌측 사이드바에서 프로젝트 탐색 — 탭 바로 프로바이더별 필터링
 4. 세션 클릭하여 메시지 확인
 5. 탭으로 메시지, 분석, 토큰 통계, 최근 편집, 세션 보드 전환
@@ -523,7 +538,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | WebUI에 연결할 수 없음 | `cchv-server`의 기본 포트는 `3727`입니다. 시작 시 출력된 URL을 사용하고, 원격 접속이라면 포트 충돌과 방화벽/프록시 규칙을 확인하세요. |
 | "Unauthorized" / HTTP 401 | 시작 시 출력된 토큰 URL을 사용하거나 `Authorization: Bearer <token>`을 보내세요. 고정 토큰은 `--token` 또는 `CCHV_TOKEN`으로 설정할 수 있습니다. |
 | 성능 문제 | 대용량 대화 기록은 초기 로딩이 느릴 수 있음 — 앱은 가상 스크롤링 사용 |
-| 업데이트 오류 | 자동 업데이트 실패 시 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)에서 수동 다운로드 |
+| 업데이트 오류 | 자동 업데이트 실패 시 [Releases](https://github.com/jhlee0409/omnilogue/releases)에서 수동 다운로드 |
 
 ## 기여하기
 
@@ -549,12 +564,14 @@ claude-code-history-viewer://session-title/auth%20bug
 
 [MIT](LICENSE) — 개인 및 상업적 사용 모두 무료.
 
+Omnilogue는 독립 오픈소스 프로젝트이며, 세션 기록을 읽는 Anthropic, OpenAI, GitHub, Google 등 어떤 벤더와도 제휴·보증·후원 관계가 없습니다. Claude와 Claude Code는 Anthropic, PBC의 상표이며, 그 밖의 이름은 각 소유자의 상표입니다.
+
 ---
 
 <div align="center">
 
 이 프로젝트가 도움이 되었다면 스타를 고려해주세요!
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

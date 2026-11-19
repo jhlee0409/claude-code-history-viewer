@@ -6,7 +6,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useAppStore } from "@/store/useAppStore";
 import { useTranslation } from "react-i18next";
-import { Map as MapIcon } from "lucide-react";
+import { Coins, Map as MapIcon } from "lucide-react";
 import { getMinimapToggleKeysLabel } from "@/utils/minimapShortcut";
 
 /**
@@ -17,7 +17,7 @@ import { getMinimapToggleKeysLabel } from "@/utils/minimapShortcut";
  */
 export const ViewMenuGroup = () => {
   const { t } = useTranslation();
-  const { isMinimapOpen, toggleMinimap } = useAppStore();
+  const { isMinimapOpen, toggleMinimap, showInlineTokenUsage, toggleInlineTokenUsage } = useAppStore();
   const keys = getMinimapToggleKeysLabel();
 
   return (
@@ -41,6 +41,25 @@ export const ViewMenuGroup = () => {
         <DropdownMenuShortcut aria-hidden="true">{keys}</DropdownMenuShortcut>
         <Switch
           checked={isMinimapOpen}
+          aria-hidden="true"
+          tabIndex={-1}
+          className="ml-2"
+        />
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        role="menuitemcheckbox"
+        aria-checked={showInlineTokenUsage}
+        onSelect={(e) => {
+          e.preventDefault();
+          toggleInlineTokenUsage();
+        }}
+      >
+        <Coins className="mr-2 h-4 w-4 text-foreground" />
+        <span className="flex-1">
+          {t("common.settings.view.showInlineTokens")}
+        </span>
+        <Switch
+          checked={showInlineTokenUsage}
           aria-hidden="true"
           tabIndex={-1}
           className="ml-2"

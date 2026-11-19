@@ -1,6 +1,6 @@
-# Building Claude Code History Viewer on Linux
+# Building Omnilogue on Linux
 
-This guide explains how to build the Claude Code History Viewer application on Linux systems.
+This guide explains how to build the Omnilogue application on Linux systems.
 
 ## Prerequisites
 
@@ -61,7 +61,7 @@ sudo apt install -y \
 
 ```bash
 # Clone the repository
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Install Node.js dependencies
@@ -73,7 +73,7 @@ pnpm tauri:build:linux
 
 ## Build Output
 
-The build process will create three package formats:
+The build process will create three package formats. Package file names and the application menu entry still use the bundle's product name, `Claude Code History Viewer`:
 
 1. **DEB Package** (Debian/Ubuntu): `src-tauri/target/release/bundle/deb/Claude Code History Viewer_*.deb`
 2. **RPM Package** (Red Hat/Fedora): `src-tauri/target/release/bundle/rpm/Claude Code History Viewer-*.rpm`
@@ -105,6 +105,65 @@ claude-code-history-viewer
 ```
 
 Or find it in your application menu under "Claude Code History Viewer".
+
+## Flatpak
+
+Each release also ships `Claude.Code.History.Viewer_<version>_x86_64.flatpak`, built by `.github/workflows/flatpak.yml` from the manifest in `packaging/flatpak/`. The Flatpak app id is `io.github.jhlee0409.Omnilogue`.
+
+### Installing the bundle
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+The GNOME runtime (`org.gnome.Platform//51`) is installed from Flathub along with it. The bundle is not on Flathub and does not update itself: when the app reports a new version, its update dialog opens the release page, and you install that release's `.flatpak` the same way.
+
+### Building it locally
+
+The manifest repackages the binary from the Tauri `.deb` onto the GNOME runtime (the approach in [Tauri's Flatpak guide](https://v2.tauri.app/distribute/flatpak/)), so build the `.deb` first:
+
+```bash
+pnpm tauri build --bundles deb --config '{"bundle":{"createUpdaterArtifacts":false}}'
+cp src-tauri/target/release/bundle/deb/*.deb packaging/flatpak/claude-code-history-viewer.deb
+
+flatpak install --user flathub org.flatpak.Builder org.gnome.Platform//51 org.gnome.Sdk//51
+flatpak run org.flatpak.Builder --user --install --force-clean \
+  packaging/flatpak/build-dir packaging/flatpak/io.github.jhlee0409.Omnilogue.yml
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+Run the workflow by hand from the Actions tab (**Flatpak → Run workflow**) to build a branch; the bundle is kept as the `flatpak-bundle` artifact. Naming an existing release tag in the run's `tag` field also attaches the bundle to that release.
+
+### Sandbox permissions
+
+The app reads history that other tools write all over the home folder, so the sandbox is shaped around what the code reads and writes (each permission is explained next to it in the manifest):
+
+- **Read: the whole home folder (`--filesystem=home:ro`).** Per-assistant folders would not be enough. Every session records the project folder it ran in, and a project whose folder the app cannot see is listed under unavailable projects with its resume command disabled. Aider and Crush are found by scanning the home folder and code folders under it. Claude Code's project settings and `.mcp.json` are read from the project folder.
+- **Write: only where the app writes.** `~/.claude` (Claude Code session rename, delete and move; the settings editor), `~/.codex` (Codex rename and delete), `~/.cursor` (Cursor Agent CLI delete), `~/.forge` (ForgeCode rename and delete), `~/.local/share/opencode` (OpenCode rename), `~/.claude-history-viewer` (the app's metadata, archives and presets), the app's settings folders, and Downloads (exports and screenshots).
+- **Network:** the update check against GitHub releases.
+
+The app's settings live in `~/.config/com.claude.history-viewer` and `~/.local/share/com.claude.history-viewer`, the same folders as the `.deb`, `.rpm` and AppImage, so switching between them keeps your settings. (The launcher `packaging/flatpak/omnilogue.sh` points the XDG folders back at the host's, because several assistants are found through them.)
+
+### What differs from the other Linux builds
+
+- **Deleting a session** moves it to the system trash through the desktop's Trash portal, as on the other builds; Claude Code sessions still fall back to a permanent delete when the trash fails, other assistants report the error.
+- **Cursor conversations cannot be deleted.** Cursor must be closed for that, and the sandbox cannot see whether it is running, so the app refuses with an explanation and Cursor's data stays read-only. Delete them in Cursor, or with another build.
+- **Files outside those folders are read-only:** saving project-scoped Claude Code settings (`<project>/.claude/settings.local.json`, `<project>/.mcp.json`) or MCP servers kept in `~/.claude.json`, and restoring a file from Recent Edits, fail with a read-only file system error. Exports can only be saved to Downloads.
+- **No project git log:** the GNOME runtime has no `git` binary, so the project's commit list stays empty.
+- **History in a custom location** outside the home folder (for example `CLAUDE_CONFIG_DIR` or `CODEX_HOME` on another disk) is not visible until you grant it.
+
+To lift these limits, grant more with `flatpak override`, e.g. write access to the whole home folder (this gives up most of the sandbox's protection):
+
+```bash
+flatpak override --user --filesystem=home io.github.jhlee0409.Omnilogue
+# or just one extra folder
+flatpak override --user --filesystem=/mnt/data/claude io.github.jhlee0409.Omnilogue
+```
+
+### Flathub
+
+The app is not on Flathub. A Flathub submission would have to build from source inside `flatpak-builder` (with the cargo and pnpm dependencies vendored through [flatpak-builder-tools](https://github.com/flatpak/flatpak-builder-tools)) rather than repackage the release `.deb`, and Flathub reviews the broad home-folder read access above.
 
 ## Troubleshooting
 

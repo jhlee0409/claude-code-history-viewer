@@ -198,6 +198,9 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
 
     let mut projects = Vec::new();
     let mut seen_canonical = std::collections::HashSet::new();
+    // Prompts whose transcript is gone (#764): listed as sessions of their
+    // project, which keeps a project whose transcripts are all gone listed.
+    let mut prompt_history = crate::commands::session::prompt_history::load(&claude_base);
 
     let mut entries: Vec<_> = WalkDir::new(&projects_path)
         .min_depth(1)
@@ -225,120 +228,33 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
             .path()
             .canonicalize()
             .unwrap_or_else(|_| entry.path().to_path_buf());
-        if !seen_canonical.insert(canonical) {
+        if !seen_canonical.insert(canonical.clone()) {
             continue;
         }
 
-        let raw_project_name = entry.file_name().to_string_lossy().to_string();
-        let project_path = entry.path().to_string_lossy().to_string();
-
-        let mut session_count = 0;
-        let mut message_count = 0;
-        let mut last_modified = None;
-        let mut direct_cwd_candidate: Option<(SystemTime, String)> = None;
-        let mut nested_cwd_candidate: Option<(SystemTime, String)> = None;
-
-        // Regular files only, no symlink below the project followed
-        // (`session_files`): a linked session file would be counted and its
-        // `cwd` read from wherever it points, and a FIFO would block the scan.
-        for jsonl_path in session_files::regular_session_files(entry.path()) {
-            // Only top-level jsonl are main sessions; sidechain/subagent jsonl
-            // live in subdirectories (see utils::find_subagent_files). Counting
-            // them here inflates the project tree's session count relative to
-            // load_project_sessions, which filters them out via exclude_sidechain.
-            let is_direct_session = jsonl_path
-                .strip_prefix(entry.path())
-                .is_ok_and(|relative| relative.components().count() == 1);
-            if is_direct_session {
-                session_count += 1;
-            }
-
-            if let Ok(metadata) = fs::metadata(&jsonl_path) {
-                let modified = metadata.modified().ok();
-                if let Some(modified) = modified {
-                    if last_modified.is_none() || modified > last_modified.unwrap() {
-                        last_modified = Some(modified);
-                    }
-                }
-
-                // Estimate message count from file size - much faster
-                // lazy: still includes sidechain files; message_count口径与
-                // session_count 不同步是已知项,留待后续统一。
-                let estimated_messages = estimate_message_count_from_size(metadata.len());
-                message_count += estimated_messages;
-
-                let cwd_candidate = if is_direct_session {
-                    &mut direct_cwd_candidate
-                } else {
-                    &mut nested_cwd_candidate
-                };
-                let should_check_cwd = match (&cwd_candidate, modified) {
-                    (None, _) => true,
-                    (Some((current_modified, _)), Some(modified)) => modified > *current_modified,
-                    (Some(_), None) => false,
-                };
-                if should_check_cwd {
-                    if let Some(cwd) = extract_cwd_from_session_file(&jsonl_path) {
-                        *cwd_candidate = Some((modified.unwrap_or(SystemTime::UNIX_EPOCH), cwd));
-                    }
-                }
-            }
+        let prompts = prompt_history.take_project(&entry.file_name().to_string_lossy());
+        if let Some(project) = read_project_dir(entry.path(), &canonical, prompts.as_ref()) {
+            projects.push(project);
         }
+    }
 
-        // Skip empty project containers (e.g. temp workdirs with only memory files).
-        if session_count == 0 {
-            continue;
-        }
-
-        let last_modified_str = last_modified
-            .map(|lm| {
-                let dt: DateTime<Utc> = lm.into();
-                dt.to_rfc3339()
-            })
-            .unwrap_or_else(|| Utc::now().to_rfc3339());
-
-        // Validate that project_path is absolute before processing
-        let path_buf = PathBuf::from(&project_path);
-        if !path_buf.is_absolute() {
-            #[cfg(debug_assertions)]
-            eprintln!("⚠️ Skipping non-absolute project path: {project_path}");
-            continue;
-        }
-
-        // Resolve the project's real path, in priority order:
-        // 1. The folder name, when it verifiably resolves to an existing
-        //    directory. This is authoritative even when a session's embedded
-        //    `cwd` is stale (e.g. JSONL files moved between project folders).
-        // 2. The exact cwd Claude wrote into the JSONL. Claude's storage
-        //    directory names are lossy (`_` and path separators can both become
-        //    `-`), so when (1) fails the decoded folder name may be a
-        //    non-existent path and the real `cwd` is the better signal (#369).
-        //    Project-level identity should come from top-level session files;
-        //    subagent JSONL files can run in narrower cwd values (for example
-        //    `/home/cym/paseo`) while the parent project remains `/home/cym`,
-        //    so nested files are only a secondary fallback here.
-        // 3. A lossy heuristic decode of the folder name, as a last resort.
-        let actual_path = crate::utils::decode_project_path_verified(&project_path)
-            .or_else(|| {
-                direct_cwd_candidate
-                    .or(nested_cwd_candidate)
-                    .map(|(_, cwd)| cwd)
-            })
-            .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
-        let project_name = project_display_name_from_path(&actual_path)
-            .unwrap_or_else(|| extract_project_name(&raw_project_name));
-
-        // Detect git worktree information using the actual filesystem path
-        let git_info = detect_git_worktree_info(&actual_path);
-
+    // Projects whose folder holds no transcript any more, or is gone, but
+    // whose prompts are still in the log. The folder they would have is
+    // their path; the log records their directory exactly.
+    for prompts in prompt_history.into_projects() {
+        let last_modified: DateTime<Utc> = prompts.last_prompt_at().into();
         projects.push(ClaudeProject {
-            name: project_name,
-            path: project_path,
-            actual_path,
-            session_count,
-            message_count,
-            last_modified: last_modified_str,
-            git_info,
+            name: project_display_name_from_path(&prompts.cwd)
+                .unwrap_or_else(|| extract_project_name(&prompts.dir_name)),
+            path: projects_path
+                .join(&prompts.dir_name)
+                .to_string_lossy()
+                .into_owned(),
+            session_count: prompts.session_count(),
+            message_count: prompts.prompt_count(),
+            last_modified: last_modified.to_rfc3339(),
+            git_info: detect_git_worktree_info(&prompts.cwd),
+            actual_path: prompts.cwd,
             provider: None,
             storage_type: None,
             custom_directory_label: None,
@@ -360,13 +276,165 @@ pub(crate) fn scan_projects_blocking(claude_path: String) -> Vec<ClaudeProject> 
     projects
 }
 
-fn extract_cwd_from_session_file(file_path: &Path) -> Option<String> {
+/// The last-known location of one Claude project folder, derived exactly as
+/// the scan derives its `actual_path` (#780).
+pub(crate) fn claude_project_location(project_dir: &Path) -> Option<String> {
+    let canonical = project_dir.canonicalize().ok()?;
+    let claude_base = project_dir.parent()?.parent()?;
+    let mut history = crate::commands::session::prompt_history::load(claude_base);
+    let prompts = history.take_project(&project_dir.file_name()?.to_string_lossy());
+    read_project_dir(project_dir, &canonical, prompts.as_ref()).map(|project| project.actual_path)
+}
+
+/// One folder of a Claude `projects/` directory as the scan lists it, or
+/// `None` when it holds no session or its path is not absolute. `canonical`
+/// is the folder resolved: session files are read inside it only.
+fn read_project_dir(
+    project_dir: &Path,
+    canonical: &Path,
+    prompts: Option<&crate::commands::session::prompt_history::ProjectPrompts>,
+) -> Option<ClaudeProject> {
+    let raw_project_name = project_dir
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let project_path = project_dir.to_string_lossy().to_string();
+
+    let mut session_count = 0;
+    let mut message_count = 0;
+    let mut last_modified = None;
+    let mut direct_cwd_candidate: Option<(SystemTime, String)> = None;
+    let mut nested_cwd_candidate: Option<(SystemTime, String)> = None;
+
+    // Regular files only, no symlink below the project followed
+    // (`session_files`): a linked session file would be counted and its
+    // `cwd` read from wherever it points, and a FIFO would block the scan.
+    // Each is stat'ed without following a link and read inside the
+    // project folder, resolved before the walk (#698).
+    for jsonl_path in session_files::regular_session_files(project_dir) {
+        // Only top-level jsonl are main sessions; sidechain/subagent jsonl
+        // live in subdirectories (see utils::find_subagent_files). Counting
+        // them here inflates the project tree's session count relative to
+        // load_project_sessions, which filters them out via exclude_sidechain.
+        let is_direct_session = jsonl_path
+            .strip_prefix(project_dir)
+            .is_ok_and(|relative| relative.components().count() == 1);
+        if is_direct_session {
+            session_count += 1;
+        }
+
+        if let Ok(metadata) = fs::symlink_metadata(&jsonl_path) {
+            let modified = metadata.modified().ok();
+            if let Some(modified) = modified {
+                if last_modified.is_none() || modified > last_modified.unwrap() {
+                    last_modified = Some(modified);
+                }
+            }
+
+            // Estimate message count from file size - much faster
+            // lazy: still includes sidechain files; message_count口径与
+            // session_count 不同步是已知项,留待后续统一。
+            let estimated_messages = estimate_message_count_from_size(metadata.len());
+            message_count += estimated_messages;
+
+            let cwd_candidate = if is_direct_session {
+                &mut direct_cwd_candidate
+            } else {
+                &mut nested_cwd_candidate
+            };
+            let should_check_cwd = match (&cwd_candidate, modified) {
+                (None, _) => true,
+                (Some((current_modified, _)), Some(modified)) => modified > *current_modified,
+                (Some(_), None) => false,
+            };
+            if should_check_cwd {
+                if let Some(cwd) = extract_cwd_from_session_file(&jsonl_path, canonical) {
+                    *cwd_candidate = Some((modified.unwrap_or(SystemTime::UNIX_EPOCH), cwd));
+                }
+            }
+        }
+    }
+
+    if let Some(prompts) = prompts {
+        session_count += prompts.session_count();
+        message_count += prompts.prompt_count();
+        let prompted = prompts.last_prompt_at();
+        if last_modified.map_or(true, |modified| prompted > modified) {
+            last_modified = Some(prompted);
+        }
+    }
+
+    // Skip empty project containers (e.g. temp workdirs with only memory files).
+    if session_count == 0 {
+        return None;
+    }
+
+    let last_modified_str = last_modified
+        .map(|lm| {
+            let dt: DateTime<Utc> = lm.into();
+            dt.to_rfc3339()
+        })
+        .unwrap_or_else(|| Utc::now().to_rfc3339());
+
+    // Validate that project_path is absolute before processing
+    let path_buf = PathBuf::from(&project_path);
+    if !path_buf.is_absolute() {
+        #[cfg(debug_assertions)]
+        eprintln!("⚠️ Skipping non-absolute project path: {project_path}");
+        return None;
+    }
+
+    // Resolve the project's real path, in priority order:
+    // 1. The folder name, when it verifiably resolves to an existing
+    //    directory. This is authoritative even when a session's embedded
+    //    `cwd` is stale (e.g. JSONL files moved between project folders).
+    // 2. The exact cwd Claude wrote into the JSONL. Claude's storage
+    //    directory names are lossy (`_` and path separators can both become
+    //    `-`), so when (1) fails the decoded folder name may be a
+    //    non-existent path and the real `cwd` is the better signal (#369).
+    //    Project-level identity should come from top-level session files;
+    //    subagent JSONL files can run in narrower cwd values (for example
+    //    `/home/cym/paseo`) while the parent project remains `/home/cym`,
+    //    so nested files are only a secondary fallback here.
+    // 3. The working directory recorded in the prompt log, if available.
+    // 4. A lossy heuristic decode of the folder name, as a last resort.
+    let actual_path = crate::utils::decode_project_path_verified(&project_path)
+        .or_else(|| {
+            direct_cwd_candidate
+                .or(nested_cwd_candidate)
+                .map(|(_, cwd)| cwd)
+        })
+        .or_else(|| prompts.map(|prompts| prompts.cwd.clone()))
+        .unwrap_or_else(|| crate::utils::decode_project_path(&project_path));
+    let project_name = project_display_name_from_path(&actual_path)
+        .unwrap_or_else(|| extract_project_name(&raw_project_name));
+
+    // Detect git worktree information using the actual filesystem path
+    let git_info = detect_git_worktree_info(&actual_path);
+
+    Some(ClaudeProject {
+        name: project_name,
+        path: project_path,
+        actual_path,
+        session_count,
+        message_count,
+        last_modified: last_modified_str,
+        git_info,
+        provider: None,
+        storage_type: None,
+        custom_directory_label: None,
+    })
+}
+
+/// The `cwd` of the first rows of a session file found under `root` (the
+/// canonical project folder), read inside it only.
+pub(crate) fn extract_cwd_from_session_file(file_path: &Path, root: &Path) -> Option<String> {
     #[derive(serde::Deserialize)]
     struct CwdEntry {
         cwd: Option<String>,
     }
 
-    let file = fs::File::open(file_path).ok()?;
+    let (file, _) = session_files::open_session_file(file_path, root).ok()?;
     let reader = BufReader::new(file);
     let mut checked_non_empty = 0;
 
@@ -729,7 +797,7 @@ mod tests {
 
         let file_path = temp_dir.path().join("session.jsonl");
         assert_eq!(
-            extract_cwd_from_session_file(&file_path),
+            extract_cwd_from_session_file(&file_path, &temp_dir.path().canonicalize().unwrap()),
             Some("/tmp/cchv-empty-line-test".to_string())
         );
     }

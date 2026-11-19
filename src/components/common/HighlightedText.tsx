@@ -1,5 +1,22 @@
 import React, { useMemo, memo } from "react";
 import { cn } from "@/lib/utils";
+import { searchRanges } from "./searchMarks";
+
+/**
+ * A search mark's look (also PathText's and DiffView's marks): bright for the
+ * current match, light for the others. The current match is also underlined
+ * in its text colour: a current-match message is painted with the same
+ * `--highlight-current` (ClaudeMessageNode), so where the mark sits on the
+ * message's own background, e.g. a tool row's head, its background and ring
+ * vanish and its text colour is about the row's own (#736). The underline
+ * stays ≥3:1 against that background in every theme
+ * (src/test/searchMark.current.contrast.test.ts). Forced colours recolour it
+ * via `[aria-current]` (index.css).
+ */
+export const searchMarkBaseClass = "rounded px-0.5 transition-colors";
+export const searchMarkCurrentClass =
+  "bg-highlight-current text-highlight-foreground ring-2 ring-highlight-current underline decoration-highlight-foreground decoration-2 underline-offset-2";
+export const searchMarkOtherClass = "bg-highlight text-highlight-foreground";
 
 interface HighlightedTextProps {
   text: string;
@@ -7,6 +24,8 @@ interface HighlightedTextProps {
   isCurrentMatch?: boolean;
   currentMatchIndex?: number; // 메시지 내에서 현재 활성화된 매치 인덱스
   className?: string;
+  /** Source-owned mapped spans, e.g. decoded JSON values in serialized text. */
+  ranges?: [number, number][];
 }
 
 /**
@@ -28,34 +47,31 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
   isCurrentMatch = false,
   currentMatchIndex = 0,
   className,
+  ranges: mappedRanges,
 }) => {
   const highlightedContent = useMemo(() => {
-    if (!searchQuery.trim()) {
+    const ranges = mappedRanges ?? searchRanges(text, searchQuery);
+    if (ranges.length === 0) {
       return text;
     }
 
-    const query = searchQuery.toLowerCase();
     const parts: (string | React.ReactElement)[] = [];
     let lastIndex = 0;
-    let matchIndex = 0;
 
-    const textLower = text.toLowerCase();
-    let currentIndex = textLower.indexOf(query);
-
-    while (currentIndex !== -1) {
+    ranges.forEach(([start, end], matchIndex) => {
       // Add text before match
-      if (currentIndex > lastIndex) {
-        parts.push(text.slice(lastIndex, currentIndex));
+      if (start > lastIndex) {
+        parts.push(text.slice(lastIndex, start));
       }
 
       // Add highlighted match
-      const matchedText = text.slice(currentIndex, currentIndex + query.length);
+      const matchedText = text.slice(start, end);
 
       // 이 매치가 현재 활성화된 매치인지 확인
       const isThisMatchActive = isCurrentMatch && matchIndex === currentMatchIndex;
 
       // Create unique key using position and text snippet to avoid collisions
-      const keyId = `${currentIndex}-${matchedText.slice(0, 10)}`;
+      const keyId = `${start}-${matchedText.slice(0, 10)}`;
 
       parts.push(
         <mark
@@ -65,28 +81,24 @@ const HighlightedTextComponent: React.FC<HighlightedTextProps> = ({
           // Accessibility: indicate current match for screen readers
           aria-current={isThisMatchActive ? 'true' : undefined}
           className={cn(
-            "rounded px-0.5 transition-colors",
-            isThisMatchActive
-              ? "bg-highlight-current text-highlight-foreground ring-2 ring-highlight-current"
-              : "bg-highlight text-highlight-foreground"
+            searchMarkBaseClass,
+            isThisMatchActive ? searchMarkCurrentClass : searchMarkOtherClass
           )}
         >
           {matchedText}
         </mark>
       );
 
-      lastIndex = currentIndex + query.length;
-      matchIndex++;
-      currentIndex = textLower.indexOf(query, lastIndex);
-    }
+      lastIndex = end;
+    });
 
     // Add remaining text after last match
     if (lastIndex < text.length) {
       parts.push(text.slice(lastIndex));
     }
 
-    return parts.length > 0 ? parts : text;
-  }, [text, searchQuery, isCurrentMatch, currentMatchIndex]);
+    return parts;
+  }, [text, searchQuery, isCurrentMatch, currentMatchIndex, mappedRanges]);
 
   return <span className={className}>{highlightedContent}</span>;
 };

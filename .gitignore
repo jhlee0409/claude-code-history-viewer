@@ -93,3 +93,6 @@ scratch/
 # Playwright MCP artifacts
 .playwright-mcp/
 workflow-search.jpeg
+
+# UI capture harness output (scripts/ui-capture): builds, fixture home, runs, baselines
+.ui-capture/

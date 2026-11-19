@@ -6,13 +6,11 @@
 
 // Base calculations
 export {
-  calculateGrowthRate,
-  formatNumber,
-  formatCurrency,
   calculateModelPrice,
   hasExplicitModelPricing,
   MODEL_PRICING_AUDITED_AT,
   getHeatColor,
+  getHeatTextColor,
 } from "./calculations";
 
 // Tool name utilities

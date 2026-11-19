@@ -25,6 +25,18 @@ import type {
 const DEFAULT_PAGE_SIZE = 20;
 const inFlightRequests = new Map<string, Promise<unknown>>();
 
+function normalizeSessionRecording(stats: SessionTokenStats): SessionTokenStats {
+  // Validate runtime values too: TS types do not validate older/future servers.
+  const recording: unknown = stats.token_usage_recording;
+  return {
+    ...stats,
+    token_usage_recording:
+      recording === "absent" || recording === "recorded" || recording === "partial"
+        ? recording
+        : "unknown",
+  };
+}
+
 async function dedupeInFlight<T>(
   key: string,
   fetcher: () => Promise<T>
@@ -70,7 +82,7 @@ export async function fetchSessionTokenStats(
       console.log(`[API] fetchSessionTokenStats: ${duration.toFixed(1)}ms`);
     }
 
-    return stats;
+    return normalizeSessionRecording(stats);
   });
 }
 
@@ -120,7 +132,7 @@ export async function fetchProjectTokenStats(
       );
     }
 
-    return response;
+    return { ...response, items: response.items.map(normalizeSessionRecording) };
   });
 }
 
@@ -219,14 +231,14 @@ export async function fetchRecentEdits(
     sessionFilePath,
     grouping,
   } = options;
-  // Every parameter that changes the response has to be in this key. The docked
-  // panel and the full page can be mounted at once, asking for different scopes;
-  // a key that omitted them would collapse those into one request and hand one
+  // Every parameter that changes the response has to be in this key: two
+  // requests in flight for different scopes or groupings (a scope switch while
+  // the first page loads) would otherwise collapse into one and hand one
   // caller the other's data.
   // Serialized, not joined: `:` is legal in a POSIX path, so a joined key can
   // collide across genuinely different requests and hand one of them the
-  // other's in-flight promise. Same defect, and same fix, as the dock's request
-  // key in `recentEditsPanelSlice`.
+  // other's in-flight promise. Same defect, and same fix, as the request key
+  // in `recentEditsSlice`.
   const key = `recentEdits:${JSON.stringify([
     projectPath,
     offset,

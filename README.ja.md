@@ -1,21 +1,21 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AIコーディングアシスタントのための統合履歴ビューア。**
 
 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code**、**Grok CLI**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[ウェブサイト](https://jhlee0409.github.io/claude-code-history-viewer/) · [ダウンロード](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [バグ報告](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[ウェブサイト](https://jhlee0409.github.io/omnilogue/) · [ダウンロード](https://github.com/jhlee0409/omnilogue/releases) · [バグ報告](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -38,20 +38,20 @@
 
 | プラットフォーム | ダウンロード |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (ポータブル)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (ポータブル)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS)：
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **ヘッドレスサーバー** — 任意のブラウザからアクセス：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -70,19 +70,20 @@ Docker、VPS、systemdのセットアップは[サーバーモード](#サーバ
 
 AIコーディングアシスタントは数千もの会話メッセージを生成しますが、ツール間で履歴を振り返る方法を提供していません。CCHVがこの課題を解決します。
 
-**三十一のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Codeのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
+**三十三のアシスタント。一つのビューア。** Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（Roo Code 含む）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent、Qoderのセッションをシームレスに切り替え — トークン使用量を比較し、プロバイダー間で検索し、ワークフローを1つのインターフェースで分析。
 
 | プロバイダー | データの場所 | 取得できる情報 |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 完全な会話履歴、ツール使用、思考プロセス、コスト |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI & Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop、VS Code Copilot Chatの履歴（読み取り専用、WSL対応） |
 | **Gemini CLI** | `~/.gemini/history/` | ツール呼び出しを含む会話履歴 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/`配下の会話状態と`.token-monitor/rpc-cache/v1/`配下のトークンモニターデータ |
+| **Antigravity** | `~/.gemini/antigravity/` | ワークスペース別にグループ化された完全な会話履歴（プロンプト、思考プロセス、ツール呼び出し）を `conversation_summaries.db`、`conversations/*.db`、`brain/` から読み取り、`.token-monitor/rpc-cache/v1/` のトークンデータにも対応 |
 | **Codex CLI** | `~/.codex/sessions/` | エージェント応答を含むセッションロールアウト |
 | **Cline**（Roo Code 含む、旧 Kilo Code） | `~/.cline/data/sessions/`（最新の Cline）および VS Code `globalStorage/<ext>/tasks/`（旧バージョン） | Clineファミリー全体のタスクベースの履歴 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026年5月以降はOpenCodeコア。移行前のClineファミリーデータはCline側に残る |
 | **Cursor** | `~/.cursor/` | Composerとチャットの会話 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | エージェントトランスクリプト（Cursor IDEソースとは別系統） |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/`（Windows は `%USERPROFILE%\.cursor\acp-sessions`） | JetBrains IDE（GoLand、IntelliJ IDEA など）から Agent Client Protocol ブリッジ経由で使う Cursor — 読み取り専用、プロンプト・応答・推論・ツール呼び出しをワークスペース別に表示 |
 | **Aider** | プロジェクトディレクトリ | チャット履歴と編集ログ |
 | **OpenCode** | `~/.local/share/opencode/` | 会話セッションとツール結果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLiteデータベースの会話履歴 |
@@ -103,12 +104,15 @@ AIコーディングアシスタントは数千もの会話メッセージを生
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | セッション単位のJSONLトランスクリプト（ツール呼び出し、思考プロセス、トークン使用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panelスレッド — SQLite + Zstd圧縮JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai の GLM コーディングエージェント — session/message/part 型 SQLite ストア（タイトル、ツール呼び出し、思考、トークン使用量） |
+| **Hermes Agent** | `HERMES_HOME` 内の `state.db`（既定は `~/.hermes`、Windows は `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research のエージェント — SQLite ストアの CLI・デスクトップ・ゲートウェイセッション（ツール呼び出し、推論、セッションのトークン使用量とコスト） |
+| **Claude.ai**（アカウントエクスポート） | claude.ai → 設定 → プライバシー → データをエクスポートで得た zip、または展開したフォルダ（設定で追加） | 読み取り専用：claude.ai プロジェクトごとの会話、検索可能。エクスポートにトークン使用量がないため統計には含まれない |
+| **Qoder** | `~/.qoder/projects/`（CLI・デスクトップアプリ、`QODER_CONFIG_DIR`）、`~/.qoder-cn/projects/`（Qoder CN）、IDE の `…/Qoder/SharedClientCache/cli/projects/` | Alibaba のエージェント型 IDE・CLI — Claude Code 形式のトランスクリプト（ツール呼び出し、思考、サブエージェント実行、Qoder が記録している場合はトークン使用量） |
 | **OpenHands** | `~/.openhands/sessions/` | クラシックなイベントストア形式の会話 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | ワークスペース単位のチャット（icubeストア；実験的、リバースエンジニアリングによる対応） |
 
 ベンダーロックインなし。クラウド依存なし。ローカルの会話ファイルを美しくレンダリング。
 
-Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini/antigravity`として解決し、セッション状態を`brain/`から、usage/キャッシュ成果物を`.token-monitor/rpc-cache/v1/`から読み取ります。これは現在のランタイムレイアウトおよび`src-tauri/src/commands/antigravity.rs`のルートリゾルバと一致しています。
+Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini/antigravity`（および`~/.gemini/antigravity-cli`）として解決します。デスクトップセッションは`conversation_summaries.db`からワークスペースパスを自動解析してフォルダ別にグループ化されます。トランスクリプト、思考プロセス、ツール呼び出しは`.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db`、`conversations_fts`から復元され、トークンモニターやエディタ状態のフォールバックも備えています。
 
 ## 目次
 
@@ -130,7 +134,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |---------|-------------|
-| **マルチプロバイダー対応** | **31のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code — プロバイダー別フィルタリング、ツール間比較 |
+| **マルチプロバイダー対応** | **33のAIコーディングアシスタント**を統合ビューアで閲覧 — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（Roo Code 含む）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent、Qoder — プロバイダー別フィルタリング、ツール間比較 |
 | **会話ブラウザ** | プロジェクト/セッション別に会話を閲覧（ワークツリーグループ化対応） |
 | **グローバル検索** | 全プロバイダーの会話を瞬時に検索 |
 | **分析ダッシュボード** | デュアルモードトークン統計（課金 vs 会話）、コスト内訳、プロバイダー分布チャート |
@@ -143,7 +147,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | プロバイダー | メモ |
 |---------|-------|
-| **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。セッションはtoken monitorのキャッシュから取得され、専用UIモードを増やさずに、プロジェクト/セッション表示、トークン統計、分析、グローバル検索に参加します。 |
+| **Antigravity** | 標準のプロバイダーパイプラインで読み込まれます。デスクトップセッションはワークスペースフォルダ別にグループ化され、`brain/` のトランスクリプト、`conversations/*.db`、`conversation_summaries.db` から完全な会話履歴（プロンプト、思考プロセス、ツール呼び出し）を復元し、トークン統計、分析、グローバル検索に対応します。サーバーモード（`--serve`）では WebUI がリアルタイムに更新します。 |
 
 ### v1.32.0の新機能
 
@@ -164,7 +168,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |------|------|
-| **WebUI のセキュリティ強化** | `--serve` モードでは、セッション・プロジェクトのパスは履歴フォルダ内に、プロジェクト設定は既知のプロジェクトに限定されます — WebUI をお使いの場合はアップグレードしてください（[アドバイザリ](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **WebUI のセキュリティ強化** | `--serve` モードでは、セッション・プロジェクトのパスは履歴フォルダ内に、プロジェクト設定は既知のプロジェクトに限定されます — WebUI をお使いの場合はアップグレードしてください（[アドバイザリ](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)） |
 | **Claude Code の自動タイトル** | セッション一覧、統計、エクスポート、アーカイブに Claude Code が生成したタイトルを表示します（手動で付けた名前が優先） |
 | **自分のプロンプトとエージェント更新の区別** | Messages パネルが入力したプロンプト、エージェントの更新、コマンド、注入されたコンテキストを区別し、「自分のプロンプトのみ表示」フィルターを提供します |
 
@@ -273,13 +277,13 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 または、完全なCaskパスで直接インストール:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 `No Cask with this name exists` と表示される場合は、上記の完全パスコマンドを実行してください。
@@ -287,13 +291,13 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 アップグレード:
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 アンインストール:
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **手動インストール(.dmg)から移行しますか？**
@@ -302,13 +306,24 @@ brew uninstall --cask claude-code-history-viewer
 > 次に以下を実行します:
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
+
+### Flatpak (Linux)
+
+各リリースには `.flatpak` バンドルが含まれています。[リリースページ](https://github.com/jhlee0409/omnilogue/releases/latest)からダウンロードして、次を実行してください。
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+必要な GNOME ランタイムは Flathub からインストールされます。バンドルは自動更新されないため、アプリが新しいバージョンを通知したら、そのリリースの `.flatpak` を同じ方法でインストールしてください。サンドボックスはホームフォルダーを読み取れますが、書き込むのは各アシスタントの履歴フォルダー、アプリ自身の設定、ダウンロードフォルダーだけです。名前の変更・削除・設定の編集への影響は [LINUX_BUILD.md](LINUX_BUILD.md#flatpak) を参照してください。
 
 ## ソースからビルド
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -338,7 +353,7 @@ pnpm tauri:build     # Production build
 brew install jhlee0409/tap/cchv-server
 
 # Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 どちらの方法でも`cchv-server`がPATHにインストールされます。
@@ -369,7 +384,7 @@ cchv-server --serve
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)からダウンロード。
+[Releases](https://github.com/jhlee0409/omnilogue/releases)からダウンロード。
 
 **CLIオプション:**
 
@@ -443,7 +458,7 @@ GET /health
 ## 使い方
 
 1. アプリを起動
-2. 対応する全31プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
+2. 対応する全33プロバイダー（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLIなど — 上記のプロバイダー表を参照）から会話データを自動スキャン
 3. 左サイドバーでプロジェクトを閲覧 — タブバーでプロバイダー別フィルタリング
 4. セッションをクリックしてメッセージを確認
 5. タブでメッセージ、分析、トークン統計、最近の編集、セッションボードを切り替え
@@ -523,7 +538,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | WebUIに接続できない | `cchv-server`のデフォルトポートは`3727`です。起動時のURLを使い、リモート接続ではポート競合とファイアウォール/プロキシの設定を確認してください。 |
 | 「Unauthorized」/ HTTP 401 | 起動時に表示されたトークン付きURLを使うか、`Authorization: Bearer <token>`を送信してください。固定トークンは`--token`または`CCHV_TOKEN`で設定できます。 |
 | パフォーマンスの問題 | 大量の履歴は初期読み込みが遅い場合あり — アプリは仮想スクロールを使用 |
-| 更新の問題 | 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)から手動ダウンロード |
+| 更新の問題 | 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/omnilogue/releases)から手動ダウンロード |
 
 ## コントリビュート
 
@@ -549,12 +564,14 @@ claude-code-history-viewer://session-title/auth%20bug
 
 [MIT](LICENSE) — 個人・商用利用無料。
 
+Omnilogueは独立したオープンソースプロジェクトであり、セッションログを読み込むAnthropic、OpenAI、GitHub、Googleなどいずれのベンダーとも提携・承認・後援の関係はありません。ClaudeおよびClaude CodeはAnthropic, PBCの商標であり、その他の名称は各所有者の商標です。
+
 ---
 
 <div align="center">
 
 このプロジェクトが役に立ったら、スターをお願いします！
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

@@ -12,7 +12,10 @@ import {
   normalizeProviderIds,
   supportsConversationBreakdown,
   supportsNativeRename,
+  supportsRecentEdits,
   supportsSessionDeletion,
+  supportsSubagents,
+  supportsTrashCleanup,
 } from "@/utils/providers";
 
 describe("providers utils", () => {
@@ -51,6 +54,7 @@ describe("providers utils", () => {
       "amazonq",
       "antigravity",
       "claude",
+      "claude-ai",
       "cline",
       "codebuddy",
       "codex",
@@ -58,11 +62,13 @@ describe("providers utils", () => {
       "copilot",
       "crush",
       "cursor",
+      "cursor-acp",
       "cursor-agent",
       "forgecode",
       "gemini",
       "goose",
       "grok",
+      "hermes",
       "kilo",
       "kimi",
       "kiro",
@@ -73,6 +79,7 @@ describe("providers utils", () => {
       "openinterpreter",
       "pearai",
       "pi",
+      "qoder",
       "qwen",
       "trae",
       "vibe",
@@ -85,9 +92,12 @@ describe("providers utils", () => {
     expect(supportsConversationBreakdown("claude")).toBe(true);
     expect(supportsConversationBreakdown("antigravity")).toBe(true);
     expect(supportsConversationBreakdown("forgecode")).toBe(true);
+    // Their subagent runs are counted as sidechain usage (#577).
+    expect(supportsConversationBreakdown("opencode")).toBe(true);
+    expect(supportsConversationBreakdown("kilo")).toBe(true);
+    expect(supportsConversationBreakdown("zcode")).toBe(true);
     expect(supportsConversationBreakdown("codex")).toBe(false);
     expect(supportsConversationBreakdown("kimi")).toBe(false);
-    expect(supportsConversationBreakdown("opencode")).toBe(false);
     expect(supportsConversationBreakdown("unknown")).toBe(false);
   });
 
@@ -103,6 +113,30 @@ describe("providers utils", () => {
     expect(supportsNativeRename("codex")).toBe(true);
     expect(supportsSessionDeletion("codex")).toBe(true);
     expect(getResumeCommand("codex", "abc-123")).toBe("codex resume abc-123");
+  });
+
+  it("enables deletion only for providers whose delete removes the whole session", () => {
+    expect(supportsSessionDeletion("cursor")).toBe(true);
+    expect(supportsSessionDeletion("cursor-agent")).toBe(true);
+    // Cursor ACP is read-only: its store belongs to the IDE's bridge.
+    expect(supportsSessionDeletion("cursor-acp")).toBe(false);
+    // Index files (Continue sessions.json, Cline taskHistory.json), shared
+    // history files, and monitor-state regeneration (Antigravity) keep these off.
+    for (const provider of ["antigravity", "cline", "continue", "aider", "gemini"] as const) {
+      expect(supportsSessionDeletion(provider)).toBe(false);
+    }
+  });
+
+  it("clears unavailable locations only for providers whose delete goes to the trash", () => {
+    expect(supportsTrashCleanup(undefined)).toBe(true);
+    for (const provider of ["claude", "codex", "cursor-agent"] as const) {
+      expect(supportsTrashCleanup(provider)).toBe(true);
+    }
+    // Cursor and ForgeCode delete database rows permanently; the rest have no
+    // verified delete at all.
+    for (const provider of ["cursor", "forgecode", "gemini", "cline"] as const) {
+      expect(supportsTrashCleanup(provider)).toBe(false);
+    }
   });
 
   it("returns the kimi resume subcommand for kimi sessions", () => {
@@ -264,8 +298,9 @@ describe("providers utils", () => {
     expect(hasAnyConversationBreakdownProvider(["claude"])).toBe(true);
     expect(hasAnyConversationBreakdownProvider(["antigravity"])).toBe(true);
     expect(hasAnyConversationBreakdownProvider(["forgecode"])).toBe(true);
+    expect(hasAnyConversationBreakdownProvider(["codex", "kimi"])).toBe(false);
     expect(hasAnyConversationBreakdownProvider(["codex", "opencode"])).toBe(
-      false
+      true
     );
     expect(hasAnyConversationBreakdownProvider(["kimi"])).toBe(false);
     expect(hasAnyConversationBreakdownProvider([])).toBe(false);
@@ -295,5 +330,31 @@ describe("providers utils", () => {
     expect(coverage.coveredTokens).toBe(0);
     expect(coverage.coveragePercent).toBe(0);
     expect(coverage.hasLimitedProviders).toBe(false);
+  });
+
+  // Mirrors `detect_project_provider` in src-tauri/src/commands/session/edits.rs (#643).
+  it("allows recent edits only for providers the backend reads", () => {
+    for (const id of ["claude", "codex", "forgecode", "kilo", "opencode"]) {
+      expect(supportsRecentEdits(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "qwen", "kimi", "zcode", "copilot"]) {
+      expect(supportsRecentEdits(id)).toBe(false);
+    }
+    // Claude projects come back from the backend with no provider stamped.
+    expect(supportsRecentEdits(undefined)).toBe(true);
+    // An unknown id is not silently treated as Claude.
+    expect(supportsRecentEdits("not-a-provider")).toBe(false);
+  });
+
+  // Mirrors `get_session_subagents` in src-tauri/src/commands/session/load.rs (#643).
+  it("allows subagent lookups only for providers the backend reads", () => {
+    for (const id of ["claude", "qoder", "opencode", "kilo", "zcode"]) {
+      expect(supportsSubagents(id)).toBe(true);
+    }
+    for (const id of ["ompi", "pi", "gemini", "codex", "forgecode"]) {
+      expect(supportsSubagents(id)).toBe(false);
+    }
+    expect(supportsSubagents(undefined)).toBe(true);
+    expect(supportsSubagents("not-a-provider")).toBe(false);
   });
 });

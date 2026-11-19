@@ -1,6 +1,7 @@
 import type { StateCreator } from "zustand";
 import { api } from "@/services/api";
 import type { FullAppStore } from "./types";
+import { ownWork } from "@/navigation/ownership";
 import type {
     BoardSessionData,
     BoardSessionStats,
@@ -26,7 +27,21 @@ export interface BoardSliceState {
     selectedMessageId: string | null;
     isMarkdownPretty: boolean;
     boardLoadError: string | null;
+    /**
+     * Whose the board and its error are: the project path they were loaded
+     * for. The board screen shows them only on that project
+     * (`navigation/screenOwner.ts`).
+     */
+    boardOwner: string | null;
+    boardLoadErrorOwner: string | null;
     isTimelineExpanded: boolean;
+    /**
+     * The session the pointer rests on in the sidebar while the board is open.
+     * Board-only: it scrolls and marks that session's lane and nothing else.
+     * It is not a selection, so the sidebar, the watcher, the WebUI URL and
+     * the open place never see it (plan §9b F2).
+     */
+    boardHoverSession: ClaudeSession | null;
 }
 
 export interface BoardSliceActions {
@@ -38,6 +53,7 @@ export interface BoardSliceActions {
     setMarkdownPretty: (pretty: boolean) => void;
     clearBoard: () => void;
     toggleTimeline: () => void;
+    setBoardHoverSession: (session: ClaudeSession | null) => void;
 }
 
 export type BoardSlice = BoardSliceState & BoardSliceActions;
@@ -51,8 +67,11 @@ const initialBoardState: BoardSliceState = {
     activeBrush: null,
     stickyBrush: false,
     selectedMessageId: null,
+    boardHoverSession: null,
     isMarkdownPretty: true, // Default to pretty printing
     boardLoadError: null,
+    boardOwner: null,
+    boardLoadErrorOwner: null,
     isTimelineExpanded: (() => {
         try {
             const stored = localStorage.getItem(TIMELINE_STORAGE_KEY);
@@ -103,6 +122,13 @@ const getSessionDepth = (messages: ClaudeMessage[], stats: BoardSessionStats): S
 };
 
 
+/**
+ * Board loads are told apart by this counter (request identity): only the
+ * latest load, for the project that is still open, writes the board, and only
+ * the latest clears the loading flag. `clearBoard` supersedes every load.
+ */
+let boardRequest = 0;
+
 export const createBoardSlice: StateCreator<
     FullAppStore,
     [],
@@ -112,7 +138,30 @@ export const createBoardSlice: StateCreator<
     ...initialBoardState,
 
     loadBoardSessions: async (sessions: ClaudeSession[]) => {
-        set({ isLoadingBoard: true, boardLoadError: null });
+        const request = ++boardRequest;
+        const projectPath = get().selectedProject?.path ?? null;
+        // The board and its screen error are the load's data: the latest
+        // load, for the project still open (`ownWork`). Its spinner is the
+        // latest load's to clear.
+        const owner = ownWork(get, {
+            context: { projectPath },
+            isLatest: () => request === boardRequest,
+        });
+        const owns = owner.ownsData;
+        const isLatest = owner.ownsSpinner;
+        // The board and its error are written with the project they are
+        // for: the board screen shows them on that project only.
+        set({ isLoadingBoard: true, boardLoadError: null, boardLoadErrorOwner: null });
+
+        // A project without sessions has an empty board - its own, so the
+        // screen shows it as empty rather than as still loading.
+        if (sessions.length === 0) {
+            if (owns()) {
+                set({ boardSessions: {}, allSortedSessionIds: [], visibleSessionIds: [], boardOwner: projectPath });
+            }
+            if (isLatest()) set({ isLoadingBoard: false });
+            return;
+        }
 
         try {
             const selectedProject = get().selectedProject;
@@ -127,7 +176,8 @@ export const createBoardSlice: StateCreator<
                 } catch (e) {
                     console.error("Failed to fetch git log:", e);
                     const msg = "Failed to fetch git log";
-                    set({ isLoadingBoard: false, boardLoadError: msg });
+                    if (owns()) set({ boardLoadError: msg, boardLoadErrorOwner: projectPath });
+                    if (isLatest()) set({ isLoadingBoard: false });
                     return; // Abort
                 }
             }
@@ -249,12 +299,16 @@ export const createBoardSlice: StateCreator<
                 } catch (err) {
                     console.error(`Failed to load session ${session.session_id}:`, err);
                     const msg = "Failed to load session";
-                    set({ boardLoadError: msg });
+                    if (owns()) set({ boardLoadError: msg, boardLoadErrorOwner: projectPath });
                     return null;
                 }
             });
 
             const results = await Promise.all(loadPromises);
+            if (!owns()) {
+                if (isLatest()) set({ isLoadingBoard: false });
+                return;
+            }
 
             const boardSessions: Record<string, BoardSessionData> = {};
             const allSortedSessionIds: string[] = [];
@@ -278,13 +332,15 @@ export const createBoardSlice: StateCreator<
                 boardSessions,
                 allSortedSessionIds,
                 visibleSessionIds: allSortedSessionIds, // Initially show all
+                boardOwner: projectPath,
                 isLoadingBoard: false,
             });
 
         } catch (error) {
             console.error("Failed to load board sessions:", error);
             const msg = "Failed to load board sessions";
-            set({ isLoadingBoard: false, boardLoadError: msg });
+            if (owns()) set({ boardLoadError: msg, boardLoadErrorOwner: projectPath });
+            if (isLatest()) set({ isLoadingBoard: false });
         }
     },
 
@@ -292,6 +348,8 @@ export const createBoardSlice: StateCreator<
     setActiveBrush: (activeBrush) => set({ activeBrush }),
     setStickyBrush: (stickyBrush) => set({ stickyBrush }),
     setSelectedMessageId: (id) => set({ selectedMessageId: id }),
+
+    setBoardHoverSession: (session) => set({ boardHoverSession: session }),
     setMarkdownPretty: (isMarkdownPretty) => set({ isMarkdownPretty }),
 
     toggleTimeline: () => set((state) => {
@@ -304,8 +362,11 @@ export const createBoardSlice: StateCreator<
         return { isTimelineExpanded: next };
     }),
 
-    clearBoard: () => set((state) => ({
-        ...initialBoardState,
-        isTimelineExpanded: state.isTimelineExpanded,
-    })),
+    clearBoard: () => {
+        boardRequest += 1;
+        set((state) => ({
+            ...initialBoardState,
+            isTimelineExpanded: state.isTimelineExpanded,
+        }));
+    },
 });

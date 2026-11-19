@@ -14,6 +14,7 @@
 //! the `WebUI` session-path allowlist (the desktop IPC path works; the `WebUI`
 //! headless server cannot read arbitrary per-project DBs).
 
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
@@ -77,14 +78,9 @@ fn scan_db(db_path: &Path) -> Option<ClaudeProject> {
     if session_count == 0 {
         return None;
     }
-    let name = Path::new(&project_dir)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .filter(|n| !n.is_empty())
-        .unwrap_or_else(|| project_dir.clone());
     Some(ClaudeProject {
-        name,
-        path: format!("{SCHEME}{project_dir}"),
+        name: project_name_for(&project_dir),
+        path: project_path_for(&project_dir),
         actual_path: project_dir,
         session_count,
         message_count,
@@ -109,17 +105,13 @@ pub fn load_sessions(
 
 fn load_sessions_conn(conn: &Connection, project_dir: &str) -> Result<Vec<ClaudeSession>, String> {
     let mut stmt = conn
-        .prepare(
-            "SELECT s.id, s.title, s.created_at, s.updated_at, \
-                    (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS msg_cnt \
-             FROM sessions s ORDER BY s.updated_at DESC",
-        )
+        .prepare(&format!(
+            "{} ORDER BY updated_at DESC, id",
+            session_rows_sql(conn)?
+        ))
         .map_err(|e| e.to_string())?;
 
-    let project_name = Path::new(project_dir)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let project_name = project_name_for(project_dir);
 
     let sessions = stmt
         .query_map([], |row| {
@@ -135,10 +127,11 @@ fn load_sessions_conn(conn: &Connection, project_dir: &str) -> Result<Vec<Claude
         .map(|(id, title, created, updated, msg_cnt)| {
             let created_iso = epoch_to_iso(created.unwrap_or(0));
             let updated_iso = epoch_to_iso(updated.unwrap_or(0));
+            let session_path = session_path_for(project_dir, &id);
             ClaudeSession {
-                session_id: format!("{SCHEME}{project_dir}{SESSION_SEP}{id}"),
+                session_id: session_path.clone(),
                 actual_session_id: id.clone(),
-                file_path: format!("{SCHEME}{project_dir}{SESSION_SEP}{id}"),
+                file_path: session_path,
                 project_name: project_name.clone(),
                 message_count: msg_cnt,
                 first_message_time: created_iso.clone(),
@@ -196,8 +189,20 @@ fn load_messages_conn(conn: &Connection, session_id: &str) -> Result<Vec<ClaudeM
 
 /// Search across every discovered Crush DB.
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    Ok(search_with_filters(
+        query,
+        limit,
+        &SearchFilters::parse(&Value::Null),
+    ))
+}
+
+pub(crate) fn search_with_filters(
+    query: &str,
+    limit: usize,
+    filters: &SearchFilters<'_>,
+) -> Vec<ClaudeMessage> {
     if query.is_empty() || limit == 0 {
-        return Ok(Vec::new());
+        return Vec::new();
     }
     let pattern = format!("%{query}%");
     let query_lower = query.to_lowercase();
@@ -210,10 +215,11 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         let Some(project_dir) = project_dir_of(&db_path) else {
             continue;
         };
-        let project_name = Path::new(&project_dir)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        let project_name = project_name_for(&project_dir);
+        let project_path = project_path_for(&project_dir);
+        if !filters.matches_project(Some(&project_path), Some(&project_name)) {
+            continue;
+        }
         let Ok(conn) = open_db(&db_path) else {
             continue;
         };
@@ -221,20 +227,22 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             &conn,
             &pattern,
             &query_lower,
-            &project_name,
+            (&project_path, &project_name),
             limit,
+            filters,
             &mut results,
         );
     }
-    Ok(results)
+    results
 }
 
 fn search_one_db(
     conn: &Connection,
     pattern: &str,
     query_lower: &str,
-    project_name: &str,
+    (project_path, project_name): (&str, &str),
     limit: usize,
+    filters: &SearchFilters<'_>,
     results: &mut Vec<ClaudeMessage>,
 ) {
     let Ok(mut stmt) = conn.prepare(
@@ -256,8 +264,7 @@ fn search_one_db(
         if results.len() >= limit {
             return;
         }
-        // Use the real session id (matching load_messages) so a search hit
-        // resolves back to its session; project_name is set separately below.
+        // Match the listed actual_session_id and the loaded message's session id.
         let (id, session_id, role, parts, created) = row;
         let Some(mut msg) = build_message(&session_id, &id, &role, &parts, created.unwrap_or(0))
         else {
@@ -268,8 +275,9 @@ fn search_one_db(
             .as_ref()
             .map(|c| search_json_value_case_insensitive(c, query_lower))
             .unwrap_or(false);
-        if matched {
+        if matched && filters.matches_message(&msg) {
             msg.project_name = Some(project_name.to_string());
+            msg.project_path = Some(project_path.to_string());
             results.push(msg);
         }
     }
@@ -352,6 +360,24 @@ fn project_dir_of(db_path: &Path) -> Option<String> {
         .map(|p| p.to_string_lossy().to_string())
 }
 
+/// Display name of a project dir, shared by scan and search.
+fn project_name_for(project_dir: &str) -> String {
+    Path::new(project_dir)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| project_dir.to_string())
+}
+
+/// Opaque project identity of a project dir, shared by scan and search.
+fn project_path_for(project_dir: &str) -> String {
+    format!("{SCHEME}{project_dir}")
+}
+
+fn session_path_for(project_dir: &str, session_id: &str) -> String {
+    format!("{SCHEME}{project_dir}{SESSION_SEP}{session_id}")
+}
+
 fn db_path_for(project_dir: &str) -> Result<PathBuf, String> {
     let db = Path::new(project_dir).join(".crush").join("crush.db");
     if db.is_file() && !is_symlink(&db) {
@@ -376,21 +402,48 @@ fn open_db(path: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
-fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
-    let session_count: usize = conn
-        .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
+/// Session metadata is authoritative when present. Recover an otherwise
+/// unlisted session from its messages, using their time range and count.
+fn session_rows_sql(conn: &Connection) -> Result<&'static str, String> {
+    let has_sessions = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions')",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
         .map_err(|e| e.to_string())?;
-    let message_count: usize = conn
-        .query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0))
-        .unwrap_or(0);
-    let last: Option<i64> = conn
-        .query_row("SELECT MAX(updated_at) FROM sessions", [], |r| r.get(0))
-        .unwrap_or(None);
-    Ok((
-        session_count,
-        message_count,
-        epoch_to_iso(last.unwrap_or(0)),
-    ))
+    Ok(if has_sessions {
+        "WITH message_sessions AS (
+             SELECT session_id AS id, MIN(created_at) AS created_at,
+                    MAX(created_at) AS updated_at, COUNT(*) AS msg_count
+             FROM messages GROUP BY session_id
+         )
+         SELECT s.id AS id, s.title AS title, s.created_at AS created_at,
+                s.updated_at AS updated_at, COALESCE(m.msg_count, 0) AS msg_count
+         FROM sessions s LEFT JOIN message_sessions m ON m.id = s.id
+         UNION ALL
+         SELECT m.id, NULL, m.created_at, m.updated_at, m.msg_count
+         FROM message_sessions m WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = m.id)"
+    } else {
+        "SELECT session_id AS id, NULL AS title, MIN(created_at) AS created_at,
+                MAX(created_at) AS updated_at, COUNT(*) AS msg_count
+         FROM messages GROUP BY session_id"
+    })
+}
+
+fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
+    conn.query_row(
+        &format!(
+            "SELECT COUNT(*), COALESCE(SUM(msg_count), 0), MAX(updated_at) FROM ({})",
+            session_rows_sql(conn)?
+        ),
+        [],
+        |row| {
+            let last: Option<i64> = row.get(2)?;
+            Ok((row.get(0)?, row.get(1)?, epoch_to_iso(last.unwrap_or(0))))
+        },
+    )
+    .map_err(|e| e.to_string())
 }
 
 fn is_symlink(path: &Path) -> bool {
@@ -502,13 +555,11 @@ fn map_part(part: &Value) -> Option<Value> {
             let d = data?;
             let id = d.get("tool_call_id").and_then(Value::as_str).unwrap_or("");
             let content = d.get("content").and_then(Value::as_str).unwrap_or("");
-            let is_error = d.get("is_error").and_then(Value::as_bool).unwrap_or(false);
-            Some(json!({
-                "type": "tool_result",
-                "tool_use_id": id,
-                "content": content,
-                "is_error": is_error
-            }))
+            let mut block = json!({
+                "type": "tool_result", "tool_use_id": id, "content": content
+            });
+            super::result_evidence::copy_error_flag(&mut block, d, "is_error");
+            Some(block)
         }
         // finish / image_url / binary / shell_command: not rendered for the MVP.
         _ => None,
@@ -598,9 +649,21 @@ mod tests {
     fn search_matches_and_tags_project() {
         let conn = fixture_db();
         let mut results = Vec::new();
-        search_one_db(&conn, "%LOGIN%", "login", "proj", 10, &mut results);
+        search_one_db(
+            &conn,
+            "%LOGIN%",
+            "login",
+            ("crush:///Users/jack/proj", "proj"),
+            10,
+            &SearchFilters::parse(&Value::Null),
+            &mut results,
+        );
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].project_name.as_deref(), Some("proj"));
+        assert_eq!(
+            results[0].project_path.as_deref(),
+            Some("crush:///Users/jack/proj")
+        );
         // session id is the real session (matches load_messages), not the project name.
         assert_eq!(results[0].session_id, "sess1");
     }
@@ -629,6 +692,58 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let home = crate::test_utils::SandboxHome::new();
+        for (dir, session) in [
+            ("client/client-a/app", "sess-a"),
+            ("work/client-b/app", "sess-b"),
+        ] {
+            let crush_dir = home.path().join(dir).join(".crush");
+            fs::create_dir_all(&crush_dir).unwrap();
+            let conn = Connection::open(crush_dir.join("crush.db")).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER, updated_at INTEGER);
+                 CREATE TABLE messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL, role TEXT NOT NULL, parts TEXT NOT NULL DEFAULT '[]', created_at INTEGER);",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO sessions VALUES (?1, 't', 1750000000, 1750000000)",
+                [session],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO messages VALUES (?1, ?1, 'user', ?2, 1750000000)",
+                [
+                    session,
+                    r#"[{"type":"text","data":{"text":"shared needle"}}]"#,
+                ],
+            )
+            .unwrap();
+        }
+
+        let projects = scan_projects().unwrap();
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search("needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let project = projects
+                .iter()
+                .find(|p| {
+                    load_sessions(&p.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.actual_session_id == hit.session_id)
+                })
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+    }
+
+    #[test]
     fn map_part_handles_kinds() {
         assert!(map_part(&json!({"type":"finish","data":{"reason":"end_turn"}})).is_none());
         let t = map_part(&json!({"type":"text","data":{"text":"hi"}})).unwrap();
@@ -646,5 +761,15 @@ mod tests {
         assert_ne!(epoch_to_iso(1_750_000_000), "");
         assert_ne!(epoch_to_iso(1_750_000_000_000), "");
         assert_eq!(epoch_to_iso(0), "");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let block=map_part(&serde_json::json!({"type":"tool_result","data":{"tool_call_id":"c","content":"synthetic"}})).unwrap();
+        assert_ne!(block["is_error"], serde_json::json!(false));
     }
 }

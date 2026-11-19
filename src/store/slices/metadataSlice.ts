@@ -12,11 +12,24 @@ import type {
   ProjectMetadata,
   UserSettings,
   CustomClaudePath,
+  ClaudeAiExportAdded,
   WslSettings,
 } from "../../types";
 import { DEFAULT_USER_METADATA } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
+import {
+  CLAUDE_AI_PROVIDER_ID,
+  DEFAULT_PROVIDER_ID,
+  getProviderId,
+  normalizeProviderIds,
+} from "../../utils/providers";
+import { ownPlace } from "@/navigation/ownership";
 import type { FullAppStore } from "./types";
+import type { ClaudeProject, ClaudeSession } from "../../types";
+import { toast } from "sonner";
+import i18n from "@/i18n";
+import { favoritesMissingRef, libraryRefOf, projectListing } from "@/navigation/library";
+import type { SessionRef } from "@/navigation/place";
 
 // ============================================================================
 // State Interface
@@ -47,6 +60,25 @@ export interface MetadataSliceActions {
     sessionId: string,
     update: Partial<SessionMetadata>
   ) => Promise<void>;
+  /**
+   * Star or unstar a session (the sidebar's favourites, plan T7). Starring
+   * records where the session lives (`ref`, with `project`: the project that
+   * lists it, else the one `projectListing` finds); unstarring drops both. A
+   * failed save is reported with a toast.
+   */
+  toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => Promise<void>;
+  /**
+   * Give the stars among `sessions` that predate `ref` the location they
+   * lack. Called when a project's sessions load.
+   */
+  backfillFavoriteRefs: (sessions: ClaudeSession[]) => Promise<void>;
+  /**
+   * Carry a session's record to its new key after its file moved (Claude
+   * Code session ids are file paths). A recorded location (`ref`, starred
+   * sessions) becomes `ref`. The old record is removed only once the new one
+   * is saved; a failed save rejects and leaves the old record in place.
+   */
+  moveSessionMetadata: (fromId: string, toId: string, ref: SessionRef) => Promise<void>;
   /** Update metadata for a specific project */
   updateProjectMetadata: (
     projectPath: string,
@@ -54,6 +86,12 @@ export interface MetadataSliceActions {
   ) => Promise<void>;
   /** Update global user settings */
   updateUserSettings: (update: Partial<UserSettings>) => Promise<void>;
+  /**
+   * User metadata as the backend last saved it, from any window (issue #656):
+   * it replaces this window's copy; another window's change of the custom
+   * Claude folders rescans the projects here too.
+   */
+  applySharedMetadata: (metadata: UserMetadata) => void;
   /** Get session display name (custom name or fallback) */
   getSessionDisplayName: (
     sessionId: string,
@@ -75,6 +113,17 @@ export interface MetadataSliceActions {
   removeCustomClaudePath: (path: string) => Promise<void>;
   /** Update label for a custom Claude directory path */
   updateCustomClaudePathLabel: (path: string, label: string) => Promise<void>;
+  /**
+   * Register a claude.ai account export (zip or extracted folder). The
+   * backend reads it first and refuses a path that is not one; on success
+   * the `claude-ai` provider is shown alongside the active ones.
+   */
+  addClaudeAiExport: (path: string, label?: string) => Promise<ClaudeAiExportAdded>;
+  /**
+   * Forget a registered claude.ai export; the export itself is never
+   * touched. With no export left the `claude-ai` provider filter goes too.
+   */
+  removeClaudeAiExport: (path: string) => Promise<void>;
   /** Enable or disable WSL scanning */
   setWslEnabled: (enabled: boolean) => Promise<void>;
   /** Toggle a WSL distro in/out of the excluded list */
@@ -100,6 +149,44 @@ export const initialMetadataState: MetadataSliceState = {
 // Slice Creator
 // ============================================================================
 
+/*
+  Metadata writes go out one at a time (T7 review R3). Each request sends a
+  whole record (session, project or settings), which the backend stores as
+  is, and answers with the whole metadata. Two writes built from the same
+  snapshot therefore lose one of them - a ref backfill used to write back a
+  star the user had just removed - and an older answer could land over a
+  newer one. Queued, each write reads the state the previous one left when
+  its turn comes, and the answers arrive in order. A failed write does not
+  stall the ones behind it; its own caller still sees the failure. One app
+  store, so one queue.
+
+  Several desktop windows (issue #656) each have a store and a queue; the
+  backend serializes their saves and announces each one, in order, to every
+  window (`applySharedMetadata`), so the last announcement is the newest
+  metadata. An answer to this window's own request is older than any
+  announcement that arrived while the request was out: it lands only when
+  none did (`announcements`).
+*/
+let writes: Promise<unknown> = Promise.resolve();
+function inTurn<T>(write: () => Promise<T>): Promise<T> {
+  const turn = writes.then(write);
+  writes = turn.catch(() => undefined);
+  return turn;
+}
+
+/** Saves announced by the backend so far (`applySharedMetadata`). */
+let announcements = 0;
+
+type SetMetadata = (partial: Pick<FullAppStore, "userMetadata">) => void;
+
+/** Ask the backend for the whole metadata; the answer lands unless a save was announced meanwhile. */
+async function request(set: SetMetadata, command: string, ...args: [Record<string, unknown>?]): Promise<UserMetadata> {
+  const sent = announcements;
+  const metadata = await api<UserMetadata>(command, ...args);
+  if (announcements === sent) set({ userMetadata: metadata });
+  return metadata;
+}
+
 export const createMetadataSlice: StateCreator<
   FullAppStore,
   [],
@@ -112,9 +199,8 @@ export const createMetadataSlice: StateCreator<
     set({ isMetadataLoading: true, metadataError: null });
 
     try {
-      const metadata = await api<UserMetadata>("load_user_metadata");
+      await request(set, "load_user_metadata");
       set({
-        userMetadata: metadata,
         isMetadataLoaded: true,
         isMetadataLoading: false,
       });
@@ -129,81 +215,159 @@ export const createMetadataSlice: StateCreator<
     }
   },
 
-  saveMetadata: async () => {
-    const { userMetadata } = get();
+  saveMetadata: () =>
+    inTurn(async () => {
+      const { userMetadata } = get();
 
-    try {
-      await api("save_user_metadata", { metadata: userMetadata });
-    } catch (error) {
-      console.error("Failed to save user metadata:", error);
-      set({ metadataError: String(error) });
-    }
-  },
+      try {
+        await api("save_user_metadata", { metadata: userMetadata });
+      } catch (error) {
+        console.error("Failed to save user metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
 
-  updateSessionMetadata: async (
-    sessionId: string,
-    update: Partial<SessionMetadata>
-  ) => {
-    const { userMetadata } = get();
-    const existingSession = userMetadata.sessions[sessionId] || {};
-    const mergedSession: SessionMetadata = { ...existingSession, ...update };
+  updateSessionMetadata: (sessionId: string, update: Partial<SessionMetadata>) =>
+    inTurn(async () => {
+      const { userMetadata } = get();
+      const existingSession = userMetadata.sessions[sessionId] || {};
+      const mergedSession: SessionMetadata = { ...existingSession, ...update };
 
-    try {
-      const updatedMetadata = await api<UserMetadata>(
-        "update_session_metadata",
-        {
+      try {
+        await request(set, "update_session_metadata", {
           sessionId,
           update: mergedSession,
+        });
+      } catch (error) {
+        console.error("Failed to update session metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
+
+  // It toggles what the record holds when the write's turn comes.
+  toggleSessionFavorite: (session: ClaudeSession, project?: ClaudeProject | null) => {
+    const ref = libraryRefOf(session, projectListing(get(), session, project));
+    return inTurn(async function toggleSessionFavorite() {
+      const existing = get().userMetadata.sessions[session.session_id] ?? {};
+      const update: SessionMetadata = existing.starred
+        ? { ...existing, starred: undefined, ref: undefined }
+        : { ...existing, starred: true, ref };
+      try {
+        await request(set, "update_session_metadata", {
+          sessionId: session.session_id,
+          update,
+        });
+      } catch (error) {
+        console.error("Failed to update favourite:", error);
+        set({ metadataError: String(error) });
+        toast.error(i18n.t("session.favorite.saveError"));
+      }
+    });
+  },
+
+  // The ref is taken now, while `sessions` is the list it came from. Whether
+  // the session still needs it (starred, no ref) is decided at write time, so
+  // an unstar made meanwhile is never undone.
+  backfillFavoriteRefs: async (sessions: ClaudeSession[]) => {
+    const pending = favoritesMissingRef(get().userMetadata, sessions).map((session) => ({
+      sessionId: session.session_id,
+      ref: libraryRefOf(session, projectListing(get(), session)),
+    }));
+    for (const { sessionId, ref } of pending) {
+      await inTurn(async () => {
+        const existing = get().userMetadata.sessions[sessionId];
+        if (existing?.starred !== true || existing.ref) return;
+        try {
+          await request(set, "update_session_metadata", {
+            sessionId,
+            update: { ...existing, ref },
+          });
+        } catch (error) {
+          console.error("Failed to record a favourite's location:", error);
+          set({ metadataError: String(error) });
         }
-      );
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update session metadata:", error);
-      set({ metadataError: String(error) });
+      });
     }
   },
 
-  updateProjectMetadata: async (
-    projectPath: string,
-    update: Partial<ProjectMetadata>
-  ) => {
-    const { userMetadata } = get();
-    const existingProject = userMetadata.projects[projectPath] || {};
-    const mergedProject: ProjectMetadata = { ...existingProject, ...update };
+  moveSessionMetadata: (fromId: string, toId: string, ref: SessionRef) =>
+    inTurn(async () => {
+      const existing = get().userMetadata.sessions[fromId];
+      if (!existing || fromId === toId) return;
+      const moved: SessionMetadata =
+        existing.ref || existing.starred ? { ...existing, ref } : existing;
+      try {
+        await request(set, "update_session_metadata", {
+          sessionId: toId,
+          update: moved,
+        });
+      } catch (error) {
+        console.error("Failed to carry session metadata over:", error);
+        set({ metadataError: String(error) });
+        throw error;
+      }
+      try {
+        // An empty record removes the entry.
+        await request(set, "update_session_metadata", {
+          sessionId: fromId,
+          update: {},
+        });
+      } catch (error) {
+        // The new record is saved; a stale old one is harmless.
+        console.error("Failed to remove the old session metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
 
-    try {
-      const updatedMetadata = await api<UserMetadata>(
-        "update_project_metadata",
-        {
+  updateProjectMetadata: (projectPath: string, update: Partial<ProjectMetadata>) =>
+    inTurn(async () => {
+      const { userMetadata } = get();
+      const existingProject = userMetadata.projects[projectPath] || {};
+      const mergedProject: ProjectMetadata = { ...existingProject, ...update };
+
+      try {
+        await request(set, "update_project_metadata", {
           projectPath,
           update: mergedProject,
-        }
-      );
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update project metadata:", error);
-      set({ metadataError: String(error) });
-    }
-  },
+        });
+      } catch (error) {
+        console.error("Failed to update project metadata:", error);
+        set({ metadataError: String(error) });
+      }
+    }),
 
-  updateUserSettings: async (update: Partial<UserSettings>) => {
-    const { userMetadata } = get();
-    const mergedSettings: UserSettings = {
-      ...userMetadata.settings,
-      ...update,
-    };
+  updateUserSettings: (update: Partial<UserSettings>) =>
+    inTurn(async () => {
+      const { userMetadata } = get();
+      const mergedSettings: UserSettings = {
+        ...userMetadata.settings,
+        ...update,
+      };
 
-    try {
-      const updatedMetadata = await api<UserMetadata>("update_user_settings", {
-        settings: mergedSettings,
-      });
-      set({ userMetadata: updatedMetadata });
-    } catch (error) {
-      console.error("Failed to update user settings:", error);
-      const message = String(error);
-      set({ metadataError: message });
-      throw new Error(message);
-    }
+      try {
+        await request(set, "update_user_settings", {
+          settings: mergedSettings,
+        });
+      } catch (error) {
+        console.error("Failed to update user settings:", error);
+        const message = String(error);
+        set({ metadataError: message });
+        throw new Error(message);
+      }
+    }),
+
+  applySharedMetadata: (metadata: UserMetadata) => {
+    announcements += 1;
+    const current = get().userMetadata;
+    // This window's own save, already landed from its answer.
+    if (JSON.stringify(current) === JSON.stringify(metadata)) return;
+    const foldersChanged =
+      JSON.stringify(current.settings.customClaudePaths ?? []) !==
+      JSON.stringify(metadata.settings.customClaudePaths ?? []);
+    set({ userMetadata: metadata });
+    // Another window added or removed a Claude folder: list its projects
+    // here too, as that window did.
+    if (foldersChanged && get().projectsScanned) void get().scanProjects();
   },
 
   getSessionDisplayName: (
@@ -298,6 +462,53 @@ export const createMetadataSlice: StateCreator<
           : cp
       ),
     });
+  },
+
+  addClaudeAiExport: async (path: string, label?: string) => {
+    const added = await inTurn(async () => {
+      const result = await api<ClaudeAiExportAdded>("add_claude_ai_export", {
+        path,
+        label: label ?? null,
+      });
+      set({ userMetadata: result.metadata });
+      return result;
+    });
+    const { activeProviders, setActiveProviders } = get();
+    if (!activeProviders.includes(CLAUDE_AI_PROVIDER_ID)) {
+      setActiveProviders(normalizeProviderIds([...activeProviders, CLAUDE_AI_PROVIDER_ID]));
+    }
+    await get().scanProjects();
+    return added;
+  },
+
+  removeClaudeAiExport: async (path: string) => {
+    // Removing never navigates; only the place this removal started on may
+    // lose a project that no longer exists.
+    const ownsPlace = ownPlace(get);
+    const metadata = await inTurn(async () => {
+      const saved = await api<UserMetadata>("remove_claude_ai_export", { path });
+      set({ userMetadata: saved });
+      return saved;
+    });
+    const { activeProviders, setActiveProviders } = get();
+    if (
+      (metadata.settings.claudeAiExports?.length ?? 0) === 0 &&
+      activeProviders.includes(CLAUDE_AI_PROVIDER_ID)
+    ) {
+      const remaining = activeProviders.filter((id) => id !== CLAUDE_AI_PROVIDER_ID);
+      setActiveProviders(remaining.length > 0 ? remaining : [DEFAULT_PROVIDER_ID]);
+    }
+    await get().scanProjects();
+    // A project of the removed export may still be open.
+    const { selectedProject, projects, clearProjectSelection } = get();
+    if (
+      ownsPlace() &&
+      selectedProject &&
+      getProviderId(selectedProject.provider) === CLAUDE_AI_PROVIDER_ID &&
+      !projects.some((project) => project.path === selectedProject.path)
+    ) {
+      clearProjectSelection();
+    }
   },
 
   setWslEnabled: async (enabled: boolean) => {

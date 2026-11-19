@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "../renderers";
 import { Activity, Hash, Coins, ArrowDownToLine, ArrowUpFromLine, Brain, Database } from "lucide-react";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface OpenCodeStepProps {
   reason: string;
@@ -20,6 +22,7 @@ interface OpenCodeStepProps {
 export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
   ({ reason, snapshot, cost, tokens }) => {
     const { t } = useTranslation();
+    const fmt = useFormat();
     const styles = getVariantStyles("system");
     const hasTokens = tokens.input + tokens.output + tokens.reasoning + tokens.cache_read + tokens.cache_write > 0;
 
@@ -32,16 +35,16 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
               {t("renderers.opencodeStep.title")}
             </span>
             {snapshot && (
-              <code className="text-px10 px-1.5 py-0.5 bg-background rounded border border-border font-mono text-muted-foreground">
-                <Hash size={10} className="inline mr-0.5" />
+              <code className="text-caption px-1.5 py-0.5 bg-background rounded border border-border font-mono text-muted-foreground">
+                <Hash size={14} className="inline mr-0.5" />
                 {snapshot}
               </code>
             )}
           </div>
           {hasTokens && (
             <span className={cn(layout.smallText, "font-mono text-muted-foreground")}>
-              <Coins size={10} className="inline mr-0.5" />
-              ${cost.toFixed(4)}
+              <Coins size={14} className="inline mr-0.5" />
+              <Num>{fmt.cost(cost)}</Num>
             </span>
           )}
         </div>
@@ -73,11 +76,15 @@ export const OpenCodeStepRenderer = memo<OpenCodeStepProps>(
 OpenCodeStepRenderer.displayName = "OpenCodeStepRenderer";
 
 function TokenBadge({ icon: Icon, label, value }: { icon: React.ComponentType<{ size?: number; className?: string }>; label: string; value: number }) {
+  const fmt = useFormat();
   if (value === 0) return null;
   return (
-    <span className="text-px10 text-muted-foreground font-mono flex items-center gap-0.5">
-      <Icon size={10} />
-      {label}: {value.toLocaleString()}
+    <span className="text-caption text-muted-foreground font-mono flex items-center gap-0.5">
+      <Icon size={14} />
+      {/* One flex item, as the bare text run was: the space after the colon stays. */}
+      <span>
+        {label}: <Num>{fmt.count(value)}</Num>
+      </span>
     </span>
   );
 }

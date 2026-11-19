@@ -170,6 +170,8 @@ export interface BaseClaudeMessage {
   timestamp: string;
   /** Project name (extracted from file path during search) */
   projectName?: string;
+  /** Opaque project path/URI, qualified by provider; absent in legacy search results. */
+  projectPath?: string;
   isSidechain?: boolean;
   content?: string | ContentItem[] | Record<string, unknown>;
 }
@@ -296,6 +298,12 @@ export interface MessageNode {
 // Pagination
 // ============================================================================
 
+/**
+ * One chat-style page (offset 0 = newest). `next_offset` and `total_count`
+ * are in the backend's index space (see `PaginationState`). A page can hold
+ * fewer messages than it advanced — even none — when lines fail to parse, so
+ * page by `next_offset`/`has_more`, never by `messages.length`.
+ */
 export interface MessagePage {
   messages: ClaudeMessage[];
   total_count: number;

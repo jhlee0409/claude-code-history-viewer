@@ -10,10 +10,53 @@ import type { ClaudeMessage } from "../../../types";
 import type { MessageFilter } from "../../../store/slices/filterSlice";
 import { extractClaudeMessageContent } from "../../../utils/messageUtils";
 import { filterMessagesByCategory } from "./messageCategories";
+import { classifyMessage, isCodexHeartbeat, isUserAnswer } from "./messageKinds";
+import { codexAutomatedTurns } from "../../transcript/codexTurns";
+import { turnStartKinds } from "../../transcript/isTurnStart";
+
+/** True when any text block (or string content) holds non-whitespace text. */
+function hasReplyText(msg: ClaudeMessage): boolean {
+  if (typeof msg.content === "string") return msg.content.trim() !== "";
+  if (!Array.isArray(msg.content)) return false;
+  return msg.content.some(
+    (block) => block.type === "text" && typeof block.text === "string" && block.text.trim() !== "",
+  );
+}
+
+/**
+ * The prompts the user typed (human turn starts) plus, for each, the last
+ * assistant message with text before the next typed prompt. Automated turns
+ * (agent updates, heartbeats) do not end a turn, so a reply to one counts as
+ * the final reply when nothing else follows it.
+ *
+ * Computed over the unfiltered list so "final" means final in the
+ * conversation, not in whatever the other filters left visible.
+ */
+function promptAndFinalReplyUuids(
+  messages: ClaudeMessage[],
+  ctx: { inSubagent: boolean },
+): Set<string> {
+  const starts = turnStartKinds(messages, ctx);
+  const keep = new Set<string>();
+  let lastReply: string | null = null;
+  for (const msg of messages) {
+    if (msg.isSidechain && !ctx.inSubagent) continue;
+    if (starts.get(msg.uuid) === "human") {
+      if (lastReply) keep.add(lastReply);
+      lastReply = null;
+      keep.add(msg.uuid);
+    } else if (msg.type === "assistant" && hasReplyText(msg)) {
+      lastReply = msg.uuid;
+    }
+  }
+  if (lastReply) keep.add(lastReply);
+  return keep;
+}
 
 export function applyMessageDisplayFilter(
   messages: ClaudeMessage[],
   messageFilter: MessageFilter,
+  ctx: { inSubagent: boolean } = { inSubagent: false },
 ): ClaudeMessage[] {
   const { roles, contentTypes } = messageFilter;
   const allRoles = roles.user && roles.assistant;
@@ -23,11 +66,25 @@ export function applyMessageDisplayFilter(
     "parallel-task",
     contentTypes.parallelTasks,
   );
-  if (allRoles && allContent) return parallelTaskFilteredMessages;
+  const promptsAndReplies = messageFilter.promptsAndFinalReplies ? promptAndFinalReplyUuids(messages, ctx) : null;
+  const candidates = promptsAndReplies
+    ? parallelTaskFilteredMessages.filter((msg) => promptsAndReplies.has(msg.uuid))
+    : parallelTaskFilteredMessages;
+  if (allRoles && allContent) return candidates;
 
-  return parallelTaskFilteredMessages.filter((msg) => {
+  const automated = !roles.assistant ? codexAutomatedTurns(messages).uuids : new Set<string>();
+  return candidates.filter((msg) => {
+    // The user's answer to an AskUserQuestion is the user's input even on the
+    // assistant row its result merged into, so the user role keeps it, and no
+    // content-type filter hides it.
+    if (roles.user && isUserAnswer(msg)) return true;
     // Role filter
-    if (msg.type === "user") return roles.user;
+    if (msg.type === "user") {
+      // Owner decision: user-only means human input, not automatic producer
+      // cycles. Keep automation in all-messages; the model owns its own turns.
+      if (!roles.assistant && (automated.has(msg.uuid) || classifyMessage(msg).kind === "agent-update" || isCodexHeartbeat(msg))) return false;
+      return roles.user;
+    }
     if (msg.type === "assistant") {
       if (!roles.assistant) return false;
       // Content type filter — check if assistant message has any visible content left

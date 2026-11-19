@@ -6,25 +6,48 @@
 //! - `edits`: File edit tracking and restore functions
 //! - `rename`: Native session renaming functions
 //! - `delete`: Session deletion
+//! - `clear_unavailable`: Clearing the sessions of a project whose location is gone
+//! - `move_session`: Moving a Claude Code session to another project
 
+mod api_view;
+mod branches;
 mod chain;
+mod clear_unavailable;
 mod delete;
 mod edits;
 mod load;
+mod move_session;
 #[cfg(all(test, unix))]
 mod path_safety_tests;
+pub(crate) mod prompt_history;
 mod rename;
 mod resume;
 mod search;
+#[cfg(all(test, unix))]
+mod swap_after_check_tests;
+mod timestamp_fill;
 
 // Re-export all commands
+pub use api_view::load_session_api_view;
+pub use branches::{
+    claude_conversation_branches, conversation_branches_from_messages, BranchOption, BranchPoint,
+    ConversationBranches,
+};
 pub use chain::{resolve_session_chain, superseded_chain_paths};
+#[cfg(feature = "webui-server")]
+pub use clear_unavailable::is_trash_cleanup_provider;
+pub use clear_unavailable::{
+    clear_unavailable_sessions, preview_unavailable_session_cleanup, ConfirmedCleanup,
+    UnavailableProjectRef,
+};
 pub use delete::*;
 pub use edits::*;
 pub use load::*;
+pub use move_session::move_session_to_project;
 pub use rename::*;
 pub use resume::*;
 pub use search::*;
+pub(crate) use timestamp_fill::fill_missing_timestamps;
 
 /// Split a provider URI into its scheme and remainder, or `None` if the value
 /// is an ordinary path.
@@ -105,6 +128,13 @@ pub(crate) fn is_safe_session_path(path: &std::path::Path) -> Result<(), String>
 pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), String> {
     use std::path::PathBuf;
 
+    // A prompt-history session (#764) names no file, and its project folder
+    // may be gone: it is judged by the `projects/` folder it is listed under,
+    // whose Claude root holds the `history.jsonl` it is read from.
+    if let Some(projects_dir) = prompt_history::projects_dir_of(path) {
+        return is_safe_history_file_path(&projects_dir);
+    }
+
     let home_raw = crate::utils::home_dir().ok_or("Could not find home directory")?;
     let home = home_raw.canonicalize().unwrap_or_else(|_| home_raw.clone());
     let home = crate::utils::strip_windows_extended_prefix(&home);
@@ -169,6 +199,10 @@ pub(crate) fn is_safe_history_file_path(path: &std::path::Path) -> Result<(), St
     if let Some(trae_base) = crate::providers::trae::get_base_path() {
         allowed.push(PathBuf::from(trae_base));
     }
+    // Qoder's transcript stores (CLI, Qoder CN, the IDE's embedded agent):
+    // each `projects/` folder holds only session transcripts, their sidecars
+    // and subagent transcripts, never the app's credentials.
+    allowed.extend(crate::providers::qoder::store_dirs());
     // Claude directories the user configured (Settings → Custom Claude
     // Directories, `CLAUDE_CONFIG_DIR`) — the same sources `scan_all_projects`
     // reads. Each must pass the custom-directory validator, which already
@@ -301,6 +335,31 @@ mod tests {
         );
     }
 
+    /// #764. A prompt-history session names no file, and its project folder
+    /// may be gone: it is judged by the `projects/` folder it is listed
+    /// under, inside the roots and out.
+    #[test]
+    #[serial]
+    fn judges_prompt_history_paths_by_their_projects_folder() {
+        let sandbox = crate::test_utils::SandboxHome::new();
+        let home = sandbox.path();
+        let projects = home.join(".claude").join("projects");
+        std::fs::create_dir_all(&projects).expect("mk projects");
+        let session = "aaaaaaaa-0000-4000-8000-000000000001.prompt-history";
+
+        let gone_folder = projects.join("-work-gone").join(session);
+        assert!(is_safe_history_file_path(&gone_folder).is_ok());
+        assert!(is_safe_session_path(&gone_folder).is_ok());
+
+        let elsewhere = home.join("elsewhere").join("projects");
+        std::fs::create_dir_all(&elsewhere).expect("mk elsewhere");
+        let outside = elsewhere.join("-work").join(session);
+        assert_eq!(
+            is_safe_history_file_path(&outside),
+            Err(OUTSIDE_HISTORY_ROOTS.to_string())
+        );
+    }
+
     /// #560. Several providers mint session paths that are provider URIs, not
     /// filesystem paths - `OpenCode`'s `SQLite` store is one, and a dozen others do
     /// the same. The guard treated them as paths, failed to canonicalise a
@@ -316,6 +375,8 @@ mod tests {
             "kimi-code://wd_demo/session_1",
             "forgecode-db://workspace/conv-1",
             "zed://thread-7",
+            "cursor-acp://E:\\P4\\testgo#00000000-0000-4000-8000-00000000000a",
+            "cursor-acp:///work/app#00000000-0000-4000-8000-00000000000a",
         ] {
             let res = is_safe_session_path(&std::path::PathBuf::from(uri));
             assert!(res.is_ok(), "provider URI {uri} was rejected: {res:?}");
@@ -332,6 +393,8 @@ mod tests {
         for uri in [
             "opencode://../../etc/passwd",
             "zed://thread/../../../root/.ssh/id_rsa",
+            "cursor-acp:///work/../../etc#00000000-0000-4000-8000-00000000000a",
+            "cursor-acp://E:\\work\\..\\..\\x#id",
         ] {
             let res = is_safe_session_path(&std::path::PathBuf::from(uri));
             assert!(res.is_err(), "traversal inside {uri} was accepted");

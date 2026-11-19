@@ -1,3 +1,5 @@
+import { useId } from "react";
+import { Button } from "@/components/ui/button";
 /**
  * AgentProgressGroupRenderer - Renders grouped agent progress logs
  *
@@ -9,18 +11,20 @@ import { memo, useMemo } from "react";
 import {
   ChevronRight,
   Bot,
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  FileEdit,
+  LoaderCircle,
+  CircleCheck,
+  CircleAlert,
+  FilePen,
   FileSearch,
-  Terminal,
+  SquareTerminal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import type { ProgressData } from "@/types";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface AgentProgressEntry {
   data: ProgressData;
@@ -74,9 +78,9 @@ const getActionIcon = (data: ProgressData) => {
         const toolUse = content.find((c: { type?: string }) => c.type === "tool_use");
         if (toolUse && typeof toolUse === "object" && "name" in toolUse) {
           const toolName = String(toolUse.name).toLowerCase();
-          if (toolName.includes("edit") || toolName.includes("write")) return FileEdit;
+          if (toolName.includes("edit") || toolName.includes("write")) return FilePen;
           if (toolName.includes("read") || toolName.includes("glob") || toolName.includes("grep")) return FileSearch;
-          if (toolName.includes("bash")) return Terminal;
+          if (toolName.includes("bash")) return SquareTerminal;
         }
       }
     }
@@ -94,7 +98,8 @@ const ProgressEntry = memo(function ProgressEntry({
 }) {
   const summary = getProgressSummary(entry.data);
   const ActionIcon = getActionIcon(entry.data);
-  const timestamp = new Date(entry.timestamp).toLocaleTimeString();
+  const fmt = useFormat();
+  const timestamp = fmt.time(entry.timestamp);
 
   return (
     <div className={cn(
@@ -109,7 +114,7 @@ const ProgressEntry = memo(function ProgressEntry({
         <span className="text-foreground/80 break-words">{summary || "Processing..."}</span>
       </div>
       <span className="text-muted-foreground/70 shrink-0 tabular-nums">
-        {timestamp}
+        <Num>{timestamp}</Num>
       </span>
     </div>
   );
@@ -119,6 +124,7 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
   entries,
   agentId,
 }: AgentProgressGroupRendererProps) {
+  const isExpandedContentId = useId();
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useCaptureExpandState("progress", false);
   const styles = getVariantStyles("info");
@@ -143,13 +149,13 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
   return (
     <div className={cn(layout.rounded, "border overflow-hidden", styles.container)}>
       {/* Header */}
-      <button
+      <Button aria-expanded={isExpanded} aria-controls={isExpandedContentId} variant="ghost" size="sm"
         type="button"
         onClick={() => setIsExpanded(prev => !prev)}
-        className={cn(
+        className={cn("h-auto whitespace-normal justify-start font-normal", cn(
           "w-full flex items-center gap-2 px-3 py-2 text-left",
           "hover:bg-muted/30 transition-colors"
-        )}
+        ))}
       >
         <ChevronRight
           className={cn(
@@ -184,14 +190,14 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
           )}>
             {entries.length} {t("agentProgressGroup.steps", { defaultValue: "steps" })}
           </span>
-          {isRunning && <Loader2 className="w-3.5 h-3.5 text-info animate-spin" />}
-          {isCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-success" />}
-          {hasError && <AlertCircle className="w-3.5 h-3.5 text-destructive" />}
+          {isRunning && <LoaderCircle className="w-3.5 h-3.5 text-info animate-spin" />}
+          {isCompleted && <CircleCheck className="w-3.5 h-3.5 text-success" />}
+          {hasError && <CircleAlert className="w-3.5 h-3.5 text-destructive" />}
         </div>
-      </button>
+      </Button>
 
       {/* Expanded Progress List */}
-      {isExpanded && (
+      <div id={isExpandedContentId} hidden={!isExpanded}>{isExpanded && (
         <div className="border-t border-border/50 max-h-64 overflow-y-auto">
           {entries.map((entry, index) => (
             <ProgressEntry
@@ -201,7 +207,7 @@ export const AgentProgressGroupRenderer = memo(function AgentProgressGroupRender
             />
           ))}
         </div>
-      )}
+      )}</div>
     </div>
   );
 });

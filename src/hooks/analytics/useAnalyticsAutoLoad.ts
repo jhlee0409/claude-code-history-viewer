@@ -2,6 +2,11 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAppStore } from "../../store/useAppStore";
+import { ownPlace } from "../../navigation/ownership";
+import {
+  loadProjectAnalytics,
+  loadSessionAnalytics,
+} from "../../navigation/screenData";
 
 /**
  * Auto-load side effects for analytics data.
@@ -10,8 +15,10 @@ import { useAppStore } from "../../store/useAppStore";
  * @param computed - Computed view flags from useAnalyticsComputed
  */
 export function useAnalyticsAutoLoad(computed: {
-  isTokenStatsView: boolean;
-  isAnalyticsView: boolean;
+  /** Project analytics on the overview sub-tab. */
+  isAnalyticsOverview: boolean;
+  /** Project analytics on the token statistics sub-tab (T9b). */
+  isAnalyticsTokens: boolean;
 }) {
   const { t } = useTranslation();
   const dateFilterKeyRef = useRef<string | null>(null);
@@ -19,6 +26,10 @@ export function useAnalyticsAutoLoad(computed: {
   const analyticsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
   const tokenStatsSessionAutoloadAttemptKeyRef = useRef<string | null>(null);
 
+  const view = useAppStore((s) => s.view);
+  const analyticsTab = useAppStore((s) => s.analyticsTab);
+  const onOverview = view === "analytics" && analyticsTab === "overview";
+  const onTokens = view === "analytics" && analyticsTab === "tokens";
   const {
     analytics,
     selectedProject,
@@ -26,15 +37,7 @@ export function useAnalyticsAutoLoad(computed: {
     isLoadingTokenStats,
     sessionTokenStats,
     dateFilter,
-    setAnalyticsProjectSummary,
-    setAnalyticsSessionComparison,
-    setAnalyticsLoadingProjectSummary,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsProjectSummaryError,
-    setAnalyticsSessionComparisonError,
     loadProjectTokenStats,
-    loadProjectStatsSummary,
-    loadSessionComparison,
     loadSessionTokenStats,
     loadGlobalStats,
   } = useAppStore();
@@ -45,7 +48,7 @@ export function useAnalyticsAutoLoad(computed: {
   const selectedSessionFilePath = selectedSession?.file_path ?? null;
 
   /**
-   * Session change auto-refresh for analytics view
+   * Session change auto-refresh for the analytics overview
    */
   useEffect(() => {
     if (analytics.isLoadingSessionComparison || isLoadingTokenStats) {
@@ -53,7 +56,7 @@ export function useAnalyticsAutoLoad(computed: {
     }
 
     if (
-      analytics.currentView === "analytics" &&
+      onOverview &&
       selectedProjectPath &&
       selectedSessionId &&
       selectedSessionFilePath
@@ -75,41 +78,17 @@ export function useAnalyticsAutoLoad(computed: {
       }
       analyticsSessionAutoloadAttemptKeyRef.current = autoloadKey;
 
+      // A reload of the open screen's data, owned like any other screen load
+      // (`loadSessionAnalytics`): a navigation since it started drops it.
+      const project = useAppStore.getState().selectedProject;
+      const session = useAppStore.getState().selectedSession;
       const updateSessionData = async () => {
-        try {
-          setAnalyticsLoadingSessionComparison(true);
-
-          const promises: Promise<unknown>[] = [];
-
-          if (!hasCachedSessionComparison) {
-            promises.push(
-              loadSessionComparison(
-                selectedSessionId,
-                selectedProjectPath
-              ).then((comparison) => {
-                setAnalyticsSessionComparison(comparison);
-                setAnalyticsSessionComparisonError(null);
-              })
-            );
-          }
-
-          if (!hasCachedSessionTokenStats) {
-            promises.push(
-              loadSessionTokenStats(selectedSessionFilePath)
-            );
-          }
-
-          await Promise.all(promises);
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error
-              ? error.message
-              : t("common.hooks.sessionComparisonLoadFailed");
-          setAnalyticsSessionComparisonError(errorMessage);
-          console.error("Failed to update session data:", error);
-        } finally {
-          setAnalyticsLoadingSessionComparison(false);
-        }
+        if (!project || !session) return;
+        await loadSessionAnalytics(useAppStore.getState, project, session, {
+          comparison: !hasCachedSessionComparison,
+          tokenStats: !hasCachedSessionTokenStats,
+          failureText: t("common.hooks.sessionComparisonLoadFailed"),
+        });
       };
 
       updateSessionData();
@@ -122,19 +101,14 @@ export function useAnalyticsAutoLoad(computed: {
     dateFilterStartMs,
     dateFilterEndMs,
     sessionTokenStats?.session_id,
-    analytics.currentView,
+    onOverview,
     analytics.sessionComparison?.session_id,
     analytics.isLoadingSessionComparison,
     isLoadingTokenStats,
-    loadSessionComparison,
-    loadSessionTokenStats,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsSessionComparison,
-    setAnalyticsSessionComparisonError,
   ]);
 
   /**
-   * Session change auto-refresh for token stats view
+   * Session change auto-refresh for the token statistics sub-tab
    */
   useEffect(() => {
     if (isLoadingTokenStats) {
@@ -142,7 +116,7 @@ export function useAnalyticsAutoLoad(computed: {
     }
 
     if (
-      analytics.currentView === "tokenStats" &&
+      onTokens &&
       selectedSessionId &&
       selectedSessionFilePath
     ) {
@@ -177,7 +151,7 @@ export function useAnalyticsAutoLoad(computed: {
     selectedSessionId,
     selectedSessionFilePath,
     sessionTokenStats?.session_id,
-    analytics.currentView,
+    onTokens,
     isLoadingTokenStats,
     loadSessionTokenStats,
   ]);
@@ -197,14 +171,16 @@ export function useAnalyticsAutoLoad(computed: {
     }
     dateFilterKeyRef.current = currentDateFilterKey;
     const requestSeq = ++dateFilterRequestSeqRef.current;
+    // A reload of the open screen: a newer date change or any navigation
+    // since then owns what it would write.
+    const ownsPlace = ownPlace(useAppStore.getState);
     const isStaleRequest = () =>
-      requestSeq !== dateFilterRequestSeqRef.current;
+      requestSeq !== dateFilterRequestSeqRef.current || !ownsPlace();
 
-    // Global stats may be open with a project still selected (the overview
-    // no longer clears the selection), so ask the flag, not the selection.
+    // Global stats keeps the project selected, so ask the screen, not the
+    // selection. Project analytics without a project renders the overview too.
     const isGlobalScope =
-      (useAppStore.getState().isViewingGlobalStats || !selectedProjectPath) &&
-      analytics.currentView === "analytics";
+      view === "globalStats" || (!selectedProjectPath && view === "analytics");
 
     const update = async () => {
       try {
@@ -217,7 +193,7 @@ export function useAnalyticsAutoLoad(computed: {
           return;
         }
 
-        if (computed.isTokenStatsView) {
+        if (computed.isAnalyticsTokens) {
           const promises: Promise<unknown>[] = [
             loadProjectTokenStats(selectedProjectPath),
           ];
@@ -230,93 +206,52 @@ export function useAnalyticsAutoLoad(computed: {
           if (isStaleRequest()) {
             return;
           }
-        } else if (computed.isAnalyticsView) {
-          setAnalyticsLoadingProjectSummary(true);
-          const summary = await loadProjectStatsSummary(
-            selectedProjectPath
-          );
-          if (isStaleRequest()) {
-            return;
-          }
-          setAnalyticsProjectSummary(summary);
-
-          if (selectedSessionId && selectedSessionFilePath) {
-            setAnalyticsLoadingSessionComparison(true);
-            try {
-              const [comparison] = await Promise.all([
-                loadSessionComparison(
-                  selectedSessionId,
-                  selectedProjectPath
-                ),
-                loadSessionTokenStats(selectedSessionFilePath),
-              ]);
-              if (isStaleRequest()) {
-                return;
-              }
-              setAnalyticsSessionComparison(comparison);
-              setAnalyticsSessionComparisonError(null);
-            } catch (err) {
-              if (isStaleRequest()) {
-                return;
-              }
-              const message =
-                err instanceof Error
-                  ? err.message
-                  : t("common.hooks.sessionComparisonLoadFailed");
-              setAnalyticsSessionComparison(null);
-              setAnalyticsSessionComparisonError(message);
-            } finally {
-              setAnalyticsLoadingSessionComparison(false);
-            }
-          } else {
-            setAnalyticsSessionComparison(null);
-            setAnalyticsSessionComparisonError(null);
-          }
+        } else if (computed.isAnalyticsOverview) {
+          const { selectedProject: project, selectedSession: session } =
+            useAppStore.getState();
+          if (!project) return;
+          await loadProjectAnalytics(useAppStore.getState, project, session, {
+            ownsPlace,
+            clearComparisonWithoutSession: true,
+            failureText: {
+              summary: t("common.hooks.projectSummaryLoadFailed"),
+              comparison: t("common.hooks.sessionComparisonLoadFailed"),
+            },
+          });
         }
       } catch (err) {
         if (isStaleRequest()) {
           return;
         }
+        // Global and token stats. Project analytics never lands here: its
+        // loader records and reports a failure itself.
         const message =
           err instanceof Error
             ? err.message
             : t("common.hooks.projectSummaryLoadFailed");
-        setAnalyticsProjectSummaryError(message);
         toast.error(message);
-      } finally {
-        if (computed.isAnalyticsView) {
-          setAnalyticsLoadingProjectSummary(false);
-        }
       }
     };
 
     if (
       isGlobalScope ||
-      computed.isTokenStatsView ||
-      computed.isAnalyticsView
+      computed.isAnalyticsTokens ||
+      computed.isAnalyticsOverview
     ) {
       void update();
     }
   }, [
     dateFilterStartMs,
     dateFilterEndMs,
-    analytics.currentView,
-    computed.isTokenStatsView,
-    computed.isAnalyticsView,
+    view,
+    computed.isAnalyticsTokens,
+    computed.isAnalyticsOverview,
     selectedSessionId,
     selectedSessionFilePath,
     selectedProjectPath,
     loadGlobalStats,
     loadProjectTokenStats,
     loadSessionTokenStats,
-    loadProjectStatsSummary,
-    loadSessionComparison,
-    setAnalyticsLoadingProjectSummary,
-    setAnalyticsLoadingSessionComparison,
-    setAnalyticsProjectSummary,
-    setAnalyticsSessionComparison,
-    setAnalyticsSessionComparisonError,
-    setAnalyticsProjectSummaryError,
     t,
   ]);
 }

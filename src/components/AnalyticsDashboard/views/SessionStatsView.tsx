@@ -4,19 +4,20 @@
  * Clean session analytics with performance metrics and timeline.
  */
 
-import React, { useMemo } from "react";
+import React, { Fragment, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { BarChart3, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
+import { ChartColumn, Clock, TrendingUp, TrendingDown, Zap, MessageSquare, Timer } from "lucide-react";
 import type { SessionTokenStats, SessionComparison, ProviderId } from "../../../types";
-import { formatTime } from "../../../utils/time";
 import { SectionCard, TokenDistributionChart, BillingBreakdownCard } from "../components";
 import {
   calculateGlobalCostSummary,
-  formatNumber,
   calculateSessionMetrics,
   calculateSessionComparisonMetrics,
 } from "../utils";
 import { supportsConversationBreakdown } from "../../../utils/providers";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
+import { hasRecordedTime, recordedTime, tokenRecordingNote } from "@/lib/format/missingValue";
 
 interface SessionStatsViewProps {
   sessionStats: SessionTokenStats;
@@ -24,6 +25,29 @@ interface SessionStatsViewProps {
   sessionComparison: SessionComparison;
   totalProjectSessions?: number;
   providerId?: ProviderId;
+}
+
+/**
+ * A KPI tile: two per row on a phone, four on a desktop, but never narrower
+ * than its own content. Where enlarged text needs more than the column, the
+ * tile moves onto its own row instead of running past the card's clipped
+ * edge (#719, as the token KPI tiles do since #722).
+ */
+const kpiTileClass =
+  "min-w-min flex-1 basis-[calc((100%_-_0.75rem)/2)] lg:grow-0 lg:basis-[calc((100%_-_2.25rem)/4)] p-3 rounded-md bg-muted/20";
+
+/**
+ * `text` with a line break allowed after each "/": WebKit and Blink do not
+ * break "TOKENS/MESSAGE" there, so the one word would set the tile's minimum
+ * width, wider than a phone's card at large text sizes (#719).
+ */
+function breakAfterSlashes(text: string): React.ReactNode {
+  return text.split("/").map((part, i) => (
+    <Fragment key={i}>
+      {i > 0 && <>/<wbr /></>}
+      {part}
+    </Fragment>
+  ));
 }
 
 export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
@@ -34,6 +58,12 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   providerId = "claude",
 }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
+  const missing = t("common.missingValue.notRecorded");
+  const tokensAbsent = sessionStats.token_usage_recording === "absent";
+  const recordingNote = tokenRecordingNote(sessionStats);
+  const hasDuration = hasRecordedTime(sessionStats.first_message_time) && hasRecordedTime(sessionStats.last_message_time)
+    && new Date(sessionStats.last_message_time).getTime() >= new Date(sessionStats.first_message_time).getTime();
 
   // Memoized session metrics calculation
   const { avgTokensPerMessage, durationMinutes, distribution } = useMemo(
@@ -42,9 +72,12 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
   );
 
   // Memoized comparison metrics calculation
-  const { isAboveAverage, statusColor, percentile } = useMemo(
-    () => calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
-    [sessionComparison, totalProjectSessions]
+  const { isAboveAverage, statusColor, percentileRatio } = useMemo(
+    () => ({
+      ...calculateSessionComparisonMetrics(sessionComparison, totalProjectSessions),
+      ...(tokensAbsent ? { statusColor: "var(--muted-foreground)" } : {}),
+    }),
+    [sessionComparison, totalProjectSessions, tokensAbsent]
   );
   const billingTokens = sessionStats.total_tokens;
   const billingCostSummary = useMemo(
@@ -71,17 +104,17 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
           {/* Header */}
           <div className="flex items-start justify-between mb-5">
             <div>
-              <h3 className="text-px10 font-medium text-muted-foreground uppercase tracking-wider mb-1">
+              <h3 className="text-caption font-medium text-muted-foreground uppercase tracking-wider mb-1">
                 {t("analytics.performanceInsights")}
               </h3>
               <div className="flex items-center gap-2">
-                {isAboveAverage ? (
+                {!tokensAbsent && (isAboveAverage ? (
                   <TrendingUp className="w-4 h-4" style={{ color: statusColor }} />
                 ) : (
                   <TrendingDown className="w-4 h-4" style={{ color: statusColor }} />
-                )}
-                <span className="text-base font-bold" style={{ color: statusColor }}>
-                  {isAboveAverage ? t("analytics.aboveAverage") : t("analytics.belowAverage")}
+                ))}
+                <span className="text-title font-bold" style={{ color: statusColor }}>
+                  {tokensAbsent ? missing : isAboveAverage ? t("analytics.aboveAverage") : t("analytics.belowAverage")}
                 </span>
               </div>
             </div>
@@ -91,80 +124,80 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
               className="px-3 py-2 rounded-md"
               style={{ background: `color-mix(in oklch, ${statusColor} 10%, transparent)` }}
             >
-              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.tokenRank")}
               </div>
               <div className="font-mono text-xl font-bold tabular-nums" style={{ color: statusColor }}>
-                #{sessionComparison.rank_by_tokens}
+                {tokensAbsent ? missing : `#${sessionComparison.rank_by_tokens}`}
               </div>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="p-3 rounded-md bg-muted/20">
+          <div className="flex flex-wrap gap-3">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Zap className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.projectShare")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {sessionComparison.percentage_of_project_tokens.toFixed(1)}%
+                <Num>{tokensAbsent ? missing : fmt.percent(sessionComparison.percentage_of_project_tokens / 100)}</Num>
               </div>
-              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
-                {formatNumber(sessionStats.total_tokens)} {t("analytics.tokens")}
+              <div className="text-caption text-muted-foreground font-mono mt-0.5">
+                <Num>{tokensAbsent ? missing : fmt.tokens(sessionStats.total_tokens)}</Num> {t("analytics.tokens")}
               </div>
             </div>
 
-            <div className="p-3 rounded-md bg-muted/20">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <MessageSquare className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
-                  {t("analytics.tokensPerMessage")}
+                <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
+                  {breakAfterSlashes(t("analytics.tokensPerMessage"))}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {avgTokensPerMessage.toLocaleString()}
+                <Num>{tokensAbsent ? missing : fmt.tokens(avgTokensPerMessage)}</Num>
               </div>
-              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
+              <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.messageCountShort", "{{count}} msgs", {
                   count: sessionStats.message_count,
                 })}
               </div>
             </div>
 
-            <div className="p-3 rounded-md bg-muted/20">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Timer className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.sessionTime")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {durationMinutes}
-                <span className="text-base text-muted-foreground/50">
+                <Num>{hasDuration ? fmt.count(durationMinutes) : missing}</Num>
+                {hasDuration && <span className="text-title text-muted-foreground/50">
                   {t("analytics.minutesUnit")}
-                </span>
+                </span>}
               </div>
-              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
+              {hasDuration && <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.rank", "Rank {{rank}}", {
                   rank: sessionComparison.rank_by_duration,
                 })}
-              </div>
+              </div>}
             </div>
 
-            <div className="p-3 rounded-md bg-muted/20">
+            <div className={kpiTileClass}>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" />
-                <span className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+                <span className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                   {t("analytics.percentile", "Percentile")}
                 </span>
               </div>
               <div className="font-mono text-2xl font-bold text-foreground tabular-nums">
-                {percentile}%
+                <Num>{tokensAbsent ? missing : fmt.percent(percentileRatio)}</Num>
               </div>
-              <div className="text-px10 text-muted-foreground font-mono mt-0.5">
+              <div className="text-caption text-muted-foreground font-mono mt-0.5">
                 {t("analytics.sessionCount", "{{count}} sessions", {
                   count: totalProjectSessions,
                 })}
@@ -174,8 +207,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
         </div>
       </div>
 
+      {recordingNote && !tokensAbsent && <p className="text-caption text-muted-foreground">{t(recordingNote)}</p>}
       <BillingBreakdownCard
         billingTokens={billingTokens}
+        billingStats={sessionStats}
+        conversationStats={conversationStats}
         conversationTokens={conversationStats != null ? conversationStats.total_tokens : null}
         billingCost={
           billingCostSummary.pricedModels > 0
@@ -191,8 +227,9 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
       />
 
       {/* Token Distribution */}
-      <SectionCard title={t("analytics.tokenAnalysis")} icon={BarChart3} colorVariant="purple">
-        <TokenDistributionChart distribution={distribution} total={sessionStats.total_tokens} />
+      <SectionCard title={t("analytics.tokenAnalysis")} icon={ChartColumn} colorVariant="purple">
+        {tokensAbsent ? <p className="text-caption text-muted-foreground">{missing}</p>
+          : <TokenDistributionChart distribution={distribution} total={sessionStats.total_tokens} />}
       </SectionCard>
 
       {/* Session Timeline */}
@@ -202,11 +239,11 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
             {/* Start */}
             <div className="text-center z-10">
               <div className="w-2.5 h-2.5 rounded-full bg-metric-green mb-2 mx-auto" />
-              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.startTime")}
               </div>
-              <div className="font-mono text-px11 text-foreground mt-0.5">
-                {formatTime(sessionStats.first_message_time)}
+              <div className="font-mono text-caption text-foreground mt-0.5">
+                <Num>{recordedTime(sessionStats.first_message_time, fmt.dateTime, missing)}</Num>
               </div>
             </div>
 
@@ -215,32 +252,32 @@ export const SessionStatsView: React.FC<SessionStatsViewProps> = ({
 
             {/* Duration */}
             <div className="text-center z-10 px-3 py-1.5 bg-card rounded-md border border-border/40">
-              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.duration")}
               </div>
-              <div className="font-mono text-base font-bold text-foreground">
-                {durationMinutes}<span className="text-sm text-muted-foreground/50">{t("analytics.minutesUnit")}</span>
+              <div className="font-mono text-title font-bold text-foreground">
+                <Num>{hasDuration ? fmt.count(durationMinutes) : missing}</Num>{hasDuration && <span className="text-body text-muted-foreground/50">{t("analytics.minutesUnit")}</span>}
               </div>
             </div>
 
             {/* End */}
             <div className="text-center z-10">
               <div className="w-2.5 h-2.5 rounded-full bg-metric-amber mb-2 mx-auto" />
-              <div className="text-px9 font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="text-caption font-medium text-muted-foreground uppercase tracking-wider">
                 {t("analytics.endTime")}
               </div>
-              <div className="font-mono text-px11 text-foreground mt-0.5">
-                {formatTime(sessionStats.last_message_time)}
+              <div className="font-mono text-caption text-foreground mt-0.5">
+                <Num>{recordedTime(sessionStats.last_message_time, fmt.dateTime, missing)}</Num>
               </div>
             </div>
           </div>
 
           {/* Session ID */}
           <div className="pt-3 border-t border-border/30 text-center">
-            <div className="text-px9 font-medium text-muted-foreground/60 uppercase tracking-wider mb-1">
+            <div className="text-caption font-medium text-muted-foreground/60 uppercase tracking-wider mb-1">
               {t("analytics.sessionIdLabel")}
             </div>
-            <code className="font-mono text-px10 text-muted-foreground/70 select-all">
+            <code className="font-mono text-caption text-muted-foreground/70 select-all">
               {sessionStats.session_id}
             </code>
           </div>

@@ -1,4 +1,4 @@
-# systemd service unit for cchv-server (Claude Code History Viewer)
+# systemd service unit for cchv-server (Omnilogue)
 #
 # Installation:
 #   1. Copy this file:
@@ -17,7 +17,7 @@
 #      journalctl -u cchv.service -f
 
 [Unit]
-Description=Claude Code History Viewer (WebUI Server)
+Description=Omnilogue (WebUI Server)
 After=network.target
 
 [Service]

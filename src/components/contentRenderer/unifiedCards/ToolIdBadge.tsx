@@ -1,10 +1,12 @@
-import { useCallback, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { useCallback } from "react";
 import { Check, Hash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { layout } from "../../renderers";
 import { HighlightedText } from "../../common/HighlightedText";
 import { copyTextToClipboard } from "@/utils/clipboard";
+import { useCopiedFlag } from "@/hooks/useCopiedFlag";
 
 interface ToolIdBadgeProps {
   toolId: string;
@@ -30,7 +32,7 @@ export function ToolIdBadge({
   badgeTextClassName,
 }: ToolIdBadgeProps) {
   const { t } = useTranslation();
-  const [copied, setCopied] = useState(false);
+  const [copied, markCopied] = useCopiedFlag(1500);
 
   const handleCopy = useCallback(async () => {
     try {
@@ -38,9 +40,8 @@ export function ToolIdBadge({
     } catch {
       return;
     }
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [toolId]);
+    markCopied();
+  }, [toolId, markCopied]);
 
   if (!toolId) return null;
 
@@ -67,17 +68,17 @@ export function ToolIdBadge({
 
   const label = `${t("common.copy")} ${t("common.id")}: ${toolId}`;
   return (
-    <button
+    <Button variant="ghost" size="sm"
       type="button"
       onClick={handleCopy}
       title={copied ? t("common.copied") : label}
       aria-label={label}
-      className={cn(
+      className={cn("h-auto whitespace-normal justify-start font-normal", cn(
         "w-6 h-6 flex items-center justify-center rounded transition-colors",
         copied ? "text-success" : "text-muted-foreground/60 hover:text-foreground hover:bg-muted",
-      )}
+      ))}
     >
       {copied ? <Check className="w-3.5 h-3.5" /> : <Hash className="w-3.5 h-3.5" />}
-    </button>
+    </Button>
   );
 }

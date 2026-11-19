@@ -1,26 +1,35 @@
 /**
  * MessageHeader Component
  *
- * Displays message metadata (role, timestamp, model info, usage stats).
+ * Displays message metadata (role, timestamp, model info, usage stats) and,
+ * when the view setting is on, the message's token usage inline (#570).
  */
 
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { HelpCircle } from "lucide-react";
+import { CircleQuestionMark } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { formatTime, formatTimeShort } from "../../../utils/time";
 import { getShortModelName } from "../../../utils/model";
 import { ModelLifecycleBadge } from "@/components/ModelLifecycleBadge";
 import { getToolName } from "../../../utils/toolUtils";
 import { hasSystemCommandContent } from "../helpers/messageHelpers";
 import type { MessageHeaderProps } from "../types";
 import type { ClaudeAssistantMessage } from "../../../types";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
+import { useAppStore } from "@/store/useAppStore";
+import { InlineTokenUsage } from "./InlineTokenUsage";
+import { getProviderLabel, PROVIDER_IDS } from "@/utils/providers";
 
 export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const showInlineTokens = useAppStore((s) => s.showInlineTokenUsage);
+  const inlineUsage =
+    showInlineTokens && message.type === "assistant" ? message.usage : undefined;
 
   const handleTooltipToggle = useCallback(() => {
     setIsTooltipOpen((prev) => !prev);
@@ -51,7 +60,7 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
 
   return (
     <div className={cn(
-      "flex items-center mb-1 text-xs text-muted-foreground",
+      "flex items-center mb-1 text-list text-muted-foreground",
       isLeftAligned ? "justify-between" : "justify-end"
     )}>
       <div className="flex items-center gap-1.5">
@@ -64,7 +73,11 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 ? t("messageViewer.user")
                 : message.type === "assistant"
                   ? (message.provider && message.provider !== "claude"
-                    ? t(`common.provider.${message.provider}`, message.provider)
+                    // The registry's key: ids such as `cursor-acp` are not
+                    // their translation keys (`common.provider.cursorAcp`).
+                    ? ((PROVIDER_IDS as string[]).includes(message.provider)
+                      ? getProviderLabel(t, message.provider)
+                      : message.provider)
                     : t("messageViewer.claude"))
                   : t("messageViewer.system")}
         </span>
@@ -72,19 +85,26 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
         <Tooltip>
           <TooltipTrigger asChild>
             <button type="button" className="cursor-default">
-              {formatTimeShort(message.timestamp)}
+              <Num>{fmt.time(message.timestamp)}</Num>
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" sideOffset={4}>
-            {formatTime(message.timestamp)}
+            <Num>{fmt.dateTimeFull(message.timestamp)}</Num>
           </TooltipContent>
         </Tooltip>
         {message.isSidechain && (
-          <span className="px-1.5 py-0.5 text-xs font-mono bg-warning/20 text-warning rounded-full">
+          <span className="px-1.5 py-0.5 text-list font-mono bg-warning/20 text-warning rounded-full">
             {t("messageViewer.branch")}
           </span>
         )}
       </div>
+
+      {inlineUsage && (
+        // ml-auto takes the free space, so the usage sits right beside the model.
+        <div className={cn("ml-auto min-w-0", message.type === "assistant" && message.model && "mr-3")}>
+          <InlineTokenUsage usage={inlineUsage} />
+        </div>
+      )}
 
       {message.type === "assistant" && message.model && (
         <div ref={tooltipRef} className="relative group flex items-center gap-1.5">
@@ -98,21 +118,21 @@ export const MessageHeader: React.FC<MessageHeaderProps> = ({ message }) => {
                 className="inline-flex items-center justify-center cursor-help text-muted-foreground"
                 aria-label={t("assistantMessageDetails.model")}
               >
-                <HelpCircle className="w-3 h-3" />
+                <CircleQuestionMark className="w-3.5 h-3.5" />
               </button>
               <div className={cn(
                 "absolute bottom-full mb-2 right-0 w-52 bg-popover text-popover-foreground",
-                "text-xs rounded-md p-2.5",
+                "text-list rounded-md p-2.5",
                 "transition-opacity shadow-lg z-10 border border-border",
                 isTooltipOpen ? "opacity-100 pointer-events-auto" : "opacity-0 group-hover:opacity-100 pointer-events-none"
               )}>
                 <p className="mb-1"><strong>{t("assistantMessageDetails.model")}:</strong> {message.model}</p>
-                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> {formatTime(message.timestamp)}</p>
-                {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: {message.usage.input_tokens.toLocaleString()}</p>}
-                {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: {message.usage.output_tokens.toLocaleString()}</p>}
-                {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: {message.usage.cache_creation_input_tokens.toLocaleString()}</p> : null}
-                {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: {message.usage.cache_read_input_tokens.toLocaleString()}</p> : null}
-                {typeof message.usage.reasoning_tokens === "number" ? <p>{t("analytics.reasoning", "Reasoning")}: {message.usage.reasoning_tokens.toLocaleString()}</p> : null}
+                <p className="mb-1"><strong>{t("messageViewer.time")}:</strong> <Num>{fmt.dateTimeFull(message.timestamp)}</Num></p>
+                {message.usage.input_tokens && <p>{t("assistantMessageDetails.input")}: <Num>{fmt.count(message.usage.input_tokens)}</Num></p>}
+                {message.usage.output_tokens && <p>{t("assistantMessageDetails.output")}: <Num>{fmt.count(message.usage.output_tokens)}</Num></p>}
+                {message.usage.cache_creation_input_tokens ? <p>{t("assistantMessageDetails.cacheCreation")}: <Num>{fmt.count(message.usage.cache_creation_input_tokens)}</Num></p> : null}
+                {message.usage.cache_read_input_tokens ? <p>{t("assistantMessageDetails.cacheRead")}: <Num>{fmt.count(message.usage.cache_read_input_tokens)}</Num></p> : null}
+                {typeof message.usage.reasoning_tokens === "number" ? <p>{t("analytics.reasoning", "Reasoning")}: <Num>{fmt.count(message.usage.reasoning_tokens)}</Num></p> : null}
                 <div className="absolute right-4 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-popover"></div>
               </div>
             </>

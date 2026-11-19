@@ -5,6 +5,8 @@
  */
 
 export type StatsMode = "billing_total" | "conversation_only";
+/** Native Claude accepted-row counter coverage, not billing completeness. */
+export type TokenUsageRecording = "absent" | "recorded" | "partial" | "unknown";
 export type MetricMode = "tokens" | "cost_estimated";
 
 // ============================================================================
@@ -12,6 +14,9 @@ export type MetricMode = "tokens" | "cost_estimated";
 // ============================================================================
 
 export interface SessionTokenStats {
+  /** Older servers omit this member: treat omission as unknown, never zero/absent.
+   * Session-level only; not evidence of presence for individual components. */
+  token_usage_recording?: TokenUsageRecording;
   session_id: string;
   project_name: string;
   total_input_tokens: number;
@@ -25,6 +30,29 @@ export interface SessionTokenStats {
   last_message_time: string;
   summary?: string;
   most_used_tools: ToolUsageStats[];
+  model_distribution?: ModelStats[];
+  /** Share of the billing totals that came from spawned subagent sessions (#577). */
+  subagent_stats?: SubagentTokenStats;
+}
+
+/**
+ * Usage of the descendant sessions a session spawned, already included in
+ * that session's `billing_total` totals.
+ *
+ * Providers that model a subagent run as its own session row (OpenCode and
+ * Kilo: `session.parent_id`) store that billed usage outside the parent
+ * session; this breaks the rolled-in share back out for the billing UI.
+ * `session_count` counts only the runs with usage inside the date filter.
+ */
+export interface SubagentTokenStats {
+  session_count: number;
+  message_count: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_creation_tokens: number;
+  total_cache_read_tokens: number;
+  total_reasoning_tokens: number;
+  total_tokens: number;
   model_distribution?: ModelStats[];
 }
 
@@ -146,6 +174,9 @@ export interface ProjectStatsSummary {
 
 export interface ProjectRanking {
   project_name: string;
+  /** Absent when reading a summary produced by an older backend. */
+  project_path?: string;
+  provider_id?: string;
   sessions: number;
   messages: number;
   tokens: number;

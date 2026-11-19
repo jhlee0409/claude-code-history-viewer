@@ -14,7 +14,8 @@
 //! so the two readers do not double-report the same conversations.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
-use crate::providers::opencode::{self, ChildSession};
+use crate::providers::opencode::{self, ChildSession, SessionTree};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use std::path::{Path, PathBuf};
 
@@ -108,13 +109,25 @@ fn rebrand_session(mut session: ClaudeSession) -> ClaudeSession {
 
 /// Scan Kilo projects from the default store root.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Kilo base path not found")?;
-    scan_projects_at(&base)
+    scan_projects_at_reporting(&base, report)
 }
 
 /// [`scan_projects`] against an explicit store root.
 pub fn scan_projects_at(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
-    opencode::scan_projects_from_store(base_path, DB_FILE)
+    scan_projects_at_reporting(base_path, &ScanReport::default())
+}
+
+fn scan_projects_at_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
+    opencode::scan_projects_from_store_reporting(base_path, DB_FILE, report)
         .map(|projects| projects.into_iter().map(rebrand_project).collect())
         .map_err(rebrand_error)
 }
@@ -128,20 +141,55 @@ pub fn load_sessions(
     load_sessions_at(&base_path, project_path, exclude_sidechain)
 }
 
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let base_path = get_base_path().ok_or_else(|| "Kilo not found".to_string())?;
+    load_sessions_at_reporting(&base_path, project_path, report)
+}
+
 /// [`load_sessions`] against an explicit store root.
 pub fn load_sessions_at(
     base_path: &str,
     project_path: &str,
-    exclude_sidechain: bool,
+    _exclude_sidechain: bool,
 ) -> Result<Vec<ClaudeSession>, String> {
-    opencode::load_sessions_at(
-        base_path,
-        DB_FILE,
-        &to_store_scheme(project_path),
-        exclude_sidechain,
-    )
-    .map(|sessions| sessions.into_iter().map(rebrand_session).collect())
-    .map_err(rebrand_error)
+    load_sessions_at_reporting(base_path, project_path, &ScanReport::default())
+}
+
+fn load_sessions_at_reporting(
+    base_path: &str,
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    opencode::load_sessions_at_reporting(base_path, DB_FILE, &to_store_scheme(project_path), report)
+        .map(|sessions| sessions.into_iter().map(rebrand_session).collect())
+        .map_err(rebrand_error)
+}
+
+pub(crate) fn load_listed_sessions(
+    project_path: &str,
+) -> Result<Vec<opencode::sidebar::ListedSession>, String> {
+    let base = get_base_path().ok_or_else(|| "Kilo not found".to_string())?;
+    load_listed_sessions_at(&base, project_path)
+}
+
+fn load_listed_sessions_at(
+    base: &str,
+    project_path: &str,
+) -> Result<Vec<opencode::sidebar::ListedSession>, String> {
+    let sessions =
+        opencode::sidebar::load_listed_sessions_at(base, DB_FILE, &to_store_scheme(project_path))
+            .map_err(rebrand_error)?;
+    Ok(sessions
+        .into_iter()
+        .map(|row| opencode::sidebar::ListedSession {
+            session: rebrand_session(row.session),
+            parent_session_id: row.parent_session_id.as_deref().map(to_kilo_scheme),
+        })
+        .collect())
 }
 
 /// Load messages for a Kilo session (`kilo://<project_id>/<session_id>` or
@@ -180,6 +228,7 @@ pub fn search_at(base_path: &str, query: &str, limit: usize) -> Result<Vec<Claud
                 .into_iter()
                 .map(|mut message| {
                     message.provider = Some(PROVIDER_ID.to_string());
+                    message.project_path = message.project_path.as_deref().map(to_kilo_scheme);
                     message
                 })
                 .collect()
@@ -204,6 +253,57 @@ pub fn load_child_sessions_at(
     opencode::load_child_sessions_from_db(base_path, DB_FILE, project_id, session_id)
 }
 
+/// Messages of a Kilo session's descendant sessions (subagent runs), marked
+/// as sidechain like the `OpenCode` reader's (#577).
+pub fn load_subagent_messages(session_path: &str) -> Vec<ClaudeMessage> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    load_subagent_messages_at(&base_path, session_path)
+}
+
+/// [`load_subagent_messages`] against an explicit store root.
+pub fn load_subagent_messages_at(base_path: &str, session_path: &str) -> Vec<ClaudeMessage> {
+    rebrand_messages(opencode::load_subagent_messages_at(
+        base_path,
+        DB_FILE,
+        &to_store_scheme(session_path),
+    ))
+}
+
+/// How a Kilo project's sessions nest (`kilo://<project_id>`), read from
+/// `kilo.db` like the `OpenCode` reader's (#577).
+pub fn load_session_tree(project_path: &str) -> SessionTree {
+    let Some(base_path) = get_base_path() else {
+        return SessionTree::default();
+    };
+    opencode::load_session_tree_at(&base_path, DB_FILE, &to_store_scheme(project_path))
+}
+
+/// [`load_subagent_messages`] with the project's [`SessionTree`] already
+/// loaded.
+pub fn load_tree_subagent_messages(tree: &SessionTree, session_path: &str) -> Vec<ClaudeMessage> {
+    let Some(base_path) = get_base_path() else {
+        return Vec::new();
+    };
+    rebrand_messages(opencode::load_tree_subagent_messages_at(
+        &base_path,
+        DB_FILE,
+        tree,
+        &to_store_scheme(session_path),
+    ))
+}
+
+fn rebrand_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
+    messages
+        .into_iter()
+        .map(|mut message| {
+            message.provider = Some(PROVIDER_ID.to_string());
+            message
+        })
+        .collect()
+}
+
 /// Fixture helpers for a minimal `kilo.db`, shared with stats tests that need
 /// a Kilo store behind `KILO_HOME`.
 #[cfg(test)]
@@ -212,7 +312,13 @@ pub(crate) mod test_support {
     use std::path::Path;
 
     pub(crate) fn create_test_db(dir: &Path) -> rusqlite::Connection {
-        let conn = rusqlite::Connection::open(dir.join(DB_FILE)).expect("open kilo.db");
+        create_db(&dir.join(DB_FILE))
+    }
+
+    /// An `OpenCode`-core database at `path` (`kilo.db`, or `opencode.db`
+    /// for an `OpenCode` store: the schema is the same).
+    pub(crate) fn create_db(path: &Path) -> rusqlite::Connection {
+        let conn = rusqlite::Connection::open(path).expect("open the OpenCode-core db");
         conn.execute_batch(
             "CREATE TABLE project (
                 id TEXT PRIMARY KEY, worktree TEXT NOT NULL, name TEXT,
@@ -295,6 +401,38 @@ pub(crate) mod test_support {
         )
         .unwrap();
     }
+
+    /// Add a session `id` in `proj1` whose `parent_id` is `parent` (a
+    /// subagent run), with one assistant reply carrying token usage.
+    pub(crate) fn seed_subagent_run(
+        conn: &rusqlite::Connection,
+        id: &str,
+        parent: &str,
+        input: u32,
+        output: u32,
+    ) {
+        conn.execute(
+            "INSERT INTO session (id, project_id, title, directory, time_created, time_updated,
+                                  parent_id)
+             VALUES (?1, 'proj1', ?1, '/tmp/kilo-project', 1700000200000, 1700000200000, ?2)",
+            rusqlite::params![id, parent],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO message (id, session_id, time_created, time_updated, data)
+             VALUES (?1, ?2, 1700000210000, 1700000210000, ?3)",
+            rusqlite::params![
+                format!("msg_{id}"),
+                id,
+                format!(
+                    "{{\"role\":\"assistant\",\"modelID\":\"kilo-test-model\",\
+                     \"time\":{{\"created\":1700000210000}},\
+                     \"tokens\":{{\"input\":{input},\"output\":{output}}}}}"
+                )
+            ],
+        )
+        .unwrap();
+    }
 }
 
 #[cfg(test)]
@@ -315,6 +453,38 @@ mod tests {
         assert_eq!(projects[0].provider.as_deref(), Some("kilo"));
         assert_eq!(projects[0].session_count, 1);
         assert_eq!(projects[0].name, "kilo-project");
+    }
+
+    #[test]
+    fn sidebar_groups_and_pages_kilo_runs_with_kilo_ids() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        seed(&conn);
+        super::test_support::seed_subagent_run(&conn, "ses_child", "ses_001", 100, 50);
+        super::test_support::seed_subagent_run(&conn, "ses_leaf", "ses_child", 30, 10);
+        let base = tmp.path().to_str().unwrap();
+        let projects = scan_projects_at(base).unwrap();
+        let projects = opencode::sidebar::group_projects(base, DB_FILE, projects);
+        assert_eq!(
+            (
+                projects[0].project.session_count,
+                projects[0].subagent_count
+            ),
+            (1, 2)
+        );
+        let sessions = load_listed_sessions_at(base, "kilo://proj1").unwrap();
+        let page = opencode::sidebar::page(sessions, 0, 1, Some("kilo://proj1/ses_leaf"));
+        assert_eq!((page.total, page.next_offset, page.has_more), (1, 1, false));
+        assert_eq!(page.sessions[1].file_path, "kilo://proj1/ses_child");
+        assert_eq!(
+            page.sessions[1].parent_session_id.as_deref(),
+            Some("kilo://ses_001")
+        );
+        assert_eq!(
+            page.sessions[2].parent_session_id.as_deref(),
+            Some("kilo://ses_child")
+        );
+        assert_eq!(page.sessions[2].provider.as_deref(), Some("kilo"));
     }
 
     #[test]
@@ -357,6 +527,61 @@ mod tests {
         let results = search_at(&tmp.path().to_string_lossy(), "hello from kilo", 10).unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].provider.as_deref(), Some("kilo"));
+    }
+
+    /// #672: hits carry the `kilo://` path scan emits for their project, so
+    /// same-named worktrees stay apart.
+    #[test]
+    fn search_hits_carry_scanned_kilo_project_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let conn = create_test_db(tmp.path());
+        for (project, worktree, session) in [
+            ("proj_a", "/work/client-a/app", "ses_a"),
+            ("proj_b", "/work/client-b/app", "ses_b"),
+        ] {
+            conn.execute(
+                "INSERT INTO project (id, worktree, time_created, time_updated)
+                 VALUES (?1, ?2, 1700000000000, 1700000000000)",
+                rusqlite::params![project, worktree],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO session (id, project_id, title, directory, time_created, time_updated)
+                 VALUES (?1, ?2, 't', ?3, 1700000000000, 1700000000000)",
+                rusqlite::params![session, project, worktree],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO message (id, session_id, time_created, time_updated, data)
+                 VALUES (?1, ?1, 1700000010000, 1700000010000,
+                         '{\"role\":\"user\",\"time\":{\"created\":1700000010000}}')",
+                [session],
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO part (id, message_id, session_id, time_created, time_updated, data)
+                 VALUES (?1, ?1, ?1, 1700000010000, 1700000010000,
+                         '{\"type\":\"text\",\"text\":\"needle\"}')",
+                [session],
+            )
+            .unwrap();
+        }
+        drop(conn);
+        let base = tmp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_at(&base).unwrap();
+        let results = search_at(&base, "needle", 10).unwrap();
+        assert_eq!(results.len(), 2);
+        for (worktree, session) in [
+            ("/work/client-a/app", "ses_a"),
+            ("/work/client-b/app", "ses_b"),
+        ] {
+            let project = projects.iter().find(|p| p.actual_path == worktree).unwrap();
+            assert_eq!(project.name, "app");
+            let hit = results.iter().find(|m| m.session_id == session).unwrap();
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+        assert_ne!(results[0].project_path, results[1].project_path);
     }
 
     #[test]

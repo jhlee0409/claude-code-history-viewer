@@ -7,8 +7,8 @@ use crate::models::{ProjectMetadata, SessionMetadata, UserMetadata, UserSettings
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use tauri::State;
+use std::sync::{Mutex, OnceLock};
+use tauri::{AppHandle, State};
 
 /// Validate a metadata project key.
 ///
@@ -41,6 +41,14 @@ pub(crate) fn validate_project_metadata_key(project_path: &str) -> Result<(), St
     Ok(())
 }
 
+/// The event every desktop window hears after user metadata was saved, with
+/// the whole saved metadata (`USER_METADATA_CHANGED_EVENT` in
+/// `src/services/settingsSync.ts`).
+pub const USER_METADATA_CHANGED_EVENT: &str = "user-metadata-changed";
+
+/// Called with the saved metadata after each save, under the write lock.
+type SaveObserver = Box<dyn Fn(&UserMetadata) + Send + Sync>;
+
 /// Application state for metadata management
 pub struct MetadataState {
     /// Cached metadata with mutex for thread-safe access
@@ -49,6 +57,10 @@ pub struct MetadataState {
     /// writers cannot overwrite each other's changes. Async so it may be held
     /// across `.await`; readers only take the `metadata` lock.
     pub(crate) write_lock: tauri::async_runtime::Mutex<()>,
+    /// Told of every save (the desktop app: announce it to every window).
+    /// Called under `write_lock`, so saves are announced in the order they
+    /// were made. Unset in the `WebUI` server.
+    on_saved: OnceLock<SaveObserver>,
 }
 
 impl Default for MetadataState {
@@ -56,19 +68,44 @@ impl Default for MetadataState {
         Self {
             metadata: Mutex::new(None),
             write_lock: tauri::async_runtime::Mutex::new(()),
+            on_saved: OnceLock::new(),
         }
     }
 }
 
-/// Apply `mutate` to the current metadata, persist it, then update the cache,
-/// all under `write_lock`. Every metadata writer goes through here. The cache
-/// is only replaced once the disk write succeeded.
+impl MetadataState {
+    /// Calls `observer` with the metadata after each save from now on. Set
+    /// once; a second observer is ignored.
+    pub fn observe_saves(&self, observer: impl Fn(&UserMetadata) + Send + Sync + 'static) {
+        if self.on_saved.set(Box::new(observer)).is_err() {
+            log::warn!("metadata: a save observer is already set");
+        }
+    }
+}
+
+/// Apply `mutate` to the current metadata, persist it, then update the cache
+/// and tell the save observer, all under `write_lock`. Every metadata writer
+/// goes through here. The cache is only replaced once the disk write
+/// succeeded.
 pub(crate) async fn mutate_and_save<F>(
     state: &MetadataState,
     mutate: F,
 ) -> Result<UserMetadata, String>
 where
     F: FnOnce(&mut UserMetadata) + Send + 'static,
+{
+    mutate_and_save_with(state, mutate)
+        .await
+        .map(|(saved, ())| saved)
+}
+
+async fn mutate_and_save_with<F, T>(
+    state: &MetadataState,
+    mutate: F,
+) -> Result<(UserMetadata, T), String>
+where
+    F: FnOnce(&mut UserMetadata) -> T + Send + 'static,
+    T: Send + 'static,
 {
     let _write = state.write_lock.lock().await;
     let mut metadata = state
@@ -78,9 +115,9 @@ where
         .clone()
         .unwrap_or_else(UserMetadata::new);
 
-    let saved = tauri::async_runtime::spawn_blocking(move || {
-        mutate(&mut metadata);
-        save_metadata_to_disk(&metadata).map(|()| metadata)
+    let (saved, result) = tauri::async_runtime::spawn_blocking(move || {
+        let result = mutate(&mut metadata);
+        save_metadata_to_disk(&metadata).map(|()| (metadata, result))
     })
     .await
     .map_err(|e| format!("Task join error: {e}"))??;
@@ -89,7 +126,10 @@ where
         .metadata
         .lock()
         .map_err(|e| format!("Failed to lock metadata: {e}"))? = Some(saved.clone());
-    Ok(saved)
+    if let Some(observer) = state.on_saved.get() {
+        observer(&saved);
+    }
+    Ok((saved, result))
 }
 
 /// Get the metadata folder path (~/.claude-history-viewer)
@@ -101,6 +141,27 @@ fn get_metadata_folder() -> Result<PathBuf, String> {
 /// Get the user data file path (~/.claude-history-viewer/user-data.json)
 pub(crate) fn get_user_data_path() -> Result<PathBuf, String> {
     Ok(get_metadata_folder()?.join("user-data.json"))
+}
+
+/// The `path` of each custom Claude directory in the `user-data.json` at
+/// `user_data`; none when the file is missing or unreadable. Read leniently
+/// (any entry with a string `path`), as the file may be from another version.
+pub(crate) fn custom_claude_dirs_in(user_data: &Path) -> Vec<String> {
+    let Ok(content) = fs::read_to_string(user_data) else {
+        return Vec::new();
+    };
+    let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return Vec::new();
+    };
+    metadata
+        .get("settings")
+        .and_then(|s| s.get("customClaudePaths"))
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.get("path").and_then(|p| p.as_str()))
+        .map(str::to_string)
+        .collect()
 }
 
 /// Ensure the metadata folder exists
@@ -181,11 +242,28 @@ pub(crate) fn save_metadata_to_disk(metadata: &UserMetadata) -> Result<(), Strin
 /// Save user metadata to disk with atomic write
 #[tauri::command]
 pub async fn save_user_metadata(
+    app_handle: AppHandle,
     metadata: UserMetadata,
     state: State<'_, MetadataState>,
 ) -> Result<(), String> {
-    mutate_and_save(state.inner(), move |m| *m = metadata).await?;
+    let (_, changed) = mutate_and_save_with(state.inner(), move |current| {
+        let changed = current.settings.custom_claude_paths != metadata.settings.custom_claude_paths;
+        *current = metadata;
+        changed
+    })
+    .await?;
+    refresh_file_watcher(app_handle, changed).await;
     Ok(())
+}
+
+/// Bring the shared desktop watcher up to date after the saved roots change.
+async fn refresh_file_watcher(app_handle: AppHandle, changed: bool) {
+    if !changed {
+        return;
+    }
+    if let Err(error) = super::watcher::sync_desktop_watcher_async(app_handle).await {
+        log::error!("File watcher not updated: {error}");
+    }
 }
 
 /// Update metadata for a specific session
@@ -236,10 +314,18 @@ pub async fn update_project_metadata(
 /// Update global user settings
 #[tauri::command]
 pub async fn update_user_settings(
+    app_handle: AppHandle,
     settings: UserSettings,
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
-    mutate_and_save(state.inner(), move |metadata| metadata.settings = settings).await
+    let (saved, changed) = mutate_and_save_with(state.inner(), move |metadata| {
+        let changed = metadata.settings.custom_claude_paths != settings.custom_claude_paths;
+        metadata.settings = settings;
+        changed
+    })
+    .await?;
+    refresh_file_watcher(app_handle, changed).await;
+    Ok(saved)
 }
 
 /// Check if a project should be hidden based on metadata
@@ -394,6 +480,82 @@ mod tests {
         assert_eq!(on_disk.sessions.len(), N, "disk lost updates");
         let cached = state.metadata.lock().unwrap().clone().unwrap();
         assert_eq!(cached.sessions.len(), N, "cache lost updates");
+    }
+
+    /// The desktop path (Tauri IPC → `update_session_metadata`) keeps a
+    /// favourite's `ref` on disk and in what it returns (plan T7, A2).
+    #[test]
+    fn session_update_keeps_the_favourite_ref() {
+        let (_guard, _temp) = setup_test_env();
+        let state = MetadataState::default();
+        // The shape the frontend sends over IPC.
+        let update: SessionMetadata = serde_json::from_value(serde_json::json!({
+            "starred": true,
+            "ref": { "provider": "claude", "filePath": "/p/a/s1.jsonl", "sessionId": "s1" }
+        }))
+        .unwrap();
+
+        let returned = tauri::async_runtime::block_on(update_session_metadata_in(
+            &state,
+            "s1".to_string(),
+            update,
+        ))
+        .unwrap();
+        let returned_ref = returned.sessions["s1"].session_ref.clone().unwrap();
+        assert_eq!(returned_ref.file_path, "/p/a/s1.jsonl");
+
+        let raw: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(get_user_data_path().unwrap()).unwrap())
+                .unwrap();
+        assert_eq!(raw["sessions"]["s1"]["ref"]["filePath"], "/p/a/s1.jsonl");
+        assert_eq!(raw["sessions"]["s1"]["ref"]["provider"], "claude");
+    }
+
+    /// Issue #656: every window hears of each save, in the order the saves
+    /// were made, with what was saved; a failed save announces nothing.
+    #[test]
+    #[serial_test::serial]
+    fn each_save_is_announced_in_order_with_the_saved_metadata() {
+        let home = crate::test_utils::SandboxHome::new();
+        let state = MetadataState::default();
+        let heard = std::sync::Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
+        let sink = std::sync::Arc::clone(&heard);
+        state.observe_saves(move |metadata| {
+            let mut ids: Vec<String> = metadata.sessions.keys().cloned().collect();
+            ids.sort();
+            sink.lock().unwrap().push(ids);
+        });
+        for id in ["a", "b"] {
+            let update = SessionMetadata {
+                custom_name: Some(id.to_string()),
+                ..Default::default()
+            };
+            tauri::async_runtime::block_on(update_session_metadata_in(
+                &state,
+                id.to_string(),
+                update,
+            ))
+            .unwrap();
+        }
+        assert_eq!(
+            *heard.lock().unwrap(),
+            vec![
+                vec!["a".to_string()],
+                vec!["a".to_string(), "b".to_string()]
+            ]
+        );
+
+        // The metadata folder is a file: the save fails and nobody hears of it.
+        let folder = home.path().join(".claude-history-viewer");
+        fs::remove_dir_all(&folder).unwrap();
+        fs::write(&folder, b"not a folder").unwrap();
+        let failed = tauri::async_runtime::block_on(update_session_metadata_in(
+            &state,
+            "c".to_string(),
+            SessionMetadata::default(),
+        ));
+        assert!(failed.is_err());
+        assert_eq!(heard.lock().unwrap().len(), 2);
     }
 
     #[test]

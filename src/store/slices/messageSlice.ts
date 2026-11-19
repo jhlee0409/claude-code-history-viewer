@@ -6,9 +6,11 @@
 
 import { api } from "@/services/api";
 import { toast } from "sonner";
+import i18n from "../../i18n";
 import type {
   ClaudeMessage,
   ClaudeSession,
+  ConversationBranches,
   MessagePage,
   PaginationState,
   SessionTokenStats,
@@ -16,10 +18,18 @@ import type {
   SessionComparison,
   SubagentSession,
 } from "../../types";
-import { AppErrorType } from "../../types";
+import { errorDetail } from "@/utils/errorDetail";
 import type { StateCreator } from "zustand";
 import { clearSearchIndex } from "../../utils/searchIndex";
+import {
+  type BranchSelections,
+  createShownPathFilter,
+  NO_BRANCH_SELECTIONS,
+  selectionsShowing,
+} from "../../utils/conversationBranches";
 import type { FullAppStore } from "./types";
+import { ownWork } from "@/navigation/ownership";
+import { usesSessionBranches } from "@/utils/sessionBranches";
 import {
   fetchSessionTokenStats,
   fetchProjectTokenStats,
@@ -33,8 +43,13 @@ import {
   getNextOffset,
 } from "../../utils/pagination";
 import { nextRequestId, getRequestId } from "../../utils/requestId";
-import { supportsConversationBreakdown } from "../../utils/providers";
+import {
+  supportsConversationBranches,
+  supportsConversationBreakdown,
+  supportsSubagents,
+} from "../../utils/providers";
 import { normalizeDateFilterOptions } from "../../utils/date";
+import { retainLoadedCodexStarts } from "../../components/transcript/codexTurns";
 import { getAgentIdFromProgress } from "../../components/MessageViewer/helpers/agentProgressHelpers";
 import {
   type WebUINavigationOptions,
@@ -49,8 +64,12 @@ import {
 /** Pagination state for project token stats */
 export type ProjectTokenStatsPagination = ProjectTokenStatsPaginationState;
 
+/** The operation that committed the current source-message window. */
+export type MessageUpdateKind = "replace" | "prepend" | "tail-refresh";
+
 export interface MessageSliceState {
   messages: ClaudeMessage[];
+  messageUpdateKind: MessageUpdateKind;
   pagination: PaginationState;
   isLoadingMessages: boolean;
   isLoadingTokenStats: boolean;
@@ -61,18 +80,77 @@ export interface MessageSliceState {
   projectTokenStatsSummary: ProjectStatsSummary | null;
   projectConversationTokenStatsSummary: ProjectStatsSummary | null;
   projectTokenStatsPagination: ProjectTokenStatsPagination;
+  /** Whose the token stats are (`navigation/screenOwner.ts`): project / session file path. */
+  projectTokenStatsOwner: string | null;
+  sessionTokenStatsOwner: string | null;
+  /** The session token stats load's failure, and the session file it was for. */
+  sessionTokenStatsError: string | null;
+  sessionTokenStatsErrorOwner: string | null;
+  /** The project token stats load's failure, and the project it was for. */
+  projectTokenStatsError: string | null;
+  projectTokenStatsErrorOwner: string | null;
   // SubAgent navigation
   subagentSessions: SubagentSession[];
   parentSessionStack: ClaudeSession[];
   /** parentToolUseID → subagent file_path 매핑 (progress 메시지 기반, file_path는 유일 식별자) */
   toolUseToSubagentMap: Map<string, string>;
+  /**
+   * Where the open session's conversation forks (#782), read from the whole
+   * session. Null while unknown, for a subagent transcript, and for
+   * providers whose records cannot fork.
+   */
+  conversationBranches: ConversationBranches | null;
+  /**
+   * The alternative the user chose at a fork (fork entry uuid → alternative
+   * head uuid). A fork without a choice shows the one Claude Code resumes.
+   */
+  branchSelections: BranchSelections;
+}
+
+/**
+ * Why the open session is being reloaded. A reload refreshes what is on screen
+ * and never moves the user (plan §4.2).
+ *
+ * - `watcher`: its JSONL changed on disk
+ * - `filter`: a message filter that the backend applies changed
+ * - `refresh`: the header refresh rescanned projects
+ * - `restore`: the conversation screen came back with no messages loaded
+ */
+export type ReloadReason = "watcher" | "filter" | "refresh" | "restore";
+
+export interface SelectSessionOptions extends WebUINavigationOptions {
+  /** Store-internal provenance: filter/restore reloads must not live-follow. */
+  reloadReason?: ReloadReason;
+  /**
+   * The session's whole message list, already in hand (the board's lane
+   * cache): it is opened from this instead of fetched.
+   */
+  cachedMessages?: ClaudeMessage[];
+  /**
+   * The subagent path to open `session` under, root first (a tab restoring
+   * its subagent transcript). Given, it replaces the current path and decides
+   * the sidechain filter: non-empty = a subagent, `[]` = top level.
+   */
+  parentStack?: ClaudeSession[];
 }
 
 export interface MessageSliceActions {
+  /**
+   * Loads a session as the open one. Store-internal: `navigate` opens a
+   * session and `reloadCurrent` reloads it; nothing else calls this.
+   */
   selectSession: (
     session: ClaudeSession,
-    options?: WebUINavigationOptions,
+    options?: SelectSessionOptions,
   ) => Promise<void>;
+  /**
+   * Reload the open session in place: same place, same paged-in window,
+   * subagent stack and search kept (#508). `fresh` is a newer record of the
+   * same session file (the header refresh re-reads the list); a record of any
+   * other file is ignored, so a reload can never move the user. No-op without
+   * an open session.
+   */
+  reloadCurrent: (reason: ReloadReason, fresh?: ClaudeSession) => Promise<void>;
   /** Load the next (older) page of the current session and prepend it. */
   loadMoreMessages: () => Promise<void>;
   /**
@@ -82,17 +160,30 @@ export interface MessageSliceActions {
   ensureMessageLoaded: (uuid: string) => Promise<boolean>;
   /**
    * Fetch the COMPLETE message list of the current session (same sidechain /
-   * system-message filtering as the loaded window). Used by consumers that
-   * must operate on the full session (export, in-session search) while the
-   * store only holds a window. Result is cached per session until the next
-   * selectSession call.
+   * system-message filtering as the loaded window, on the shown branch
+   * path). Used by consumers that must operate on the full session (export,
+   * in-session search) while the store only holds a window. The fetch is
+   * cached per session until the next selectSession call.
    */
   fetchFullSessionMessages: () => Promise<ClaudeMessage[]>;
+  /**
+   * Show another alternative at a fork: what follows the fork entry becomes
+   * that alternative, for the transcript, search and export alike. Pages it
+   * in when it is older than the loaded window.
+   */
+  selectConversationBranch: (parentUuid: string, headUuid: string) => Promise<void>;
   loadSessionTokenStats: (sessionPath: string) => Promise<void>;
   loadProjectTokenStats: (projectPath: string) => Promise<void>;
   loadMoreProjectTokenStats: (projectPath: string) => Promise<void>;
+  /**
+   * Fetch a project's billing summary (returned) and conversation-only
+   * summary (written to analytics). `owns` gates every write it makes after
+   * its awaits - the conversation summary and the failure report; it defaults
+   * to ownership of the place at call time.
+   */
   loadProjectStatsSummary: (
-    projectPath: string
+    projectPath: string,
+    owns?: () => boolean
   ) => Promise<ProjectStatsSummary>;
   loadSessionComparison: (
     sessionId: string,
@@ -164,6 +255,7 @@ const areMessagesEquivalent = (
 
 const initialMessageState: MessageSliceState = {
   messages: [],
+  messageUpdateKind: "replace",
   pagination: { ...INITIAL_PAGINATION },
   isLoadingMessages: false,
   isLoadingTokenStats: false,
@@ -174,10 +266,30 @@ const initialMessageState: MessageSliceState = {
   projectTokenStatsSummary: null,
   projectConversationTokenStatsSummary: null,
   projectTokenStatsPagination: createInitialPaginationWithCount(TOKENS_STATS_PAGE_SIZE),
+  projectTokenStatsOwner: null,
+  sessionTokenStatsOwner: null,
+  sessionTokenStatsError: null,
+  sessionTokenStatsErrorOwner: null,
+  projectTokenStatsError: null,
+  projectTokenStatsErrorOwner: null,
   subagentSessions: [],
   parentSessionStack: [],
   toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
+  conversationBranches: null,
+  branchSelections: NO_BRANCH_SELECTIONS,
 };
+
+const shownWindow = createShownPathFilter();
+
+/**
+ * The loaded messages on the path being read: the window without the
+ * alternatives not shown at each fork. What the transcript, the navigator
+ * and export read; the raw window (`messages`) stays the pagination's.
+ */
+export const selectDisplayedMessages = (
+  state: Pick<MessageSliceState, "messages" | "conversationBranches" | "branchSelections">,
+): ClaudeMessage[] =>
+  shownWindow(state.messages, state.conversationBranches, state.branchSelections);
 
 // ============================================================================
 // Slice Creator
@@ -239,6 +351,9 @@ export const createMessageSlice: StateCreator<
     key: string;
     promise: Promise<ClaudeMessage[]>;
   } | null = null;
+  // The cached full session on the shown branch path: one array per
+  // (fetch, forks, choices), which the search index keys on.
+  const shownFullSession = createShownPathFilter();
 
   // Serializes older-page loads (button, near-top autoload, ensureMessageLoaded)
   // so concurrent callers can't fetch the same offset twice.
@@ -255,10 +370,10 @@ export const createMessageSlice: StateCreator<
     messages: ClaudeMessage[]
   ): ClaudeMessage[] => {
     if (get().showSystemMessages) return messages;
-    return messages.filter(
+    return retainLoadedCodexStarts(messages, messages.filter(
       (m) =>
         !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
-    );
+    ));
   };
 
   /** Whether sidechain messages should be excluded server-side right now. */
@@ -333,16 +448,16 @@ export const createMessageSlice: StateCreator<
     // navigated away must not silently page the newly selected session.
     const queuedSession = get().selectedSession;
     const queuedEpoch = sessionLoadEpoch;
+    // Owned from queue time: the session it was queued for, while no newer
+    // load of it (`selectSession`) has started.
+    const owner = ownWork(get, {
+      context: { sessionPath: queuedSession?.file_path ?? null },
+      isLatest: () => queuedEpoch === sessionLoadEpoch,
+    });
 
     const run = async (): Promise<void> => {
       const session = get().selectedSession;
-      if (
-        !queuedSession ||
-        queuedEpoch !== sessionLoadEpoch ||
-        session?.file_path !== queuedSession.file_path
-      ) {
-        return;
-      }
+      if (!queuedSession || !owner.ownsData()) return;
       const { pagination } = get();
       if (!session || !pagination.hasMore || pagination.isLoadingMore) return;
 
@@ -362,21 +477,15 @@ export const createMessageSlice: StateCreator<
 
         // Stale guard: user switched sessions (or reloaded in place) while
         // this page was in flight.
-        if (
-          queuedEpoch !== sessionLoadEpoch ||
-          get().selectedSession?.file_path !== sessionPath
-        ) {
-          return;
-        }
+        if (!owner.ownsData()) return;
 
         const existing = get().messages;
         const known = new Set(existing.map((m) => m.uuid));
-        const fresh = applySystemMessageFilter(
-          page.messages.filter((m) => !known.has(m.uuid))
-        );
+        const loaded = page.messages.filter((m) => !known.has(m.uuid));
 
         set({
-          messages: fresh.length > 0 ? [...fresh, ...existing] : existing,
+          messages: loaded.length > 0 ? applySystemMessageFilter([...loaded, ...existing]) : existing,
+          messageUpdateKind: "prepend",
           pagination: {
             currentOffset: page.next_offset,
             pageSize: MESSAGE_PAGE_SIZE,
@@ -386,18 +495,17 @@ export const createMessageSlice: StateCreator<
           },
         });
       } catch (error) {
-        if (
-          queuedEpoch !== sessionLoadEpoch ||
-          get().selectedSession?.file_path !== sessionPath
-        ) {
-          return;
-        }
         console.error("Failed to load earlier messages:", error);
-        const message = error instanceof Error ? error.message : String(error);
-        toast.error(`Failed to load earlier messages: ${message}`);
-        set({
-          pagination: { ...get().pagination, isLoadingMore: false },
-        });
+        if (owner.ownsFeedback()) {
+          const message = error instanceof Error ? error.message : String(error);
+          toast.error(`Failed to load earlier messages: ${message}`);
+        }
+      } finally {
+        // Ours to stop unless a newer load of the session replaced the
+        // window (and with it this flag).
+        if (owner.ownsSpinner() && get().pagination.isLoadingMore) {
+          set({ pagination: { ...get().pagination, isLoadingMore: false } });
+        }
       }
     };
 
@@ -406,14 +514,53 @@ export const createMessageSlice: StateCreator<
     return next;
   };
 
+  /**
+   * Page back while the loaded window holds nothing on the shown branch
+   * path (#782): the path can start before the newest page, e.g. a search
+   * hit or a recorded resume leaf in an older alternative.
+   */
+  const pageBackToShownPath = async (owns: () => boolean): Promise<void> => {
+    while (owns() && get().pagination.hasMore && selectDisplayedMessages(get()).length === 0) {
+      const before = get().pagination.currentOffset;
+      await loadOlderPage(MESSAGE_PAGE_SIZE);
+      if (get().pagination.currentOffset === before) break;
+    }
+  };
+
   return {
     ...initialMessageState,
+
+  reloadCurrent: async (reason, fresh) => {
+    const current = get().selectedSession;
+    if (!current) return;
+    // Restoring only fills a conversation that came back empty; one that
+    // still holds its messages is already current, and one whose load is
+    // still in flight is about to be (a second load would supersede it and
+    // fetch the same window again).
+    if (
+      reason === "restore" &&
+      (get().messages.length > 0 || get().isLoadingMessages)
+    ) {
+      return;
+    }
+    const target = fresh?.file_path === current.file_path ? fresh : current;
+    // Same file, so `selectSession` takes its in-place path; "none" because a
+    // reload is not a WebUI history step.
+    await get().selectSession(target, { history: "none", reloadReason: reason });
+  },
 
   selectSession: async (session: ClaudeSession, options) => {
     // In-place reloads share a file_path, so the path guard alone cannot drop
     // a stale overlapping reload (e.g. two quick filter toggles) — the epoch
     // does. Captured before any await.
     const epoch = ++sessionLoadEpoch;
+    // Taken before any await: the latest load (epoch) of this session owns
+    // its messages; a navigation started since then owns the screen, so this
+    // load's failure is no longer the user's concern there.
+    const owner = ownWork(get, {
+      context: { sessionPath: session.file_path },
+      isLatest: () => epoch === sessionLoadEpoch,
+    });
     // Subagent intent를 await 전에 캡처하여 async race 차단.
     // - isSubagentNav: navigateToSubagent가 세팅한 1회성 플래그
     // - isInPlaceReload: filter toggle/refreshAllConversations에서 같은 세션을 재로드하는 경우
@@ -421,10 +568,13 @@ export const createMessageSlice: StateCreator<
     // 이 값을 이후 로직 전체에서 참조해야 await 중 stack 변이로 인한 blank 화면·sidechain leak 방지.
     const isInPlaceReload = get().selectedSession?.file_path === session.file_path;
     const wasInSubagent = get().parentSessionStack.length > 0;
-    const shouldTreatAsSubagent =
-      isSubagentNav || (isInPlaceReload && wasInSubagent);
+    const explicitStack = options?.parentStack;
+    const shouldTreatAsSubagent = explicitStack
+      ? explicitStack.length > 0
+      : isSubagentNav || (isInPlaceReload && wasInSubagent);
     const preserveStack = shouldTreatAsSubagent;
     isSubagentNav = false;
+    if (explicitStack) set({ parentSessionStack: explicitStack });
 
     if (isInPlaceReload) {
       if (get().messages.length === 0) {
@@ -432,13 +582,19 @@ export const createMessageSlice: StateCreator<
       }
     } else {
       clearSearchIndex();
+      // The outgoing session's subagent request no longer owns the list,
+      // even if the user comes back to that session before it settles.
+      nextRequestId("subagents");
       set({
         messages: [],
+        messageUpdateKind: "replace",
         pagination: { ...INITIAL_PAGINATION },
         isLoadingMessages: true,
         subagentSessions: [],
         toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
-        ...(preserveStack ? {} : { parentSessionStack: [] }),
+        conversationBranches: null,
+        branchSelections: NO_BRANCH_SELECTIONS,
+        ...(preserveStack || explicitStack ? {} : { parentSessionStack: [] }),
       });
 
       // Message filters intentionally persist across session switches (see
@@ -464,11 +620,73 @@ export const createMessageSlice: StateCreator<
     // full-session fetch is no longer trustworthy either way.
     fullSessionCache = null;
 
+    // Forks come from the whole session file, so they are fetched alongside
+    // any window. A subagent transcript is all sidechain: no forks. A failed
+    // fetch keeps what an in-place reload already had (`undefined`).
+    const provider = session.provider ?? "claude";
+    const fetchBranches = async (): Promise<ConversationBranches | null | undefined> => {
+      if (shouldTreatAsSubagent || !supportsConversationBranches(provider)) return null;
+      try {
+        return await api<ConversationBranches>("get_conversation_branches", {
+          provider,
+          sessionPath: session.file_path,
+        });
+      } catch (error) {
+        console.error("Failed to load conversation branches:", error);
+        return isInPlaceReload ? undefined : null;
+      }
+    };
+    // A reload answering the same forks keeps the object: the shown path
+    // (and every view derived from it) is not recomputed for nothing. A
+    // message target set before the forks were known is switched in now.
+    const branchesUpdate = (
+      branches: ConversationBranches | null | undefined,
+    ): Pick<MessageSliceState, "conversationBranches" | "branchSelections"> => {
+      const current = get().conversationBranches;
+      const next =
+        branches === undefined ||
+        (branches !== null && current !== null && JSON.stringify(branches) === JSON.stringify(current))
+          ? current
+          : branches;
+      const selections = get().branchSelections;
+      const target = get().targetMessageUuid;
+      return {
+        conversationBranches: next,
+        branchSelections: target ? selectionsShowing(target, next, selections) : selections,
+      };
+    };
+
+    const cached = options?.cachedMessages;
+    if (cached) {
+      // Already the whole session: the window is all of it.
+      clearSearchIndex();
+      set({
+        messages: cached,
+        messageUpdateKind: "replace",
+        isLoadingMessages: false,
+        pagination: {
+          currentOffset: cached.length,
+          pageSize: cached.length,
+          totalCount: cached.length,
+          hasMore: false,
+          isLoadingMore: false,
+        },
+      });
+      void get().loadSubagents(session.file_path, cached);
+      void fetchBranches().then((branches) => {
+        if (!owner.ownsData()) return;
+        const { conversationBranches, branchSelections } = branchesUpdate(branches);
+        set({ conversationBranches, branchSelections });
+      });
+      return;
+    }
+
+    // An in-place reload takes over an older page's loading flag. Keep the
+    // exact pagination it inherited so cleanup cannot stop a successor page.
+    const ownedPagination = get().pagination;
     try {
       const sessionPath = session.file_path;
       const start = performance.now();
-
-      const provider = session.provider ?? "claude";
 
       // Window span: initial open loads the newest page; an in-place reload
       // (filter toggle, watcher refresh) preserves the window the user has
@@ -479,24 +697,26 @@ export const createMessageSlice: StateCreator<
 
       // Sidechain filtering happens server-side at classification stage —
       // subagent 세션은 모든 메시지가 isSidechain=true이므로 필터 우회.
-      const { messages: windowMessages, page } = await fetchWindow(
-        provider,
-        sessionPath,
-        span,
-        shouldExcludeSidechain(shouldTreatAsSubagent)
-      );
+      const [{ messages: windowMessages, page }, branches] = await Promise.all([
+        fetchWindow(
+          provider,
+          sessionPath,
+          span,
+          shouldExcludeSidechain(shouldTreatAsSubagent)
+        ),
+        fetchBranches(),
+      ]);
 
       // Stale response guard: 다른 세션으로 이동했거나(경로), 같은 세션의 더
       // 새로운 reload가 시작되었으면(epoch) 중단.
-      if (
-        epoch !== sessionLoadEpoch ||
-        get().selectedSession?.file_path !== session.file_path
-      ) {
-        return;
-      }
+      if (!owner.ownsData()) return;
 
       // Apply system message filter (client-side; window-local)
       const filteredMessages = applySystemMessageFilter(windowMessages);
+      const messageUpdateKind: MessageUpdateKind =
+        isInPlaceReload && (options?.reloadReason === "watcher" || options?.reloadReason === "refresh")
+          ? "tail-refresh"
+          : "replace";
 
       const duration = performance.now() - start;
       if (import.meta.env.DEV) {
@@ -512,45 +732,75 @@ export const createMessageSlice: StateCreator<
         hasMore: page.has_more,
         isLoadingMore: false,
       };
+      const { conversationBranches, branchSelections } = branchesUpdate(branches);
 
       if (isInPlaceReload && areMessagesEquivalent(get().messages, filteredMessages)) {
-        set({ isLoadingMessages: false, pagination: nextPagination });
+        set({
+          isLoadingMessages: false,
+          pagination: nextPagination,
+          messageUpdateKind,
+          conversationBranches,
+          branchSelections,
+        });
         return;
       }
 
-      // Update state first to allow UI to render immediately
+      // Update state first to allow UI to render immediately. A window with
+      // nothing on the shown path keeps the spinner while it pages back.
+      const shownEmpty =
+        nextPagination.hasMore &&
+        selectDisplayedMessages({ messages: filteredMessages, conversationBranches, branchSelections }).length === 0;
       set({
         messages: filteredMessages,
+        messageUpdateKind,
         pagination: nextPagination,
-        isLoadingMessages: false,
+        isLoadingMessages: shownEmpty,
+        conversationBranches,
+        branchSelections,
       });
 
       // Load subagent sessions (non-blocking). windowMessages는 시스템 메시지 필터
       // 적용 전 — meta.json 기반 매핑(주 경로)은 window와 무관하게 동작.
       void get().loadSubagents(sessionPath, windowMessages);
+      if (shownEmpty) await pageBackToShownPath(() => owner.ownsData());
 
       // Search index is built lazily on first search to avoid blocking UI
       // when loading large sessions (47k+ messages with tokenize:"full" is expensive).
     } catch (error) {
-      // Stale error guard: 경로·epoch 둘 중 하나라도 어긋나면 abandoned request의
-      // 에러·로딩 상태를 현재 UI에 덮어쓰지 않음 (success path guard 미러링)
-      if (
-        epoch !== sessionLoadEpoch ||
-        get().selectedSession?.file_path !== session.file_path
-      ) {
-        return;
-      }
-
       console.error("Failed to load session messages:", error);
+      // Abandoned (another session, a newer load, or a navigation since):
+      // the failure is not the user's concern on the screen they are on.
+      if (!owner.ownsFeedback()) return;
       // 서브에이전트 로딩 실패 시 toast로 알림 (전체 페이지 에러 방지).
       // shouldTreatAsSubagent(pre-await 캡처)를 사용해 await 중 stack 변이에 영향받지 않음.
       const message = error instanceof Error ? error.message : String(error);
       if (shouldTreatAsSubagent) {
-        toast.error(`Failed to load subagent messages: ${message}`);
+        toast.error(
+          i18n.t("session.subagentMessagesLoadError", {
+            error: message,
+            defaultValue: "Failed to load subagent messages: {{error}}",
+          })
+        );
       } else {
-        get().setError({ type: AppErrorType.UNKNOWN, message });
+        // The conversation lives in a tab: its failure (a session deleted
+        // or moved while open) is the tab's in-tab state, not the app's
+        // error screen (T8).
+        get().markSessionUnavailable(session.file_path);
       }
-      set({ isLoadingMessages: false });
+    } finally {
+      // The spinner this load raised is its own to stop, abandoned or not -
+      // a project-only move drops the session without starting another load,
+      // and nothing else would. A newer load of a session has taken it over.
+      if (owner.ownsSpinner() && get().isLoadingMessages) {
+        set({ isLoadingMessages: false });
+      }
+      if (
+        owner.ownsSpinner() &&
+        get().pagination === ownedPagination &&
+        ownedPagination.isLoadingMore
+      ) {
+        set({ pagination: { ...ownedPagination, isLoadingMore: false } });
+      }
     }
   },
 
@@ -569,6 +819,10 @@ export const createMessageSlice: StateCreator<
     const sessionPath = session.file_path;
     const provider = session.provider ?? "claude";
     const inSubagent = get().parentSessionStack.length > 0;
+    const owner = ownWork(get, {
+      context: { sessionPath },
+      isLatest: () => epoch === sessionLoadEpoch,
+    });
 
     let offset: number | null;
     try {
@@ -580,19 +834,22 @@ export const createMessageSlice: StateCreator<
       });
     } catch (error) {
       console.error("Failed to locate message offset:", error);
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to locate message: ${message}`);
+      // Another session, or a navigation since (even a screen switch within
+      // this session): not the user's concern on the screen they are on now.
+      if (owner.ownsFeedback()) {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.error(`Failed to locate message: ${message}`);
+      }
       return false;
     }
     if (offset == null) return false;
-    if (get().selectedSession?.file_path !== sessionPath) return false;
+    if (!owner.ownsData()) return false;
 
     // Extend the window until it covers offset (+1 because offset is 0-based
     // from the newest end). Pages are serialized through loadOlderChain.
     const needed = offset + 1;
     while (
-      epoch === sessionLoadEpoch &&
-      get().selectedSession?.file_path === sessionPath &&
+      owner.ownsData() &&
       get().pagination.hasMore &&
       get().pagination.currentOffset < needed
     ) {
@@ -614,15 +871,19 @@ export const createMessageSlice: StateCreator<
     if (!session) return [];
 
     // Loaded window already covers the whole session — reuse it.
-    if (!get().pagination.hasMore) return get().messages;
+    if (!get().pagination.hasMore) return selectDisplayedMessages(get());
 
     const inSubagent = get().parentSessionStack.length > 0;
     const excludeSidechain = shouldExcludeSidechain(inSubagent);
     const showSystem = get().showSystemMessages;
     const key = `${session.file_path}|${excludeSidechain}|${showSystem}`;
+    const onShownPath = (all: ClaudeMessage[]) => {
+      const { conversationBranches, branchSelections } = get();
+      return shownFullSession(all, conversationBranches, branchSelections);
+    };
 
     if (fullSessionCache?.key === key) {
-      return fullSessionCache.promise;
+      return onShownPath(await fullSessionCache.promise);
     }
 
     const provider = session.provider ?? "claude";
@@ -636,10 +897,10 @@ export const createMessageSlice: StateCreator<
         : all;
       return showSystem
         ? sidechainFiltered
-        : sidechainFiltered.filter(
+        : retainLoadedCodexStarts(sidechainFiltered, sidechainFiltered.filter(
             (m) =>
               !(SYSTEM_MESSAGE_TYPES as readonly string[]).includes(m.type)
-          );
+          ));
     })();
 
     fullSessionCache = { key, promise };
@@ -649,14 +910,43 @@ export const createMessageSlice: StateCreator<
         fullSessionCache = null;
       }
     });
-    return promise;
+    return onShownPath(await promise);
+  },
+
+  selectConversationBranch: async (parentUuid, headUuid) => {
+    const branches = get().conversationBranches;
+    const point = branches?.points.find((candidate) => candidate.parentUuid === parentUuid);
+    const option = point?.optionIds
+      .map((id) => branches?.options[id])
+      .find((candidate) => candidate?.headUuid === headUuid);
+    if (!option) return;
+    set({ branchSelections: { ...get().branchSelections, [parentUuid]: headUuid } });
+
+    // Matches index the path that was shown: search the new one.
+    clearSearchIndex();
+    const query = get().sessionSearch.query;
+    if (query.trim()) void get().setSessionSearchQuery(query);
+
+    // An older alternative can sit before the loaded window: page back to
+    // its first message (everything after it in the file is then loaded).
+    if (option.anchorUuid) await get().ensureMessageLoaded(option.anchorUuid);
   },
 
   loadSessionTokenStats: async (sessionPath: string) => {
     const requestId = nextRequestId("sessionTokenStats");
     const loadingEpoch = beginTokenStatsLoading();
+    // Always the open session's stats: a request for A1 never lands once B1
+    // is open, even if no newer token request started.
+    const owner = ownWork(get, {
+      context: { sessionPath },
+      isLatest: () => requestId === getRequestId("sessionTokenStats"),
+    });
+    // A new try for the same session shows its loading state, not the
+    // previous failure; another session's failure is not this load's.
+    if (get().sessionTokenStatsErrorOwner === sessionPath) {
+      set({ sessionTokenStatsError: null, sessionTokenStatsErrorOwner: null });
+    }
     try {
-      get().setError(null);
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
       const [stats, conversationStatsRaw] = await Promise.all([
@@ -667,33 +957,45 @@ export const createMessageSlice: StateCreator<
               "conversation_only",
               dateOptions
             ).catch((error) => {
-              if (requestId !== getRequestId("sessionTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only session stats:",
                 error
               );
-              toast.warning(
-                "Conversation-only session stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only session stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
       ]);
       const conversationStats = breakdown ? conversationStatsRaw : stats;
-      if (requestId !== getRequestId("sessionTokenStats")) return;
-      set({ sessionTokenStats: stats, sessionConversationTokenStats: conversationStats });
-    } catch (error) {
-      if (requestId !== getRequestId("sessionTokenStats")) return;
-      console.error("Failed to load session token stats:", error);
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(`Failed to load session token stats: ${message}`);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load token stats: ${error}`,
+      if (!owner.ownsData()) return;
+      set({
+        sessionTokenStats: stats,
+        sessionConversationTokenStats: conversationStats,
+        sessionTokenStatsOwner: sessionPath,
+        sessionTokenStatsError: null,
+        sessionTokenStatsErrorOwner: null,
       });
-      set({ sessionTokenStats: null, sessionConversationTokenStats: null });
+    } catch (error) {
+      console.error("Failed to load session token stats:", error);
+      if (!owner.ownsData()) return;
+      const message = error instanceof Error ? error.message : String(error);
+      // Recorded with its session, so the inspector's Tokens tab shows its
+      // error state for this session only (`selectSessionTokenStats`).
+      set({
+        sessionTokenStats: null,
+        sessionConversationTokenStats: null,
+        sessionTokenStatsOwner: null,
+        sessionTokenStatsError: message,
+        sessionTokenStatsErrorOwner: sessionPath,
+      });
+      if (!owner.ownsFeedback()) return;
+      // The token stats screen is one tab's: it says so there, and the
+      // tabs stay (never the app's error screen).
+      toast.error(`Failed to load session token stats: ${message}`);
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -702,6 +1004,11 @@ export const createMessageSlice: StateCreator<
   loadProjectTokenStats: async (projectPath: string) => {
     const requestId = nextRequestId("projectTokenStats");
     const loadingEpoch = beginTokenStatsLoading();
+    // Always the open project's stats (see `loadSessionTokenStats`).
+    const owner = ownWork(get, {
+      context: { projectPath },
+      isLatest: () => requestId === getRequestId("projectTokenStats"),
+    });
     try {
       set({
         projectTokenStats: [], // Reset on new project load
@@ -711,8 +1018,10 @@ export const createMessageSlice: StateCreator<
         projectTokenStatsPagination: {
           ...initialMessageState.projectTokenStatsPagination,
         },
+        projectTokenStatsOwner: null,
+        projectTokenStatsError: null,
+        projectTokenStatsErrorOwner: null,
       });
-      get().setError(null);
 
       const dateOptions = normalizeDateFilterOptions(get().dateFilter);
       const breakdown = canLoadConversationBreakdown();
@@ -736,16 +1045,15 @@ export const createMessageSlice: StateCreator<
               ...dateOptions,
               stats_mode: "conversation_only",
             }).catch((error) => {
-              if (requestId !== getRequestId("projectTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only project token stats:",
                 error
               );
-              toast.warning(
-                "Conversation-only project stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only project stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
@@ -753,16 +1061,15 @@ export const createMessageSlice: StateCreator<
           ...dateOptions,
           stats_mode: "billing_total",
         }).catch((error) => {
-          if (requestId !== getRequestId("projectTokenStats")) {
-            return null;
-          }
           console.warn(
             "Failed to load project token stats summary, falling back to loaded-page aggregate:",
             error
           );
-          toast.warning(
-            "Project stats summary could not be loaded. Showing page aggregate only."
-          );
+          if (owner.ownsFeedback()) {
+            toast.warning(
+              "Project stats summary could not be loaded. Showing page aggregate only."
+            );
+          }
           return null;
         }),
         breakdown
@@ -770,16 +1077,15 @@ export const createMessageSlice: StateCreator<
               ...dateOptions,
               stats_mode: "conversation_only",
             }).catch((error) => {
-              if (requestId !== getRequestId("projectTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only project summary:",
                 error
               );
-              toast.warning(
-                "Conversation-only project summary could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only project summary could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
@@ -791,7 +1097,7 @@ export const createMessageSlice: StateCreator<
         ? conversationSummaryRaw
         : billingSummary;
 
-      if (requestId !== getRequestId("projectTokenStats")) return;
+      if (!owner.ownsData()) return;
       set({
         projectTokenStats: billingResponse.items,
         projectConversationTokenStats: conversationResponse?.items ?? [],
@@ -804,20 +1110,25 @@ export const createMessageSlice: StateCreator<
           hasMore: billingResponse.has_more,
           isLoadingMore: false,
         },
+        projectTokenStatsOwner: projectPath,
       });
     } catch (error) {
-      if (requestId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load project token stats:", error);
-      get().setError({
-        type: AppErrorType.UNKNOWN,
-        message: `Failed to load project token stats: ${error}`,
-      });
+      if (!owner.ownsData()) return;
+      const message = i18n.t("error.tokenStatsLoadFailed", { detail: errorDetail(error) });
+      // The screen's own error state, for this project only.
       set({
         projectTokenStats: [],
         projectConversationTokenStats: [],
         projectTokenStatsSummary: null,
         projectConversationTokenStatsSummary: null,
+        projectTokenStatsOwner: null,
+        projectTokenStatsError: message,
+        projectTokenStatsErrorOwner: projectPath,
       });
+      if (!owner.ownsFeedback()) return;
+      // One tab's screen: a notification, never the app's error screen.
+      toast.error(message);
     } finally {
       endTokenStatsLoading(loadingEpoch);
     }
@@ -832,6 +1143,10 @@ export const createMessageSlice: StateCreator<
 
     // Snapshot the current request ID to detect if a full reset happened mid-flight.
     const snapshotId = getRequestId("projectTokenStats");
+    const owner = ownWork(get, {
+      context: { projectPath },
+      isLatest: () => snapshotId === getRequestId("projectTokenStats"),
+    });
 
     try {
       set({
@@ -858,16 +1173,15 @@ export const createMessageSlice: StateCreator<
               ...dateOptions,
               stats_mode: "conversation_only",
             }).catch((error) => {
-              if (snapshotId !== getRequestId("projectTokenStats")) {
-                return null;
-              }
               console.warn(
                 "Failed to load conversation-only project stats page:",
                 error
               );
-              toast.warning(
-                "Conversation-only project stats could not be loaded. Showing billing totals only."
-              );
+              if (owner.ownsFeedback()) {
+                toast.warning(
+                  "Conversation-only project stats could not be loaded. Showing billing totals only."
+                );
+              }
               return null;
             })
           : Promise.resolve(null),
@@ -876,7 +1190,7 @@ export const createMessageSlice: StateCreator<
         ? conversationResponseRaw
         : billingResponse;
 
-      if (snapshotId !== getRequestId("projectTokenStats")) return;
+      if (!owner.ownsData()) return;
       set({
         projectTokenStats: [...projectTokenStats, ...billingResponse.items],
         projectConversationTokenStats: [
@@ -892,52 +1206,53 @@ export const createMessageSlice: StateCreator<
         },
       });
     } catch (error) {
-      if (snapshotId !== getRequestId("projectTokenStats")) return;
       console.error("Failed to load more project token stats:", error);
-      set({
-        projectTokenStatsPagination: {
-          ...projectTokenStatsPagination,
-          isLoadingMore: false,
-        },
-      });
+    } finally {
+      // A newer full load replaced the pagination (and this flag) wholesale.
+      const pagination = get().projectTokenStatsPagination;
+      if (owner.ownsSpinner() && pagination.isLoadingMore) {
+        set({ projectTokenStatsPagination: { ...pagination, isLoadingMore: false } });
+      }
     }
   },
 
-  loadProjectStatsSummary: async (projectPath: string) => {
-    try {
-      const dateOptions = normalizeDateFilterOptions(get().dateFilter);
+  loadProjectStatsSummary: async (projectPath: string, ownership) => {
+    const owns =
+      ownership ?? ownWork(get, { context: { projectPath } }).ownsFeedback;
+    // A failure is rethrown unreported: the screen loader that owns the
+    // screen (`loadProjectAnalytics`) records it there and raises the one
+    // notification.
+    const dateOptions = normalizeDateFilterOptions(get().dateFilter);
 
-      const billing = await fetchProjectStatsSummary(projectPath, {
-        ...dateOptions,
-        stats_mode: "billing_total",
-      });
-      const conversation = canLoadConversationBreakdown()
-        ? await fetchProjectStatsSummary(projectPath, {
-            ...dateOptions,
-            stats_mode: "conversation_only",
-          }).catch((error) => {
-            console.warn(
-              "Failed to load conversation-only project summary:",
-              error
-            );
+    const billing = await fetchProjectStatsSummary(projectPath, {
+      ...dateOptions,
+      stats_mode: "billing_total",
+    });
+    const conversation = canLoadConversationBreakdown()
+      ? await fetchProjectStatsSummary(projectPath, {
+          ...dateOptions,
+          stats_mode: "conversation_only",
+        }).catch((error) => {
+          console.warn(
+            "Failed to load conversation-only project summary:",
+            error
+          );
+          if (owns()) {
             toast.warning(
               "Conversation-only project summary could not be loaded. Showing billing totals only."
             );
-            return billing;
-          })
-        : billing;
-      get().setAnalyticsProjectConversationSummary(conversation);
-      return billing;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("Failed to load project stats summary:", error);
-      toast.error(`Failed to load project stats summary: ${message}`);
-      get().setError({ type: AppErrorType.UNKNOWN, message: String(error) });
-      throw error;
+          }
+          return billing;
+        })
+      : billing;
+    if (owns()) {
+      get().setAnalyticsProjectConversationSummary(conversation, projectPath);
     }
+    return billing;
   },
 
   loadSessionComparison: async (sessionId: string, projectPath: string) => {
+    const owner = ownWork(get, { context: { projectPath } });
     const dateOptions = normalizeDateFilterOptions(get().dateFilter);
     try {
       return await fetchSessionComparison(
@@ -950,7 +1265,9 @@ export const createMessageSlice: StateCreator<
       const message =
         error instanceof Error ? error.message : String(error);
       console.error("Failed to load session comparison:", error);
-      toast.error(`Failed to load session comparison: ${message}`);
+      if (owner.ownsFeedback()) {
+        toast.error(`Failed to load session comparison: ${message}`);
+      }
       throw error;
     }
   },
@@ -970,6 +1287,12 @@ export const createMessageSlice: StateCreator<
       projectTokenStatsPagination: createInitialPaginationWithCount(
         TOKENS_STATS_PAGE_SIZE
       ),
+      projectTokenStatsOwner: null,
+      sessionTokenStatsOwner: null,
+      sessionTokenStatsError: null,
+      sessionTokenStatsErrorOwner: null,
+      projectTokenStatsError: null,
+      projectTokenStatsErrorOwner: null,
     });
   },
 
@@ -981,12 +1304,25 @@ export const createMessageSlice: StateCreator<
     sessionPath: string,
     sourceMessages: ClaudeMessage[],
   ) => {
+    // Other providers keep no subagent files the backend can read; asking
+    // errors in the WebUI on every session open (#643). `selectSession` has
+    // already cleared the previous session's subagents.
+    if (!supportsSubagents(get().selectedSession?.provider)) {
+      return;
+    }
+    // Two reloads of the same file share its context and the navigation
+    // epoch: only the latest request of the session owns the list and map.
+    const requestId = nextRequestId("subagents");
+    const owner = ownWork(get, {
+      context: { sessionPath },
+      isLatest: () => requestId === getRequestId("subagents"),
+    });
     try {
       const subagents = await api<SubagentSession[]>("get_session_subagents", {
         sessionPath,
       });
       // Guard: only update if still viewing the same session
-      if (get().selectedSession?.file_path === sessionPath) {
+      if (owner.ownsData()) {
         // toolUseId → subagent file_path 매핑. 두 소스 사용:
         // 1) (신형) subagent.tool_use_id — agent-<id>.meta.json에서 읽은 Task tool_use id.
         //    progress 메시지가 없는 다중 subagent 세션도 정확히 매핑 (#288).
@@ -1030,15 +1366,22 @@ export const createMessageSlice: StateCreator<
       if (import.meta.env.DEV) {
         console.warn("[loadSubagents] Failed:", error);
       }
-      // 여전히 같은 세션을 보고 있을 때만 피드백 + 상태 초기화.
-      // CLAUDE.md 가이드: async 실패는 사용자에게 가시적 피드백 필요.
-      if (get().selectedSession?.file_path === sessionPath) {
-        const message = error instanceof Error ? error.message : String(error);
-        toast.warning(`Failed to load subagent sessions: ${message}`);
+      // 여전히 같은 세션을 보고 있을 때만 상태 초기화, 그 사이 navigation이
+      // 없었을 때만 피드백 (CLAUDE.md: async 실패는 가시적 피드백 필요).
+      if (owner.ownsData()) {
         set({
           subagentSessions: [],
           toolUseToSubagentMap: EMPTY_SUBAGENT_MAP as Map<string, string>,
         });
+      }
+      if (owner.ownsFeedback()) {
+        const message = error instanceof Error ? error.message : String(error);
+        toast.warning(
+          i18n.t("session.subagentsLoadError", {
+            error: message,
+            defaultValue: "Failed to load subagent sessions: {{error}}",
+          })
+        );
       }
     }
   },
@@ -1050,33 +1393,35 @@ export const createMessageSlice: StateCreator<
 
     subagentNavInFlight = true;
     try {
-    // Push current session onto the navigation stack
-    set((state) => ({
-      parentSessionStack: [...state.parentSessionStack, currentSession],
-    }));
+      set((state) => ({
+        parentSessionStack: [...state.parentSessionStack, currentSession],
+      }));
 
-    // Create a synthetic ClaudeSession for the subagent
-    const syntheticSession: ClaudeSession = {
-      session_id: subagent.file_path,
-      actual_session_id: subagent.agent_id,
-      file_path: subagent.file_path,
-      project_name: currentSession.project_name,
-      message_count: subagent.message_count,
-      first_message_time: subagent.first_message_time ?? "",
-      last_message_time: subagent.last_message_time ?? "",
-      last_modified: subagent.last_message_time ?? "",
-      has_tool_use: false,
-      has_errors: false,
-      summary: subagent.summary ?? subagent.agent_id,
-      // Subagent files live under the parent session's provider storage, so
-      // they inherit its provider; leaving this unset would make selectSession
-      // fall back to "claude" and load an empty message list for other
-      // providers (codex, opencode, gemini, ...).
-      provider: currentSession.provider ?? "claude",
-    };
+      // Database runs are real sidebar rows. File-backed subagents still
+      // need a synthetic session for the transcript viewer.
+      const provider = currentSession.provider ?? "claude";
+      const grouped = usesSessionBranches(provider);
+      const listed = grouped
+        ? get().sessions.find((session) => session.file_path === subagent.file_path)
+        : undefined;
+      const child: ClaudeSession = listed ?? {
+        session_id: grouped ? `${provider}://${subagent.agent_id}` : subagent.file_path,
+        actual_session_id: subagent.agent_id,
+        file_path: subagent.file_path,
+        project_name: currentSession.project_name,
+        message_count: subagent.message_count,
+        first_message_time: subagent.first_message_time ?? "",
+        last_message_time: subagent.last_message_time ?? "",
+        last_modified: subagent.last_message_time ?? "",
+        has_tool_use: false,
+        has_errors: false,
+        summary: subagent.summary ?? subagent.agent_id,
+        provider,
+      };
 
-    isSubagentNav = true;
-    await get().selectSession(syntheticSession);
+      isSubagentNav = true;
+      await get().selectSession(child);
+      if (grouped && !listed) await get().ensureSessionBranch(child);
     } finally {
       subagentNavInFlight = false;
     }

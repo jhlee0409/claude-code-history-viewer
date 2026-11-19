@@ -11,6 +11,7 @@ import {
   PLAIN_PREVIEW_CHARS,
   formatCharSize,
 } from "../../utils/contentSizeGuard";
+import { Num } from "@/lib/format/Num";
 
 interface TruncatedPreProps {
   content: string;
@@ -39,13 +40,13 @@ export const TruncatedPre: React.FC<TruncatedPreProps> = ({
       <pre className={className} style={style}>
         {content.slice(0, PLAIN_PREVIEW_CHARS)}
       </pre>
-      <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 px-2 py-1.5 text-list text-muted-foreground">
         <span>
-          {t("sizeGuard.truncated", {
+          <Num>{t("sizeGuard.truncated", {
             shown: formatCharSize(PLAIN_PREVIEW_CHARS),
             total: formatCharSize(content.length),
             defaultValue: "Showing {{shown}} of {{total}}",
-          })}
+          })}</Num>
         </span>
         <button
           type="button"

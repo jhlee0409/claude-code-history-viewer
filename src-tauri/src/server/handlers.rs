@@ -32,14 +32,16 @@ fn require_history_path_or_provider_uri(path: &str) -> Result<(), String> {
 }
 
 /// Recent edits read a provider project through the provider (its path is a
-/// provider id) and any other project from disk. A session is accepted as a
-/// provider id only when it is one of that same provider's ids; anything else
-/// must be a history file.
+/// provider id) and a Claude project from disk. Another provider's project
+/// is answered with no edits and nothing of it is opened, so it needs no
+/// history root (#643). A session is accepted as a provider id only when it
+/// is one of that same provider's ids; anything else must be a history file.
 fn require_edits_project(project_path: &str, session: Option<&str>) -> Result<(), String> {
-    if commands::session::is_provider_edits_project(project_path) {
-        require_history_path_or_provider_uri(project_path)?;
-    } else {
-        require_history_path(project_path)?;
+    use commands::session::EditsSource;
+    match commands::session::edits_source(project_path) {
+        EditsSource::NotRecorded => return Ok(()),
+        EditsSource::Provider => require_history_path_or_provider_uri(project_path)?,
+        EditsSource::History => require_history_path(project_path)?,
     }
     match session {
         Some(s) if commands::session::is_provider_session_of_project(project_path, s) => {
@@ -72,6 +74,27 @@ fn require_claude_bases(
         .unwrap_or_default()
         .iter()
         .try_for_each(|c| require_claude_base(&c.path))
+}
+
+/// The usage breakdown reads the same paths as the old stats commands, so it
+/// is guarded the same way: a Claude project must be a history path and an
+/// `all` scope's Claude roots must be history roots (provider projects are
+/// resolved by their own provider store).
+fn require_usage_scope(scope: &commands::stats::usage_breakdown::UsageScope) -> Result<(), String> {
+    use commands::stats::usage_breakdown::UsageScope;
+    match scope {
+        UsageScope::Project { project_path, .. } => {
+            if commands::stats::is_claude_project_path(project_path) {
+                require_history_path(project_path)?;
+            }
+            Ok(())
+        }
+        UsageScope::All {
+            claude_path,
+            custom_claude_paths,
+            ..
+        } => require_claude_bases(Some(claude_path), Some(custom_claude_paths)),
+    }
 }
 
 // ─── Known-project guard ──────────────────────────────────────────────────────
@@ -210,6 +233,13 @@ impl From<String> for ApiError {
     }
 }
 
+/// Serialize a command result into the JSON response body.
+fn json_ok<T: serde::Serialize>(value: T) -> Result<Json<Value>, ApiError> {
+    serde_json::to_value(value)
+        .map(Json)
+        .map_err(|e| ApiError(format!("Serialization error: {e}")))
+}
+
 // ─── Macros for boilerplate reduction ─────────────────────────────────────────
 
 /// Handler with no parameters.
@@ -217,9 +247,7 @@ macro_rules! handler_no_params {
     ($name:ident, $cmd:path) => {
         pub async fn $name() -> Result<Json<Value>, ApiError> {
             let result = $cmd().await.map_err(ApiError::from)?;
-            Ok(Json(serde_json::to_value(result).map_err(|e| {
-                ApiError(format!("Serialization error: {e}"))
-            })?))
+            json_ok(result)
         }
     };
 }
@@ -229,14 +257,17 @@ macro_rules! handler_json {
     ($name:ident, $params:ty, $body:expr) => {
         pub async fn $name(Json(p): Json<$params>) -> Result<Json<Value>, ApiError> {
             let result = $body(p).await.map_err(ApiError::from)?;
-            Ok(Json(serde_json::to_value(result).map_err(|e| {
-                ApiError(format!("Serialization error: {e}"))
-            })?))
+            json_ok(result)
         }
     };
 }
 
 // ─── Parameter structs ────────────────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct UsageBreakdownParams {
+    pub request: commands::stats::usage_breakdown::UsageBreakdownRequest,
+}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -487,6 +518,25 @@ pub struct DeleteSessionParams {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PreviewUnavailableCleanupParams {
+    pub projects: Vec<commands::session::UnavailableProjectRef>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearUnavailableSessionsParams {
+    pub projects: Vec<commands::session::ConfirmedCleanup>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveSessionParams {
+    pub session_path: String,
+    pub target_project_path: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RenameSessionParams {
     pub file_path: String,
     pub new_title: String,
@@ -544,6 +594,8 @@ pub struct ProviderSessionsPageParams {
     pub offset: Option<usize>,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default)]
+    pub anchor_session_path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -620,13 +672,6 @@ pub struct UpdateProjectMetadataParams {
     pub update: crate::models::ProjectMetadata,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct McpScopeParam {
-    #[serde(default)]
-    pub scope: Option<String>,
-}
-
 // ─── Handlers: NO PARAMS ──────────────────────────────────────────────────────
 
 handler_no_params!(
@@ -658,16 +703,9 @@ pub async fn get_server_config(
     })))
 }
 
-/// Note: scope parameter is accepted for API contract compatibility but not used
-/// by the underlying command (it always reads the global MCP config).
-pub async fn get_mcp_servers(Json(_p): Json<McpScopeParam>) -> Result<Json<Value>, ApiError> {
-    let result = commands::claude_settings::get_mcp_servers()
-        .await
-        .map_err(ApiError::from)?;
-    Ok(Json(serde_json::to_value(result).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
-}
+// Note: the frontend still sends a `scope` body, but the underlying command
+// always reads the global MCP config, so the body is ignored.
+handler_no_params!(get_mcp_servers, commands::claude_settings::get_mcp_servers);
 
 // ─── Handlers: SIMPLE PARAMS ──────────────────────────────────────────────────
 
@@ -731,6 +769,15 @@ handler_json!(
 );
 
 handler_json!(
+    load_session_api_view,
+    SessionPathParam,
+    |p: SessionPathParam| async move {
+        require_history_path(&p.session_path)?;
+        commands::session::load_session_api_view(p.session_path).await
+    }
+);
+
+handler_json!(
     load_session_messages_paginated,
     PaginatedParams,
     |p: PaginatedParams| async move {
@@ -758,8 +805,12 @@ handler_json!(
     get_session_subagents,
     SessionPathParam,
     |p: SessionPathParam| async move {
-        // OpenCode / Kilo subagents are read by provider id.
-        require_history_path_or_provider_uri(&p.session_path)?;
+        // OpenCode / Kilo / Z Code subagents are read by provider id. Another
+        // provider's session file is answered with no subagents and never
+        // opened, so it needs no history root (#643).
+        if !commands::session::is_other_provider_session_file(&p.session_path) {
+            require_history_path_or_provider_uri(&p.session_path)?;
+        }
         commands::session::get_session_subagents(p.session_path).await
     }
 );
@@ -885,12 +936,62 @@ handler_json!(
     delete_session,
     DeleteSessionParams,
     |p: DeleteSessionParams| async move {
-        // ForgeCode uses opaque URI scheme handled inside the command;
-        // file-path callers are constrained to the provider session roots.
-        if !p.file_path.starts_with("forgecode://") && !p.file_path.starts_with("forgecode-db://") {
+        // ForgeCode and Cursor use opaque URI schemes handled inside the
+        // command; file-path callers are constrained to the provider roots.
+        if !p.file_path.starts_with("forgecode://")
+            && !p.file_path.starts_with("forgecode-db://")
+            && !p.file_path.starts_with("cursor://")
+        {
             require_history_path(&p.file_path)?;
         }
         commands::session::delete_session(p.file_path).await
+    }
+);
+
+/// Projects of a provider the cleanup opens on disk must be history paths
+/// (`codex://` ids pass as URIs); the others are only reported as excluded,
+/// never opened, so they need no root.
+fn require_cleanup_project(provider: Option<&str>, path: &str) -> Result<(), String> {
+    if commands::session::is_trash_cleanup_provider(provider) {
+        require_history_path_or_provider_uri(path)?;
+    }
+    Ok(())
+}
+
+handler_json!(
+    preview_unavailable_session_cleanup,
+    PreviewUnavailableCleanupParams,
+    |p: PreviewUnavailableCleanupParams| async move {
+        for project in &p.projects {
+            require_cleanup_project(project.provider.as_deref(), &project.path)?;
+        }
+        commands::session::preview_unavailable_session_cleanup(p.projects).await
+    }
+);
+
+handler_json!(
+    clear_unavailable_sessions,
+    ClearUnavailableSessionsParams,
+    |p: ClearUnavailableSessionsParams| async move {
+        for project in &p.projects {
+            require_cleanup_project(project.provider.as_deref(), &project.path)?;
+            if commands::session::is_trash_cleanup_provider(project.provider.as_deref()) {
+                for session in &project.session_paths {
+                    require_history_path(session)?;
+                }
+            }
+        }
+        commands::session::clear_unavailable_sessions(p.projects).await
+    }
+);
+
+handler_json!(
+    move_session_to_project,
+    MoveSessionParams,
+    |p: MoveSessionParams| async move {
+        require_history_path(&p.session_path)?;
+        require_history_path(&p.target_project_path)?;
+        commands::session::move_session_to_project(p.session_path, p.target_project_path).await
     }
 );
 
@@ -928,37 +1029,32 @@ handler_json!(
 
 // ─── Handlers: STRUCT PARAMS ──────────────────────────────────────────────────
 
+/// Request body `{ "input": ... }` shared by the preset save handlers.
 #[derive(Deserialize)]
-pub struct SavePresetParams {
-    pub input: crate::commands::settings::PresetInput,
+pub struct InputParam<T> {
+    pub input: T,
 }
 
 handler_json!(
     save_preset,
-    SavePresetParams,
-    |p: SavePresetParams| async move { commands::settings::save_preset(p.input).await }
+    InputParam<crate::commands::settings::PresetInput>,
+    |p: InputParam<crate::commands::settings::PresetInput>| async move {
+        commands::settings::save_preset(p.input).await
+    }
 );
-
-#[derive(Deserialize)]
-pub struct SaveMcpPresetParams2 {
-    pub input: crate::commands::mcp_presets::MCPPresetInput,
-}
 
 handler_json!(
     save_mcp_preset,
-    SaveMcpPresetParams2,
-    |p: SaveMcpPresetParams2| async move { commands::mcp_presets::save_mcp_preset(p.input).await }
+    InputParam<crate::commands::mcp_presets::MCPPresetInput>,
+    |p: InputParam<crate::commands::mcp_presets::MCPPresetInput>| async move {
+        commands::mcp_presets::save_mcp_preset(p.input).await
+    }
 );
-
-#[derive(Deserialize)]
-pub struct SaveUnifiedPresetParams {
-    pub input: crate::commands::unified_presets::UnifiedPresetInput,
-}
 
 handler_json!(
     save_unified_preset,
-    SaveUnifiedPresetParams,
-    |p: SaveUnifiedPresetParams| async move {
+    InputParam<crate::commands::unified_presets::UnifiedPresetInput>,
+    |p: InputParam<crate::commands::unified_presets::UnifiedPresetInput>| async move {
         commands::unified_presets::save_unified_preset(p.input).await
     }
 );
@@ -974,9 +1070,31 @@ handler_json!(
     |p: SendFeedbackParams| async move { commands::feedback::send_feedback(p.feedback).await }
 );
 
+/// `sync_menu_state` (desktop: the native menu's language and command state).
+/// The `WebUI` has no native menu, so the menu routes only keep the desktop
+/// and `WebUI` command surfaces in parity: this one accepts the body and
+/// does nothing.
+pub async fn sync_menu_state() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
+}
+
+/// `menu_journal` (desktop: menu events not yet acknowledged). No native
+/// menu in the `WebUI`: an empty journal.
+pub async fn menu_journal() -> Result<Json<Value>, ApiError> {
+    Ok(Json(
+        serde_json::json!({ "epoch": "webui", "floor": 0, "events": [] }),
+    ))
+}
+
+/// `ack_menu_events` (desktop: drop acknowledged menu events). A no-op in
+/// the `WebUI`.
+pub async fn ack_menu_events() -> Result<Json<Value>, ApiError> {
+    Ok(Json(Value::Null))
+}
+
 /// Special handler: returns URL instead of opening browser on server.
 pub async fn open_github_issues() -> Result<Json<Value>, ApiError> {
-    let url = "https://github.com/jhlee0409/claude-code-history-viewer/issues/new";
+    let url = "https://github.com/jhlee0409/omnilogue/issues/new";
     Ok(Json(
         serde_json::json!({ "url": url, "note": "Open this URL in your browser" }),
     ))
@@ -1069,6 +1187,15 @@ handler_json!(
             p.custom_claude_paths,
         )
         .await
+    }
+);
+
+handler_json!(
+    get_usage_breakdown,
+    UsageBreakdownParams,
+    |p: UsageBreakdownParams| async move {
+        require_usage_scope(&p.request.scope)?;
+        commands::stats::usage_breakdown::get_usage_breakdown(p.request).await
     }
 );
 
@@ -1185,6 +1312,7 @@ handler_json!(
             p.exclude_sidechain,
             p.offset,
             p.limit,
+            p.anchor_session_path,
         )
         .await
     }
@@ -1254,6 +1382,17 @@ handler_json!(
 );
 
 handler_json!(
+    get_conversation_branches,
+    ProviderMessagesParams,
+    |p: ProviderMessagesParams| async move {
+        if p.provider == "claude" {
+            require_history_path(&p.session_path)?;
+        }
+        commands::multi_provider::get_conversation_branches(p.provider, p.session_path).await
+    }
+);
+
+handler_json!(
     search_all_providers,
     SearchAllProvidersParams,
     |p: SearchAllProvidersParams| async move {
@@ -1287,10 +1426,7 @@ pub async fn load_user_metadata(
             .lock()
             .map_err(|e| ApiError(format!("Lock error: {e}")))?;
         if let Some(ref meta) = *cached {
-            return Ok(Json(
-                serde_json::to_value(meta.clone())
-                    .map_err(|e| ApiError(format!("Serialization error: {e}")))?,
-            ));
+            return json_ok(meta.clone());
         }
     }
 
@@ -1318,9 +1454,7 @@ pub async fn load_user_metadata(
         .map_err(|e| ApiError(format!("Lock error: {e}")))?;
     *cached = Some(metadata.clone());
 
-    Ok(Json(serde_json::to_value(metadata).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
+    json_ok(metadata)
 }
 
 /// Persist metadata written through the `WebUI`.
@@ -1344,6 +1478,7 @@ async fn save_webui_metadata(
     commands::metadata::mutate_and_save(&state.metadata, move |metadata| {
         mutate(metadata);
         keep_persisted_custom_claude_paths(metadata);
+        keep_persisted_claude_ai_exports(metadata);
     })
     .await
     .map_err(ApiError::from)
@@ -1374,6 +1509,18 @@ fn keep_persisted_custom_claude_paths(metadata: &mut crate::models::UserMetadata
     metadata.settings.custom_claude_paths = kept;
 }
 
+/// claude.ai exports name files the server reads, so over the `WebUI` they
+/// change only through `add_claude_ai_export` / `remove_claude_ai_export`,
+/// which check the path; a full-settings save keeps the list on disk.
+fn keep_persisted_claude_ai_exports(metadata: &mut crate::models::UserMetadata) {
+    metadata.settings.claude_ai_exports = commands::metadata::get_user_data_path()
+        .ok()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|content| serde_json::from_str::<crate::models::UserMetadata>(&content).ok())
+        .map(|persisted| persisted.settings.claude_ai_exports)
+        .unwrap_or_default();
+}
+
 #[derive(Deserialize)]
 pub struct SaveUserMetadataParams {
     pub metadata: crate::models::UserMetadata,
@@ -1400,9 +1547,7 @@ pub async fn update_session_metadata(
     })
     .await?;
 
-    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
-        |e| ApiError(format!("Serialization error: {e}")),
-    )?))
+    json_ok(metadata_to_save)
 }
 
 pub async fn update_project_metadata(
@@ -1420,9 +1565,7 @@ pub async fn update_project_metadata(
     })
     .await?;
 
-    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
-        |e| ApiError(format!("Serialization error: {e}")),
-    )?))
+    json_ok(metadata_to_save)
 }
 
 #[derive(Deserialize)]
@@ -1437,9 +1580,36 @@ pub async fn update_user_settings(
     let metadata_to_save =
         save_webui_metadata(&state, move |metadata| metadata.settings = p.settings).await?;
 
-    Ok(Json(serde_json::to_value(metadata_to_save).map_err(
-        |e| ApiError(format!("Serialization error: {e}")),
-    )?))
+    json_ok(metadata_to_save)
+}
+
+#[derive(Deserialize)]
+pub struct AddClaudeAiExportParams {
+    pub path: String,
+    pub label: Option<String>,
+}
+
+/// Register a claude.ai export typed into the `WebUI`. With no native dialog
+/// to vouch for the choice, the path must lie in the folders a browser user
+/// may name (Downloads, Documents, Desktop - as for `read_text_file`).
+pub async fn add_claude_ai_export(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<AddClaudeAiExportParams>,
+) -> Result<Json<Value>, ApiError> {
+    commands::claude_settings::is_safe_path(std::path::Path::new(p.path.trim()))?;
+    let added =
+        commands::claude_ai_export::add_claude_ai_export_in(&state.metadata, p.path, p.label)
+            .await?;
+    json_ok(added)
+}
+
+pub async fn remove_claude_ai_export(
+    State(state): State<Arc<AppState>>,
+    Json(p): Json<PathParam>,
+) -> Result<Json<Value>, ApiError> {
+    let metadata =
+        commands::claude_ai_export::remove_claude_ai_export_in(&state.metadata, p.path).await?;
+    json_ok(metadata)
 }
 
 pub async fn is_project_hidden(
@@ -1457,9 +1627,7 @@ pub async fn is_project_hidden(
         .as_ref()
         .map(|m| m.is_project_hidden(&p.project_path))
         .unwrap_or(false);
-    Ok(Json(serde_json::to_value(hidden).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
+    json_ok(hidden)
 }
 
 pub async fn get_session_display_name(
@@ -1476,9 +1644,7 @@ pub async fn get_session_display_name(
         .and_then(|m| m.get_session(&p.session_id))
         .and_then(|s| s.custom_name.clone())
         .or(p.fallback_summary);
-    Ok(Json(serde_json::to_value(name).map_err(|e| {
-        ApiError(format!("Serialization error: {e}"))
-    })?))
+    json_ok(name)
 }
 
 // ─── Handlers: APP_HANDLE (Disabled in web mode) ──────────────────────────────
@@ -1655,6 +1821,7 @@ mod tests {
             exclude_sidechain: None,
             offset: None,
             limit: None,
+            anchor_session_path: None,
         }))
         .await;
 
@@ -1780,6 +1947,100 @@ mod tests {
         assert_eq!(saved[0].path, config_dir.to_string_lossy());
     }
 
+    /// claude.ai exports change over the `WebUI` only through their own
+    /// routes, and only for a path in the folders a browser user may name.
+    #[tokio::test]
+    #[serial]
+    async fn webui_claude_ai_exports_change_only_through_their_routes() {
+        use crate::providers::claude_ai::test_support::write_export_zip;
+        let home = crate::test_utils::SandboxHome::new();
+        let export = home.path().join("Downloads").join("data.zip");
+        let outside = home.path().join("elsewhere").join("data.zip");
+        for path in [&export, &outside] {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            write_export_zip(path);
+        }
+        commands::metadata::save_metadata_to_disk(&crate::models::UserMetadata::new()).unwrap();
+        let state = metadata_state();
+        let add = |path: &std::path::Path| AddClaudeAiExportParams {
+            path: path.to_string_lossy().to_string(),
+            label: None,
+        };
+
+        let refused = add_claude_ai_export(State(Arc::clone(&state)), Json(add(&outside))).await;
+        assert!(refused.is_err(), "a path outside the allowed folders");
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, Vec::new());
+
+        let _ = add_claude_ai_export(State(Arc::clone(&state)), Json(add(&export)))
+            .await
+            .unwrap_or_else(|_| panic!("add_claude_ai_export failed"));
+        let saved = persisted_metadata().settings.claude_ai_exports;
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].path, export.to_string_lossy());
+
+        // A full-settings save can neither add nor drop an export.
+        let mut settings = persisted_metadata().settings;
+        settings.claude_ai_exports = vec![crate::models::ClaudeAiExport {
+            path: outside.to_string_lossy().to_string(),
+            label: None,
+        }];
+        let _ = update_user_settings(
+            State(Arc::clone(&state)),
+            Json(UpdateUserSettingsParams { settings }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("update_user_settings failed"));
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, saved);
+
+        let _ = remove_claude_ai_export(
+            State(Arc::clone(&state)),
+            Json(PathParam {
+                path: export.to_string_lossy().to_string(),
+            }),
+        )
+        .await
+        .unwrap_or_else(|_| panic!("remove_claude_ai_export failed"));
+        assert_eq!(persisted_metadata().settings.claude_ai_exports, Vec::new());
+        assert!(export.is_file(), "removing an export never deletes it");
+    }
+
+    /// The `WebUI` path (Axum `/update_session_metadata`) keeps a favourite's
+    /// `ref` from the request body on disk and in its response (plan T7, A2).
+    #[tokio::test]
+    #[serial]
+    async fn webui_session_update_keeps_the_favourite_ref() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let state = metadata_state();
+        // The JSON body the frontend posts.
+        let params: UpdateSessionMetadataParams = serde_json::from_value(serde_json::json!({
+            "sessionId": "s1",
+            "update": {
+                "starred": true,
+                "ref": {
+                    "provider": "codex",
+                    "filePath": "/c/rollout-1.jsonl",
+                    "sessionId": "s1",
+                    "actualSessionId": "a1"
+                }
+            }
+        }))
+        .unwrap();
+
+        let Json(response) = update_session_metadata(State(state), Json(params))
+            .await
+            .unwrap_or_else(|_| panic!("update_session_metadata failed"));
+        assert_eq!(
+            response["sessions"]["s1"]["ref"]["filePath"],
+            "/c/rollout-1.jsonl"
+        );
+        assert_eq!(response["sessions"]["s1"]["ref"]["actualSessionId"], "a1");
+
+        let saved = persisted_metadata();
+        let saved_ref = saved.sessions["s1"].session_ref.clone().unwrap();
+        assert_eq!(saved_ref.provider, "codex");
+        assert_eq!(saved_ref.actual_session_id.as_deref(), Some("a1"));
+    }
+
     /// Concurrent `WebUI` session updates must all survive on disk and in the
     /// cache; an older save must not overwrite a newer one.
     #[tokio::test(flavor = "multi_thread", worker_threads = 8)]
@@ -1851,6 +2112,11 @@ mod tests {
                 "cline",
                 format!("cline://{}:1700000000000", cline_base.display()),
             ),
+            // The file a Cline session lists is confined the same way (#707).
+            (
+                "cline",
+                task.join("ui_messages.json").to_string_lossy().to_string(),
+            ),
         ] {
             let res = load_provider_messages(Json(ProviderMessagesParams {
                 provider: provider.to_string(),
@@ -1919,6 +2185,7 @@ mod tests {
             exclude_sidechain: None,
             offset: None,
             limit: None,
+            anchor_session_path: None,
         }))
         .await;
 
@@ -2299,6 +2566,80 @@ mod provider_uri_scope_tests {
         }
     }
 
+    /// Every provider the UI offers "Delete" for reaches its deleter over
+    /// `--serve`: Cursor Agent transcripts are inside the `~/.cursor` root and
+    /// `cursor://` ids pass to the Cursor deleter (which then reports its own
+    /// errors), while other URI schemes stay rejected.
+    #[tokio::test]
+    #[serial]
+    async fn delete_session_accepts_every_deletable_provider() {
+        let home = crate::test_utils::SandboxHome::new();
+        let id = "sess-webui";
+        let dir = home
+            .path()
+            .join(".cursor/projects/proj/agent-transcripts")
+            .join(id);
+        std::fs::create_dir_all(&dir).unwrap();
+        let transcript = dir.join(format!("{id}.jsonl"));
+        std::fs::write(&transcript, "{}\n").unwrap();
+
+        let res = delete_session(Json(DeleteSessionParams {
+            file_path: transcript.to_string_lossy().into_owned(),
+        }))
+        .await;
+        assert!(res.is_ok(), "{:?}", error_of(res));
+        assert!(!dir.exists());
+
+        let res = delete_session(Json(DeleteSessionParams {
+            file_path: "cursor://comp-1".to_string(),
+        }))
+        .await;
+        assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// The unavailable-location cleanup confines what it opens over `--serve`:
+    /// a project or session of a provider it clears must be a history path,
+    /// while a project it only reports as excluded is never opened.
+    #[tokio::test]
+    #[serial]
+    async fn unavailable_cleanup_takes_only_history_paths_it_would_open() {
+        let home = crate::test_utils::SandboxHome::new();
+        let outside = home.path().join("elsewhere").join("-gone");
+        std::fs::create_dir_all(&outside).unwrap();
+        let outside = outside.to_string_lossy().into_owned();
+        let project = |provider: Option<&str>| commands::session::UnavailableProjectRef {
+            provider: provider.map(str::to_string),
+            path: outside.clone(),
+        };
+
+        let res = preview_unavailable_session_cleanup(Json(PreviewUnavailableCleanupParams {
+            projects: vec![project(None)],
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
+
+        let res = preview_unavailable_session_cleanup(Json(PreviewUnavailableCleanupParams {
+            projects: vec![project(Some("aider"))],
+        }))
+        .await;
+        assert!(res.is_ok(), "{:?}", error_of(res));
+
+        let claude_project = home.path().join(".claude").join("projects").join("-gone");
+        std::fs::create_dir_all(&claude_project).unwrap();
+        let res = clear_unavailable_sessions(Json(ClearUnavailableSessionsParams {
+            projects: vec![commands::session::ConfirmedCleanup {
+                provider: None,
+                path: claude_project.to_string_lossy().into_owned(),
+                session_paths: vec![std::path::Path::new(&outside)
+                    .join("s.jsonl")
+                    .to_string_lossy()
+                    .into_owned()],
+            }],
+        }))
+        .await;
+        assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
     /// A project the recent-edits panel does not route to a provider is read
     /// from disk, so it must be a history path.
     #[tokio::test]
@@ -2366,13 +2707,65 @@ mod provider_uri_scope_tests {
         assert_ne!(error_of(res).as_deref(), Some(OUTSIDE));
     }
 
+    /// Another file-based provider's project or session (oh-my-pi, Pi) is
+    /// answered with no recent edits and no subagents rather than refused,
+    /// and nothing of it is read, even through `..` out of its root; a path
+    /// outside every root is still refused (#643).
+    #[tokio::test]
+    #[serial]
+    async fn other_providers_get_no_edits_or_subagents_instead_of_an_error() {
+        let home = crate::test_utils::SandboxHome::new();
+        let edit = r#"{"uuid":"u1","sessionId":"s1","timestamp":"2025-06-26T10:00:00Z","type":"assistant","cwd":"/test/project","toolUse":{"name":"Write","input":{"file_path":"/test/project/a.rs","content":"x"}}}"#;
+        let plant = |dir: &std::path::Path| {
+            std::fs::create_dir_all(dir.join("s/subagents")).unwrap();
+            std::fs::write(dir.join("s.jsonl"), edit).unwrap();
+            std::fs::write(dir.join("s/subagents/agent-1.jsonl"), edit).unwrap();
+        };
+        let ompi = home.path().join(".omp/agent/sessions/--test-project--");
+        let pi = home.path().join(".pi/agent/sessions/--test-project--");
+        let beside = home.path().join("elsewhere");
+        for dir in [&ompi, &pi, &beside] {
+            plant(dir);
+        }
+        let through_parent = home.path().join(".omp/agent/sessions/../../../elsewhere");
+
+        let edits = |project: &std::path::Path| {
+            get_recent_edits(Json(RecentEditsParams {
+                project_path: project.to_string_lossy().to_string(),
+                offset: None,
+                limit: None,
+                session_file_path: Some(project.join("s.jsonl").to_string_lossy().to_string()),
+                grouping: None,
+            }))
+        };
+        let subagents = |project: &std::path::Path| {
+            get_session_subagents(Json(SessionPathParam {
+                session_path: project.join("s.jsonl").to_string_lossy().to_string(),
+            }))
+        };
+        for project in [&ompi, &pi, &through_parent] {
+            let page = edits(project).await.unwrap_or_else(|e| panic!("{}", e.0));
+            assert_eq!(page.0["total_edits_count"], 0, "{}", project.display());
+            let found = subagents(project)
+                .await
+                .unwrap_or_else(|e| panic!("{}", e.0));
+            assert_eq!(found.0, serde_json::json!([]), "{}", project.display());
+        }
+        assert_eq!(error_of(edits(&beside).await).as_deref(), Some(OUTSIDE));
+        assert_eq!(error_of(subagents(&beside).await).as_deref(), Some(OUTSIDE));
+    }
+
     /// Handlers whose commands resolve database-backed provider ids keep
     /// accepting them (#560).
     #[tokio::test]
     #[serial]
     async fn provider_uri_handlers_still_accept_provider_ids() {
         let _home = crate::test_utils::SandboxHome::new();
-        for value in ["opencode://proj-1/ses_abc123", "kilo://proj-1/ses_abc123"] {
+        for value in [
+            "opencode://proj-1/ses_abc123",
+            "kilo://proj-1/ses_abc123",
+            "zcode:///Users/jack/proj#ses_abc123",
+        ] {
             let res = get_session_subagents(Json(SessionPathParam {
                 session_path: value.to_string(),
             }))
@@ -2392,5 +2785,54 @@ mod provider_uri_scope_tests {
         }))
         .await;
         assert_eq!(error_of(res).as_deref(), Some(OUTSIDE));
+    }
+
+    /// Cursor ACP sessions are `cursor-acp://<cwd>#<id>` ids the provider
+    /// resolves under `~/.cursor/acp-sessions` itself: served over `--serve`
+    /// (full and paginated), while an id naming anything but a session
+    /// folder there is refused.
+    #[tokio::test]
+    #[serial]
+    async fn cursor_acp_sessions_are_served_and_confined_to_their_root() {
+        let home = crate::test_utils::SandboxHome::new();
+        let session_path = crate::providers::cursor_acp::tests::seed_session(
+            home.path(),
+            "00000000-0000-4000-8000-00000000000a",
+            "E:\\P4\\testgo",
+            "List the files",
+        );
+
+        let full = load_provider_messages(Json(ProviderMessagesParams {
+            provider: "cursor-acp".to_string(),
+            session_path: session_path.clone(),
+        }))
+        .await
+        .unwrap_or_else(|e| panic!("{}", e.0));
+        // Five stored messages; the public loader folds the tool result into
+        // the assistant message that made the call.
+        assert_eq!(full.0.as_array().map(Vec::len), Some(4));
+        let page = load_provider_messages_paginated(Json(ProviderMessagesPaginatedParams {
+            provider: "cursor-acp".to_string(),
+            session_path,
+            offset: None,
+            limit: None,
+            exclude_sidechain: None,
+        }))
+        .await
+        .unwrap_or_else(|e| panic!("{}", e.0));
+        assert_eq!(page.0["total_count"], 4);
+
+        for session_path in [
+            "cursor-acp://E:\\P4\\testgo#..",
+            "cursor-acp:///etc#../../passwd",
+            "cursor-acp:///work#00000000-0000-4000-8000-000000000999",
+        ] {
+            let res = load_provider_messages(Json(ProviderMessagesParams {
+                provider: "cursor-acp".to_string(),
+                session_path: session_path.to_string(),
+            }))
+            .await;
+            assert!(res.is_err(), "{session_path}");
+        }
     }
 }

@@ -10,12 +10,13 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fs::{self, File};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use uuid::Uuid;
 
+use crate::commands::stats::session_files;
 use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 
 lazy_static! {
@@ -157,9 +158,12 @@ fn rename_claude_session_file(
     })
 }
 
+/// The lines of a session file, read without following a link or blocking
+/// on a FIFO (`session_files::open_history_file`): the rename writes them
+/// back, so a link swapped in would copy another file into the history.
 fn read_jsonl_lines(file_path: &str) -> Result<Vec<String>, String> {
-    let file =
-        File::open(file_path).map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
+    let file = session_files::open_history_file(Path::new(file_path))
+        .map_err(|e| RenameError::IoError(format!("{file_path}: {e}")).to_string())?;
     let reader = BufReader::new(file);
     let lines: Vec<String> = reader
         .lines()
@@ -277,6 +281,7 @@ pub(super) fn configured_claude_dirs() -> Vec<String> {
     let mut dirs = Vec::new();
 
     if let Ok(user_data_path) = crate::commands::metadata::get_user_data_path() {
+        // Not a history file: the app's own settings.
         if let Ok(content) = fs::read_to_string(user_data_path) {
             if let Ok(metadata) = serde_json::from_str::<crate::models::UserMetadata>(&content) {
                 dirs.extend(
@@ -932,7 +937,11 @@ pub async fn rename_opencode_session_title(
         .to_string());
     }
 
-    let content = fs::read_to_string(&canonical_file)
+    // Read inside the OpenCode storage root, never through a link or a FIFO
+    // swapped in after the checks above (`session_files::open_session_file`).
+    let (mut file, _) = session_files::open_session_file(&canonical_file, &canonical_root)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)
         .map_err(|e| RenameError::IoError(e.to_string()).to_string())?;
     let mut session_json: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| RenameError::InvalidJsonFormat(e.to_string()).to_string())?;

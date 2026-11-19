@@ -3,6 +3,7 @@
 //! This module provides commands for creating, listing, and managing
 //! archived sessions stored in ~/.claude-history-viewer/archives/
 
+use crate::commands::session::is_viewer_visible_jsonl_line;
 use crate::commands::stats::session_files;
 use crate::models::ClaudeSession;
 use chrono::Utc;
@@ -156,7 +157,8 @@ fn ensure_archives_dir() -> Result<PathBuf, String> {
 
 /// Per-archive `manifest.json` schema version.
 /// v2: session `summary` is derived with ai-title > legacy summary precedence (#611).
-const ARCHIVE_MANIFEST_VERSION: u64 = 2;
+/// v3: session `messageCount` follows the viewer's visibility rules (#773).
+const ARCHIVE_MANIFEST_VERSION: u64 = 3;
 
 /// Path to the global archive manifest file.
 fn get_manifest_path() -> Result<PathBuf, String> {
@@ -283,6 +285,7 @@ fn load_manifest() -> Result<ArchiveManifest, String> {
     if !path.exists() {
         return Ok(ArchiveManifest::default());
     }
+    // Not a history file: the archive manifest the app writes.
     let content =
         fs::read_to_string(&path).map_err(|e| format!("Failed to read archive manifest: {e}"))?;
     let manifest: ArchiveManifest = serde_json::from_str(&content)
@@ -333,6 +336,7 @@ fn update_per_archive_manifest(
     if !per_manifest_path.exists() {
         return Ok(());
     }
+    // Not a history file: the per-archive manifest the app writes.
     let content = fs::read_to_string(per_manifest_path).map_err(|e| {
         format!(
             "Failed to read per-archive manifest '{}': {e}",
@@ -358,36 +362,40 @@ fn update_per_archive_manifest(
     atomic_write_string(per_manifest_path, &updated)
 }
 
-/// Counts the number of non-sidechain messages in a JSONL file.
-fn count_messages(path: &Path) -> usize {
-    let file = match session_files::open_regular_file(path) {
+/// Copy a history file found under `root` into the archive. The source is
+/// opened without following a link (`session_files::open_session_file`), and
+/// the copy is made only once it opened as a regular file inside `root`.
+fn copy_history_file(source: &Path, root: &Path, dest: &Path) -> Result<u64, String> {
+    let (mut from, _) = session_files::open_session_file(source, root)?;
+    let mut to = fs::File::create(dest).map_err(|e| e.to_string())?;
+    std::io::copy(&mut from, &mut to).map_err(|e| e.to_string())
+}
+
+/// Counts the messages the viewer shows in a JSONL file, by the viewer's own
+/// line classifier (`is_viewer_visible_jsonl_line`): request records,
+/// `progress`, `summary`, `ai-title`, `file-history-snapshot`, meta lines and
+/// lines without `sessionId` or `timestamp` do not count. A main session
+/// passes `exclude_sidechain = true` (the viewer's default filter); a
+/// subagent transcript passes `false`, since its whole conversation is
+/// sidechain lines (#773).
+fn count_messages(path: &Path, exclude_sidechain: bool) -> usize {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return 0,
     };
     let reader = BufReader::new(file);
-    let mut count = 0usize;
-    for line in reader.lines().map_while(Result::ok) {
-        if line.trim().is_empty() {
-            continue;
-        }
-        if let Ok(val) = serde_json::from_str::<serde_json::Value>(&line) {
-            let is_sidechain = val
-                .get("isSidechain")
-                .and_then(serde_json::Value::as_bool)
-                .unwrap_or(false);
-            if !is_sidechain {
-                count += 1;
-            }
-        }
-    }
-    count
+    reader
+        .lines()
+        .map_while(Result::ok)
+        .filter(|line| is_viewer_visible_jsonl_line(line, exclude_sidechain))
+        .count()
 }
 
 /// Extracts the first and last timestamp from a JSONL file.
 /// Returns `(first, last)` as ISO 8601 strings, or empty strings if unavailable.
 #[cfg(test)]
 fn extract_timestamps(path: &Path) -> (String, String) {
-    let file = match session_files::open_regular_file(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return (String::new(), String::new()),
     };
@@ -415,7 +423,7 @@ fn extract_timestamps(path: &Path) -> (String, String) {
 /// Extracts the summary from a JSONL file (last `type: "summary"` entry).
 #[cfg(test)]
 fn extract_summary(path: &Path) -> Option<String> {
-    let file = session_files::open_regular_file(path).ok()?;
+    let file = session_files::open_history_file(path).ok()?;
     let reader = BufReader::new(file);
     let mut summary: Option<String> = None;
     for line in reader.lines().map_while(Result::ok) {
@@ -438,9 +446,11 @@ fn extract_summary(path: &Path) -> Option<String> {
 }
 
 /// Extracts message count, timestamps, and summary in a single pass through the JSONL file.
-/// Returns `(message_count, first_timestamp, last_timestamp, summary)`.
+/// Returns `(message_count, first_timestamp, last_timestamp, summary)`. The
+/// count is a main session's: viewer-visible lines without sidechain lines
+/// (see `count_messages`).
 fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<String>) {
-    let file = match session_files::open_regular_file(path) {
+    let file = match session_files::open_history_file(path) {
         Ok(f) => f,
         Err(_) => return (0, String::new(), String::new(), None),
     };
@@ -455,19 +465,13 @@ fn extract_session_metadata(path: &Path) -> (usize, String, String, Option<Strin
         if line.trim().is_empty() {
             continue;
         }
+        if is_viewer_visible_jsonl_line(&line, true) {
+            count += 1;
+        }
         let val: serde_json::Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(_) => continue,
         };
-
-        // Count non-sidechain messages
-        let is_sidechain = val
-            .get("isSidechain")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(false);
-        if !is_sidechain {
-            count += 1;
-        }
 
         // Track timestamps
         if let Some(ts) = val.get("timestamp").and_then(serde_json::Value::as_str) {
@@ -524,7 +528,7 @@ fn dir_size(path: &Path) -> u64 {
 
 /// Converts a JSONL file to a pretty-printed JSON array string.
 fn jsonl_to_json_array(path: &Path) -> Result<String, String> {
-    let file = session_files::open_regular_file(path)
+    let file = session_files::open_history_file(path)
         .map_err(|e| format!("Failed to read session file: {e}"))?;
     let reader = BufReader::new(file);
     let mut entries: Vec<serde_json::Value> = Vec::new();
@@ -734,7 +738,13 @@ pub async fn create_archive(
                         suffix += 1;
                     }
                 }
-                fs::copy(session_path, &dest).map_err(|e| {
+                // Copied through a no-follow open inside the session's own
+                // folder: an entry swapped for a symlink or a FIFO since the
+                // check above is refused, not followed (#698).
+                let session_root = session_files::own_folder(session_path).map_err(|e| {
+                    format!("Failed to resolve session folder '{session_path_str}': {e}")
+                })?;
+                copy_history_file(session_path, &session_root, &dest).map_err(|e| {
                     format!("Failed to copy session file '{session_path_str}': {e}")
                 })?;
 
@@ -798,12 +808,14 @@ pub async fn create_archive(
                                 .and_then(|n| n.to_str())
                                 .unwrap_or("agent.jsonl");
                             let sa_dest = dest_subagent_dir.join(sa_name);
-                            fs::copy(subagent_file, &sa_dest).map_err(|e| {
-                                format!(
-                                    "Failed to copy subagent file '{}': {e}",
-                                    subagent_file.display()
-                                )
-                            })?;
+                            copy_history_file(subagent_file, &session_root, &sa_dest).map_err(
+                                |e| {
+                                    format!(
+                                        "Failed to copy subagent file '{}': {e}",
+                                        subagent_file.display()
+                                    )
+                                },
+                            )?;
                             let copied_meta = sa_dest.metadata().map_err(|e| {
                                 format!(
                                     "Failed to read copied subagent file '{}': {e}",
@@ -995,6 +1007,7 @@ pub async fn rename_archive(archive_id: String, new_name: String) -> Result<Stri
         let per_manifest_path = target_dir.join("manifest.json");
         let previous_per_manifest = if per_manifest_path.exists() {
             Some(
+                // Not a history file: the per-archive manifest the app writes.
                 fs::read_to_string(&per_manifest_path)
                     .map_err(|e| format!("Failed to read per-archive manifest: {e}"))?,
             )
@@ -1050,18 +1063,21 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
 
         // Try to load metadata from the per-archive manifest for richer information
         let per_manifest_path = archive_dir.join("manifest.json");
+        // Not a history file: the per-archive manifest the app writes.
         let mut per_manifest: Option<serde_json::Value> = fs::read_to_string(&per_manifest_path)
             .ok()
             .and_then(|c| serde_json::from_str(&c).ok());
 
-        // Manifests written before #611 cached titles without ai-title precedence.
-        let needs_title_refresh = per_manifest.as_ref().is_some_and(|pm| {
+        // Manifests written before #611 cached titles without ai-title
+        // precedence, and before #773 cached counts that included records the
+        // viewer hides. Both are re-derived once and cached back.
+        let needs_metadata_refresh = per_manifest.as_ref().is_some_and(|pm| {
             pm.get("version")
                 .and_then(serde_json::Value::as_u64)
                 .unwrap_or(1)
                 < ARCHIVE_MANIFEST_VERSION
         });
-        let mut refreshed_titles: std::collections::HashMap<String, Option<String>> =
+        let mut refreshed_metadata: std::collections::HashMap<String, (usize, Option<String>)> =
             std::collections::HashMap::new();
 
         let session_meta_map: std::collections::HashMap<String, serde_json::Value> =
@@ -1114,11 +1130,27 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
             // Prefer cached metadata from manifest, fall back to live parsing
             let (message_count, first_message_time, last_message_time, summary) =
                 if let Some(meta) = session_meta_map.get(&file_name) {
+                    let cached_summary = meta
+                        .get("summary")
+                        .and_then(serde_json::Value::as_str)
+                        .map(str::to_string);
+                    let (message_count, summary) = if needs_metadata_refresh {
+                        // One-time re-derivation; the timestamps are kept.
+                        let (count, _, _, title) = extract_session_metadata(&path);
+                        let title = title.or(cached_summary);
+                        refreshed_metadata.insert(file_name.clone(), (count, title.clone()));
+                        (count, title)
+                    } else {
+                        (
+                            meta.get("messageCount")
+                                .and_then(serde_json::Value::as_u64)
+                                .map(|n| n as usize)
+                                .unwrap_or_else(|| count_messages(&path, true)),
+                            cached_summary,
+                        )
+                    };
                     (
-                        meta.get("messageCount")
-                            .and_then(serde_json::Value::as_u64)
-                            .map(|n| n as usize)
-                            .unwrap_or_else(|| count_messages(&path)),
+                        message_count,
                         meta.get("firstMessageTime")
                             .and_then(serde_json::Value::as_str)
                             .unwrap_or("")
@@ -1127,20 +1159,7 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                             .and_then(serde_json::Value::as_str)
                             .unwrap_or("")
                             .to_string(),
-                        {
-                            let cached = meta
-                                .get("summary")
-                                .and_then(serde_json::Value::as_str)
-                                .map(str::to_string);
-                            if needs_title_refresh {
-                                // One-time re-derivation; only the title is refreshed.
-                                let title = extract_session_metadata(&path).3.or(cached);
-                                refreshed_titles.insert(file_name.clone(), title.clone());
-                                title
-                            } else {
-                                cached
-                            }
-                        },
+                        summary,
                     )
                 } else {
                     let (mc, first, last, sum) = extract_session_metadata(&path);
@@ -1178,7 +1197,8 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                                         .unwrap_or("")
                                         .to_string();
                                     let sa_size = sa_meta.len();
-                                    let sa_msg_count = count_messages(&sa_path);
+                                    // Sidechain lines are the subagent's conversation.
+                                    let sa_msg_count = count_messages(&sa_path, false);
                                     total_sa_size += sa_size;
                                     sa_list.push(SubagentFileInfo {
                                         file_name: sa_file_name,
@@ -1220,10 +1240,11 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
             });
         }
 
-        // Cache refreshed titles back so the JSONL is only re-read once. Best-effort:
-        // a failed write (e.g. read-only dir) just means re-deriving on the next call.
-        // May race a concurrent rename_archive rewrite of the same file (last write wins).
-        if let Some(pm) = per_manifest.as_mut().filter(|_| needs_title_refresh) {
+        // Cache refreshed counts and titles back so the JSONL is only re-read once.
+        // Best-effort: a failed write (e.g. read-only dir) just means re-deriving on
+        // the next call. May race a concurrent rename_archive rewrite of the same
+        // file (last write wins).
+        if let Some(pm) = per_manifest.as_mut().filter(|_| needs_metadata_refresh) {
             if let Some(arr) = pm
                 .get_mut("sessions")
                 .and_then(serde_json::Value::as_array_mut)
@@ -1233,7 +1254,8 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
                         .get("fileName")
                         .and_then(serde_json::Value::as_str)
                         .map(str::to_string);
-                    if let Some(title) = key.and_then(|k| refreshed_titles.get(&k)) {
+                    if let Some((count, title)) = key.and_then(|k| refreshed_metadata.get(&k)) {
+                        s["messageCount"] = serde_json::json!(count);
                         s["summary"] = serde_json::json!(title);
                     }
                 }
@@ -1241,7 +1263,7 @@ pub async fn get_archive_sessions(archive_id: String) -> Result<Vec<ArchiveSessi
             pm["version"] = serde_json::json!(ARCHIVE_MANIFEST_VERSION);
             if let Ok(content) = serde_json::to_string_pretty(pm) {
                 if let Err(e) = atomic_write_string(&per_manifest_path, &content) {
-                    log::warn!("Failed to cache refreshed archive titles: {e}");
+                    log::warn!("Failed to cache refreshed archive metadata: {e}");
                 }
             }
         }
@@ -1396,6 +1418,7 @@ pub async fn get_expiring_sessions(
             let home = crate::utils::home_dir().ok_or("Could not find home directory")?;
             let settings_path = home.join(".claude").join("settings.json");
             if settings_path.exists() {
+                // Not a history file: Claude Code's settings.
                 fs::read_to_string(&settings_path)
                     .ok()
                     .and_then(|c| serde_json::from_str::<serde_json::Value>(&c).ok())
@@ -1714,7 +1737,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("empty.jsonl");
         fs::write(&path, "").unwrap();
-        assert_eq!(count_messages(&path), 0);
+        assert_eq!(count_messages(&path, true), 0);
+        assert_eq!(count_messages(&path, false), 0);
     }
 
     #[test]
@@ -1727,8 +1751,114 @@ mod tests {
 {"type":"assistant","isSidechain":false,"timestamp":"2026-01-01T00:02:00Z"}
 "#;
         fs::write(&path, content).unwrap();
-        // 2 non-sidechain messages
-        assert_eq!(count_messages(&path), 2);
+        // 2 non-sidechain messages; all 3 when sidechain lines count
+        assert_eq!(count_messages(&path, true), 2);
+        assert_eq!(count_messages(&path, false), 3);
+    }
+
+    /// Records the viewer hides, each carrying `sessionId` and `timestamp` so
+    /// only its type (or flag) hides it: request bookkeeping, `progress`,
+    /// `summary`, `ai-title`, `file-history-snapshot`, a meta line and a
+    /// hidden system subtype.
+    const VIEWER_HIDDEN_RECORDS: &str = r#"{"type":"api-request","sessionId":"s1","timestamp":"2026-01-01T00:00:10Z","id":"req-1"}
+{"type":"api-request-blob","sessionId":"s1","timestamp":"2026-01-01T00:00:11Z","hash":"h1","message":{"role":"user","content":"Hello"}}
+{"type":"api-request-blob","sessionId":"s1","timestamp":"2026-01-01T00:00:12Z","hash":"h2","message":{"role":"assistant","content":"Hi"}}
+{"type":"api-request-shape","sessionId":"s1","timestamp":"2026-01-01T00:00:13Z","shapeHash":"s1"}
+{"type":"progress","sessionId":"s1","timestamp":"2026-01-01T00:00:14Z"}
+{"type":"summary","summary":"Legacy summary","sessionId":"s1","timestamp":"2026-01-01T00:00:15Z"}
+{"type":"ai-title","aiTitle":"Title","sessionId":"s1","timestamp":"2026-01-01T00:00:16Z"}
+{"type":"file-history-snapshot","sessionId":"s1","timestamp":"2026-01-01T00:00:17Z","messageId":"m1","snapshot":{}}
+{"type":"user","isMeta":true,"sessionId":"s1","timestamp":"2026-01-01T00:00:18Z","message":{"role":"user","content":"meta"}}
+{"type":"system","subtype":"turn_duration","sessionId":"s1","timestamp":"2026-01-01T00:00:19Z"}
+"#;
+
+    /// Conversation lines with neither `sessionId` nor `timestamp`: the
+    /// viewer's parser drops them, so they must not count either.
+    const UNDATED_RECORDS: &str = r#"{"type":"user","message":{"role":"user","content":"fork context"}}
+{"type":"assistant","isSidechain":true,"message":{"role":"assistant","content":"fork context"}}
+"#;
+
+    #[test]
+    fn test_count_messages_follows_viewer_visibility() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("session.jsonl");
+        let content = format!(
+            r#"{{"type":"user","sessionId":"s1","timestamp":"2026-01-01T00:00:00Z","message":{{"role":"user","content":"question"}}}}
+{VIEWER_HIDDEN_RECORDS}{UNDATED_RECORDS}{{"type":"assistant","isSidechain":true,"sessionId":"s1","timestamp":"2026-01-01T00:00:30Z","message":{{"role":"assistant","content":"side"}}}}
+{{"type":"assistant","sessionId":"s1","timestamp":"2026-01-01T00:01:00Z","message":{{"role":"assistant","content":"answer"}}}}
+"#
+        );
+        fs::write(&path, content).unwrap();
+
+        assert_eq!(count_messages(&path, true), 2);
+        assert_eq!(count_messages(&path, false), 3);
+        assert_eq!(extract_session_metadata(&path).0, 2);
+    }
+
+    /// A subagent transcript as Claude Code writes it: both conversation
+    /// messages are sidechain lines, interleaved with four request records.
+    const SUBAGENT_TRANSCRIPT: &str = r#"{"uuid":"sub-1","sessionId":"s1","agentId":"a1","timestamp":"2026-01-01T00:02:00Z","type":"user","isSidechain":true,"message":{"role":"user","content":"Subtask"}}
+{"type":"api-request-shape","sessionId":"s1","agentId":"a1","shapeHash":"s1","timestamp":"2026-01-01T00:02:10Z"}
+{"type":"api-request-blob","sessionId":"s1","agentId":"a1","hash":"h1","message":{"role":"user","content":"Subtask"}}
+{"type":"api-request-blob","sessionId":"s1","agentId":"a1","hash":"h2","message":{"role":"assistant","content":"Done"}}
+{"type":"api-request","sessionId":"s1","agentId":"a1","id":"req-1","timestamp":"2026-01-01T00:02:20Z"}
+{"uuid":"sub-2","sessionId":"s1","agentId":"a1","timestamp":"2026-01-01T00:03:00Z","type":"assistant","isSidechain":true,"message":{"role":"assistant","content":"Done"}}
+"#;
+
+    #[tokio::test]
+    async fn test_get_archive_sessions_counts_follow_viewer_visibility() {
+        let _temp = setup_test_env();
+
+        let session_dir = tempfile::tempdir().unwrap();
+        let session_path = session_dir.path().join("sess_vis.jsonl");
+        let content = format!(
+            r#"{{"type":"user","sessionId":"s1","timestamp":"2026-01-01T00:00:00Z","message":{{"role":"user","content":"question"}}}}
+{VIEWER_HIDDEN_RECORDS}{UNDATED_RECORDS}{{"type":"assistant","sessionId":"s1","timestamp":"2026-01-01T00:01:00Z","message":{{"role":"assistant","content":"answer"}}}}
+"#
+        );
+        fs::write(&session_path, content).unwrap();
+        let subagents = session_dir.path().join("sess_vis").join("subagents");
+        fs::create_dir_all(&subagents).unwrap();
+        fs::write(subagents.join("agent-a1.jsonl"), SUBAGENT_TRANSCRIPT).unwrap();
+
+        let entry = create_archive(
+            "Visibility".to_string(),
+            None,
+            vec![session_path.to_string_lossy().to_string()],
+            "claude".to_string(),
+            "/p".to_string(),
+            "p".to_string(),
+            true,
+        )
+        .await
+        .unwrap();
+
+        let sessions = get_archive_sessions(entry.id.clone()).await.unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].message_count, 2);
+        assert_eq!(sessions[0].subagents.len(), 1);
+        assert_eq!(sessions[0].subagents[0].message_count, 2);
+
+        // The counts match what the viewer loads from the archived files.
+        let archive_dir = get_archives_dir().unwrap().join(&entry.id);
+        let loaded = crate::commands::session::load_session_messages(
+            archive_dir
+                .join("sessions/sess_vis.jsonl")
+                .to_string_lossy()
+                .to_string(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(loaded.len(), 2);
+        let loaded_subagent = crate::commands::session::load_session_messages(
+            archive_dir
+                .join("subagents/sess_vis/agent-a1.jsonl")
+                .to_string_lossy()
+                .to_string(),
+        )
+        .await
+        .unwrap();
+        assert_eq!(loaded_subagent.len(), 2);
     }
 
     #[test]
@@ -2023,7 +2153,7 @@ mod tests {
         .unwrap();
 
         // Rewrite the per-archive manifest as a pre-#611 archive would have it:
-        // version 1, legacy summary, plus a sentinel cached count the JSONL can't produce.
+        // version 1, legacy summary, plus a stale cached count.
         let manifest_path = get_archives_dir()
             .unwrap()
             .join(&entry.id)
@@ -2038,22 +2168,29 @@ mod tests {
         let sessions = get_archive_sessions(entry.id.clone()).await.unwrap();
         assert_eq!(sessions.len(), 1);
         assert_eq!(sessions[0].summary, Some("Second title".to_string()));
-        assert_eq!(sessions[0].message_count, 99);
+        // Re-derived by the viewer's rules: only the user line is visible (#773).
+        assert_eq!(sessions[0].message_count, 1);
         assert_eq!(sessions[0].first_message_time, "2026-02-01T08:00:00Z");
         assert_eq!(
             sessions[0].original_file_path,
             session_path.to_string_lossy().to_string()
         );
 
-        // The refreshed title is cached back so the JSONL is only re-read once.
-        let pm: serde_json::Value =
+        // The refreshed title and count are cached back so the JSONL is only re-read once.
+        let mut pm: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&manifest_path).unwrap()).unwrap();
         assert_eq!(pm["version"], serde_json::json!(ARCHIVE_MANIFEST_VERSION));
         assert_eq!(
             pm["sessions"][0]["summary"],
             serde_json::json!("Second title")
         );
-        assert_eq!(pm["sessions"][0]["messageCount"], serde_json::json!(99));
+        assert_eq!(pm["sessions"][0]["messageCount"], serde_json::json!(1));
+
+        // A current-version manifest's cached count is used as is.
+        pm["sessions"][0]["messageCount"] = serde_json::json!(77);
+        fs::write(&manifest_path, serde_json::to_string_pretty(&pm).unwrap()).unwrap();
+        let sessions = get_archive_sessions(entry.id.clone()).await.unwrap();
+        assert_eq!(sessions[0].message_count, 77);
     }
 
     #[cfg(unix)]

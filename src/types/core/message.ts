@@ -123,7 +123,16 @@ export interface MessagePayload {
 // Raw Message (from JSONL files)
 // ============================================================================
 
+/** Pi/OMP local ! execution: source evidence, explicitly not a tool result. */
+export interface SourceExecution {
+  messageUuid: string;
+  sessionId: string;
+  association: "local_execution";
+  message: unknown;
+}
+
 export interface RawClaudeMessage {
+  sourceExecution?: SourceExecution;
   uuid: string;
   parentUuid?: string;
   sessionId: string;
@@ -175,13 +184,28 @@ export interface CompactMetadata {
   warning?: string;
 }
 
+/** Additive producer evidence; transport carrier does not assert call ownership. */
+export interface CodexEvidence {
+  turn?: { started?: unknown; context?: unknown };
+  contentItems?: Array<{ type?: unknown }>;
+  contentItemKinds?: unknown;
+  fileChanges?: Array<{ sourceLine: number; record: unknown }>;
+}
+
 export interface BaseClaudeMessage {
+  codexEvidence?: CodexEvidence;
+  /** Frontend view projection only: the actual loaded progress/start row hidden
+   * by the system-message toggle, carried by the cycle's first retained row.
+   * Never serialized to the provider or inferred from copied turn evidence. */
+  codexLoadedStart?: ClaudeMessage;
   uuid: string;
   parentUuid?: string;
   sessionId: string;
   timestamp: string;
   /** Project name (extracted from file path during search) */
   projectName?: string;
+  /** Opaque project path/URI, qualified by provider; absent in legacy search results. */
+  projectPath?: string;
   /** Provider identifier (claude, codex, opencode) */
   provider?: import("./session").ProviderId;
   isSidechain?: boolean;
@@ -237,6 +261,7 @@ export interface ClaudeAssistantMessage extends BaseClaudeMessage {
 /** System information, warnings, errors, or internal events */
 export interface ClaudeSystemMessage extends BaseClaudeMessage {
   type: "system";
+  sourceExecution?: SourceExecution;
   subtype?: string;
   level?: "info" | "warning" | "error" | "suggestion";
 
@@ -330,4 +355,41 @@ export interface PaginationState {
   totalCount: number;
   hasMore: boolean;
   isLoadingMore: boolean;
+}
+
+// ============================================================================
+// Conversation branches (`get_conversation_branches`, #782)
+// ============================================================================
+
+/** An entry the conversation forks from: an edited prompt, `/rewind`, a resume at an earlier message. */
+export interface ConversationBranchPoint {
+  /** The entry its alternatives continue from. */
+  parentUuid: string;
+  /** Its alternatives in the order they were written (indexes into `options`). */
+  optionIds: number[];
+  /** The alternative Claude Code resumes (off that path: the latest written). */
+  defaultOption: number;
+  /** The alternative of an enclosing fork this point sits in. */
+  parentOption: number | null;
+}
+
+export interface ConversationBranchOption {
+  /** Index of its point in `points`. */
+  point: number;
+  /** Its first entry (a child of the point's entry). */
+  headUuid: string;
+  /** Its first prompt or reply: a message the transcript shows. */
+  anchorUuid: string;
+}
+
+/**
+ * Where a session's conversation forks, read from the whole session so a
+ * paged window can be filtered to one path. Empty for a linear session and
+ * for providers whose records cannot fork.
+ */
+export interface ConversationBranches {
+  points: ConversationBranchPoint[];
+  options: ConversationBranchOption[];
+  /** Entry uuid → the innermost alternative it belongs to. Entries above every fork are absent. */
+  membership: Record<string, number>;
 }

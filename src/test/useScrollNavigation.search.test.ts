@@ -20,8 +20,29 @@ function makeScrollRef(
   } as unknown as RefObject<OverlayScrollbarsComponentRef | null>;
 }
 
-function makeVirtualizer(scrollToIndex: Mock): Virtualizer<HTMLElement, Element> {
-  return { scrollToIndex } as unknown as Virtualizer<HTMLElement, Element>;
+function makeVirtualizer(
+  scrollToIndex: Mock,
+  measurementsCache: { size: number }[] = []
+): Virtualizer<HTMLElement, Element> {
+  return { scrollToIndex, measurementsCache } as unknown as Virtualizer<HTMLElement, Element>;
+}
+
+// A viewport of a given height (jsdom lays nothing out). 379px is the mobile
+// transcript viewport at 390x844 once the controls lane is reserved (#779).
+function makeViewport(clientHeight = 0): HTMLElement {
+  const viewport = document.createElement("div");
+  Object.defineProperty(viewport, "clientHeight", { configurable: true, value: clientHeight });
+  return viewport;
+}
+
+// A rendered message of a given height with no highlight inside it.
+function makeMessage(uuid: string, height: number): { message: HTMLElement; scrollIntoView: Mock } {
+  const message = document.createElement("div");
+  message.setAttribute("data-message-uuid", uuid);
+  message.getBoundingClientRect = () => ({ height }) as DOMRect;
+  const scrollIntoView = vi.fn();
+  message.scrollIntoView = scrollIntoView;
+  return { message, scrollIntoView };
 }
 
 // A message container with an active-highlight <mark> inside it, mirroring the
@@ -130,5 +151,61 @@ describe("useScrollNavigation — search scroll (#429)", () => {
     // Must ignore the foreign highlight and use the virtualizer for the target.
     expect(foreignScroll).not.toHaveBeenCalled();
     expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "center" });
+  });
+});
+
+describe("useScrollNavigation — rows taller than the viewport (#779)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.runOnlyPendingTimers();
+    vi.useRealTimers();
+  });
+
+  const renderSearch = (viewport: HTMLElement, scrollToIndex: Mock, rowSize: number) =>
+    renderHook(() =>
+      useScrollNavigation({
+        scrollContainerRef: makeScrollRef(viewport),
+        currentMatchUuid: "msg-2",
+        currentMatchIndex: 0,
+        messagesLength: 10,
+        isLoading: false,
+        virtualizer: makeVirtualizer(scrollToIndex, Object.assign([], { 7: { size: rowSize } })),
+        getScrollIndex: () => 7,
+        scrollElementReady: false,
+      })
+    );
+
+  it("brings an unrendered row taller than the viewport in from its start", () => {
+    const scrollToIndex = vi.fn();
+    renderSearch(makeViewport(379), scrollToIndex, 475);
+    vi.runAllTimers();
+
+    expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "start" });
+  });
+
+  it("still centres an unrendered row that fits the viewport", () => {
+    const scrollToIndex = vi.fn();
+    renderSearch(makeViewport(379), scrollToIndex, 200);
+    vi.runAllTimers();
+
+    expect(scrollToIndex).toHaveBeenCalledWith(7, { align: "center" });
+  });
+
+  it.each([
+    ["taller than the viewport, from its start", 475, "start"],
+    ["that fits the viewport, centred", 200, "center"],
+  ])("shows a rendered message without a highlight %s", (_label, height, block) => {
+    const viewport = makeViewport(379);
+    const rendered = makeMessage("msg-2", height);
+    // The virtualizer renders the row; it holds no highlight to aim at.
+    const scrollToIndex = vi.fn(() => {
+      viewport.appendChild(rendered.message);
+    });
+    renderSearch(viewport, scrollToIndex, height);
+    vi.runAllTimers();
+
+    expect(rendered.scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block });
   });
 });

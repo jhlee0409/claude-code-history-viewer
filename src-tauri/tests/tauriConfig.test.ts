@@ -166,7 +166,9 @@ describe('Tauri Configuration Tests', () => {
         expect(mainWindow.resizable).toBe(true);
         expect(mainWindow.fullscreen).toBe(false);
         expect(mainWindow.center).toBe(true);
-        expect(mainWindow.visible).toBe(true);
+        // Created hidden: src-tauri/src/window_state.rs restores the saved
+        // frame first, then shows it (no flash at the default frame).
+        expect(mainWindow.visible).toBe(false);
         expect(mainWindow.focus).toBe(true);
       });
 
@@ -240,7 +242,7 @@ describe('Tauri Configuration Tests', () => {
         config.plugins.updater.endpoints.forEach((endpoint: string) => {
           expect(endpoint).toMatch(/^https:\/\//); // HTTPS required
           expect(endpoint).toContain('github.com');
-          expect(endpoint).toContain('jhlee0409/claude-code-history-viewer');
+          expect(endpoint).toContain('jhlee0409/omnilogue');
           expect(endpoint).toContain('latest.json');
         });
       });

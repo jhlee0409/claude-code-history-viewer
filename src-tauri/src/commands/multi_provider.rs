@@ -1,5 +1,12 @@
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage};
-use crate::providers;
+use crate::providers::{
+    self,
+    opencode::{
+        sidebar::{self, ListedProject, ListedSession},
+        OPENCODE_DB_FILE,
+    },
+};
 use crate::utils::{parse_rfc3339_utc, search_result_priority};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -76,7 +83,7 @@ pub async fn scan_all_projects(
     custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
     wsl_enabled: Option<bool>,
     wsl_excluded_distros: Option<Vec<String>>,
-) -> Result<Vec<ClaudeProject>, String> {
+) -> Result<Vec<ListedProject>, String> {
     let providers_to_scan = active_providers.unwrap_or_else(|| {
         vec![
             "claude".to_string(),
@@ -87,6 +94,7 @@ pub async fn scan_all_projects(
             "gemini".to_string(),
             "goose".to_string(),
             "grok".to_string(),
+            "hermes".to_string(),
             "kilo".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
@@ -94,11 +102,13 @@ pub async fn scan_all_projects(
             "openinterpreter".to_string(),
             "pi".to_string(),
             "ompi".to_string(),
+            "qoder".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
             "cursor".to_string(),
             "cursor-agent".to_string(),
+            "cursor-acp".to_string(),
             "aider".to_string(),
             "amazonq".to_string(),
             "antigravity".to_string(),
@@ -110,6 +120,7 @@ pub async fn scan_all_projects(
             "trae".to_string(),
             "vibe".to_string(),
             "zcode".to_string(),
+            "claude-ai".to_string(),
         ]
     });
 
@@ -126,7 +137,7 @@ pub async fn scan_all_projects(
                             p.provider = Some("claude".to_string());
                         }
                     }
-                    all_projects.extend(projects);
+                    all_projects.extend(projects.into_iter().map(ListedProject::from));
                 }
                 Err(e) => {
                     log::warn!("Claude scan failed: {e}");
@@ -150,7 +161,7 @@ pub async fn scan_all_projects(
                             }
                             p.custom_directory_label.clone_from(&custom.label);
                         }
-                        all_projects.extend(projects);
+                        all_projects.extend(projects.into_iter().map(ListedProject::from));
                     }
                     Err(e) => {
                         log::warn!("Custom Claude path scan failed ({}): {e}", custom.path);
@@ -177,6 +188,7 @@ pub async fn scan_all_projects(
         ("gemini", providers::gemini::scan_projects),
         ("goose", providers::goose::scan_projects),
         ("grok", providers::grok::scan_projects),
+        ("hermes", providers::hermes::scan_projects),
         ("kilo", providers::kilo::scan_projects),
         ("kimi", providers::kimi::scan_projects),
         ("forgecode", providers::forgecode::scan_projects),
@@ -184,6 +196,7 @@ pub async fn scan_all_projects(
         ("openinterpreter", providers::openinterpreter::scan_projects),
         ("pi", providers::pi::scan_projects),
         ("ompi", providers::ompi::scan_projects),
+        ("qoder", providers::qoder::scan_projects),
         ("qwen", providers::qwen::scan_projects),
         ("zed", providers::zed::scan_projects),
         ("openhands", providers::openhands::scan_projects),
@@ -193,6 +206,7 @@ pub async fn scan_all_projects(
         ("cursor", providers::cursor::scan_projects),
         ("crush", providers::crush::scan_projects),
         ("cursor-agent", providers::cursor_agent::scan_projects),
+        ("cursor-acp", providers::cursor_acp::scan_projects),
         ("aider", providers::aider::scan_projects),
         ("amazonq", providers::amazon_q::scan_projects),
         ("antigravity", providers::antigravity::scan_projects),
@@ -201,6 +215,7 @@ pub async fn scan_all_projects(
         ("llm", providers::llm::scan_projects),
         ("copilot", providers::copilot::scan_projects),
         ("zcode", providers::zcode::scan_projects),
+        ("claude-ai", providers::claude_ai::scan_projects),
     ];
 
     // Spawn every enabled scanner up front so they run concurrently on the
@@ -212,7 +227,23 @@ pub async fn scan_all_projects(
         .map(|(name, scan)| {
             let name = *name;
             let scan = *scan;
-            tauri::async_runtime::spawn_blocking(move || (name, scan()))
+            tauri::async_runtime::spawn_blocking(move || {
+                let projects = scan().map(|projects| {
+                    let store = match name {
+                        "opencode" => providers::opencode::get_base_path()
+                            .map(|base| (base, OPENCODE_DB_FILE)),
+                        "kilo" => providers::kilo::get_base_path()
+                            .map(|base| (base, providers::kilo::DB_FILE)),
+                        _ => None,
+                    };
+                    if let Some((base, db)) = store {
+                        sidebar::group_projects(&base, db, projects)
+                    } else {
+                        projects.into_iter().map(ListedProject::from).collect()
+                    }
+                });
+                (name, projects)
+            })
         })
         .collect();
 
@@ -249,7 +280,7 @@ pub async fn scan_all_projects(
                                 }
                                 p.custom_directory_label = Some(wsl_label.clone());
                             }
-                            all_projects.extend(projects);
+                            all_projects.extend(projects.into_iter().map(ListedProject::from));
                         }
                         Err(e) => {
                             log::warn!("WSL: Claude scan failed for '{}': {e}", distro.name);
@@ -297,7 +328,9 @@ pub async fn scan_all_projects(
                         canonical_vscode.as_deref(),
                         Some(&canonical_label),
                     ) {
-                        Ok(projects) => all_projects.extend(projects),
+                        Ok(projects) => {
+                            all_projects.extend(projects.into_iter().map(ListedProject::from));
+                        }
                         Err(e) => {
                             log::warn!("WSL: Copilot scan failed for '{}': {e}", distro.name);
                         }
@@ -316,7 +349,9 @@ pub async fn scan_all_projects(
                         Some(unc_path.as_path()),
                         Some(&label),
                     ) {
-                        Ok(projects) => all_projects.extend(projects),
+                        Ok(projects) => {
+                            all_projects.extend(projects.into_iter().map(ListedProject::from));
+                        }
                         Err(e) => {
                             log::warn!(
                                 "WSL: Copilot ({editor_label}) scan failed for '{}': {e}",
@@ -330,9 +365,10 @@ pub async fn scan_all_projects(
     }
 
     // Hide empty containers that have no session files regardless of provider.
-    all_projects.retain(|project| project.session_count > 0);
+    all_projects.retain(|row| row.project.session_count > 0);
 
     all_projects.sort_by(|a, b| {
+        let (a, b) = (&a.project, &b.project);
         match (
             parse_rfc3339_utc(&a.last_modified),
             parse_rfc3339_utc(&b.last_modified),
@@ -349,6 +385,27 @@ pub async fn scan_all_projects(
 /// Load sessions for a specific provider's project
 #[tauri::command]
 pub async fn load_provider_sessions(
+    provider: String,
+    project_path: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<Vec<ListedSession>, String> {
+    if matches!(provider.as_str(), "opencode" | "kilo") {
+        return tauri::async_runtime::spawn_blocking(move || {
+            if provider == "kilo" {
+                return providers::kilo::load_listed_sessions(&project_path);
+            }
+            let base = providers::opencode::get_base_path().ok_or("OpenCode not found")?;
+            sidebar::load_listed_sessions_at(&base, OPENCODE_DB_FILE, &project_path)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?;
+    }
+    load_plain_provider_sessions(provider, project_path, exclude_sidechain)
+        .await
+        .map(|sessions| sessions.into_iter().map(ListedSession::from).collect())
+}
+
+async fn load_plain_provider_sessions(
     provider: String,
     project_path: String,
     exclude_sidechain: Option<bool>,
@@ -375,18 +432,19 @@ pub async fn load_provider_sessions(
         "gemini" => providers::gemini::load_sessions(&project_path, exclude),
         "goose" => providers::goose::load_sessions(&project_path, exclude),
         "grok" => providers::grok::load_sessions(&project_path, exclude),
-        "kilo" => providers::kilo::load_sessions(&project_path, exclude),
+        "hermes" => providers::hermes::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
-        "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
         "pi" => providers::pi::load_sessions(&project_path, exclude),
         "ompi" => providers::ompi::load_sessions(&project_path, exclude),
+        "qoder" => providers::qoder::load_sessions(&project_path, exclude),
         "qwen" => providers::qwen::load_sessions(&project_path, exclude),
         "cline" => providers::cline::load_sessions(&project_path, exclude),
         "crush" => providers::crush::load_sessions(&project_path, exclude),
         "cursor" => providers::cursor::load_sessions(&project_path, exclude),
         "cursor-agent" => providers::cursor_agent::load_sessions(&project_path, exclude),
+        "cursor-acp" => providers::cursor_acp::load_sessions(&project_path, exclude),
         "aider" => providers::aider::load_sessions(&project_path, exclude),
         "amazonq" => providers::amazon_q::load_sessions(&project_path, exclude),
         "antigravity" => providers::antigravity::load_sessions(&project_path, exclude),
@@ -397,6 +455,7 @@ pub async fn load_provider_sessions(
         "openhands" => providers::openhands::load_sessions(&project_path, exclude),
         "trae" => providers::trae::load_sessions(&project_path, exclude),
         "vibe" => providers::vibe::load_sessions(&project_path, exclude),
+        "claude-ai" => providers::claude_ai::load_sessions(&project_path, exclude),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -427,8 +486,10 @@ pub async fn load_provider_sessions_page(
     exclude_sidechain: Option<bool>,
     offset: Option<usize>,
     limit: Option<usize>,
-) -> Result<crate::commands::session::SessionPage, String> {
+    anchor_session_path: Option<String>,
+) -> Result<crate::commands::session::SessionPage<ListedSession>, String> {
     let offset = offset.unwrap_or(0);
+    let limit_requested = limit;
     let limit = limit.unwrap_or(250).clamp(1, 500);
 
     if provider == "claude" {
@@ -444,11 +505,35 @@ pub async fn load_provider_sessions_page(
                 session.provider = Some("claude".to_string());
             }
         }
-        return Ok(page);
+        return Ok(crate::commands::session::SessionPage {
+            sessions: page.sessions.into_iter().map(ListedSession::from).collect(),
+            total: page.total,
+            subagent_count: None,
+            offset: page.offset,
+            limit: page.limit,
+            next_offset: page.next_offset,
+            has_more: page.has_more,
+        });
+    }
+
+    if matches!(provider.as_str(), "opencode" | "kilo") {
+        let sessions = load_provider_sessions(provider, project_path, exclude_sidechain).await?;
+        // A zero limit with an anchor asks only for the selected branch.
+        let limit = if limit_requested == Some(0) && anchor_session_path.is_some() {
+            0
+        } else {
+            limit
+        };
+        return Ok(sidebar::page(
+            sessions,
+            offset,
+            limit,
+            anchor_session_path.as_deref(),
+        ));
     }
 
     let mut sessions =
-        load_provider_sessions(provider.clone(), project_path, exclude_sidechain).await?;
+        load_plain_provider_sessions(provider.clone(), project_path, exclude_sidechain).await?;
     for session in &mut sessions {
         if session.provider.is_none() {
             session.provider = Some(provider.clone());
@@ -457,12 +542,18 @@ pub async fn load_provider_sessions_page(
     sort_sessions_by_recency(&mut sessions);
 
     let total = sessions.len();
-    let page_sessions: Vec<ClaudeSession> = sessions.into_iter().skip(offset).take(limit).collect();
+    let page_sessions: Vec<_> = sessions
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(ListedSession::from)
+        .collect();
     let next_offset = offset.saturating_add(page_sessions.len());
 
     Ok(crate::commands::session::SessionPage {
         sessions: page_sessions,
         total,
+        subagent_count: None,
         offset,
         limit,
         next_offset,
@@ -525,6 +616,7 @@ fn load_non_claude_messages(
         "gemini" => providers::gemini::load_messages(session_path),
         "goose" => providers::goose::load_messages(session_path),
         "grok" => providers::grok::load_messages(session_path),
+        "hermes" => providers::hermes::load_messages(session_path),
         "kilo" => providers::kilo::load_messages(session_path),
         "kimi" => providers::kimi::load_messages(session_path),
         "forgecode" => providers::forgecode::load_messages(session_path),
@@ -532,11 +624,13 @@ fn load_non_claude_messages(
         "openinterpreter" => providers::openinterpreter::load_messages(session_path),
         "pi" => providers::pi::load_messages(session_path),
         "ompi" => providers::ompi::load_messages(session_path),
+        "qoder" => providers::qoder::load_messages(session_path),
         "qwen" => providers::qwen::load_messages(session_path),
         "cline" => providers::cline::load_messages(session_path),
         "crush" => providers::crush::load_messages(session_path),
         "cursor" => providers::cursor::load_messages(session_path),
         "cursor-agent" => providers::cursor_agent::load_messages(session_path),
+        "cursor-acp" => providers::cursor_acp::load_messages(session_path),
         "aider" => providers::aider::load_messages(session_path),
         "amazonq" => providers::amazon_q::load_messages(session_path),
         "antigravity" => providers::antigravity::load_messages(session_path),
@@ -547,6 +641,7 @@ fn load_non_claude_messages(
         "openhands" => providers::openhands::load_messages(session_path),
         "trae" => providers::trae::load_messages(session_path),
         "vibe" => providers::vibe::load_messages(session_path),
+        "claude-ai" => providers::claude_ai::load_messages(session_path),
         _ => Err(format!("Unknown provider: {provider}")),
     }
 }
@@ -674,6 +769,38 @@ pub async fn get_provider_message_offset(
     Ok(merged.iter().rev().position(|m| m.uuid == message_uuid))
 }
 
+/// Providers whose entries link to their predecessor, so a session can fork:
+/// Claude Code (`parentUuid`) and the Pi format (`id`/`parentId`, `pi` and
+/// `ompi`). Every other provider records one linear list.
+const BRANCHING_PROVIDER_IDS: &[&str] = &["claude", "pi", "ompi"];
+
+/// Where the session's conversation forks (#782): an edited prompt,
+/// `/rewind`, or resuming from an earlier point leaves the old continuation
+/// in the file next to the new one. Read from the whole file, so a window
+/// loaded by `load_provider_messages_paginated` can be filtered to one path
+/// whether or not the fork itself is loaded. Empty for providers that cannot
+/// fork.
+#[tauri::command]
+pub async fn get_conversation_branches(
+    provider: String,
+    session_path: String,
+) -> Result<crate::commands::session::ConversationBranches, String> {
+    if !BRANCHING_PROVIDER_IDS.contains(&provider.as_str()) {
+        return Ok(crate::commands::session::ConversationBranches::default());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        if provider == "claude" {
+            return crate::commands::session::claude_conversation_branches(Path::new(
+                &session_path,
+            ));
+        }
+        let messages = load_non_claude_messages(&provider, &session_path)?;
+        Ok(crate::commands::session::conversation_branches_from_messages(&messages))
+    })
+    .await
+    .map_err(|e| format!("Task join error: {e}"))?
+}
+
 /// Search across all (or selected) providers
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
@@ -692,6 +819,7 @@ pub async fn search_all_providers(
     let search_filters =
         filters.unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::default()));
     crate::commands::session::validate_search_filters(&search_filters)?;
+    let parsed_filters = SearchFilters::parse(&search_filters);
 
     let providers_to_search = active_providers.unwrap_or_else(|| {
         vec![
@@ -703,6 +831,7 @@ pub async fn search_all_providers(
             "gemini".to_string(),
             "goose".to_string(),
             "grok".to_string(),
+            "hermes".to_string(),
             "kilo".to_string(),
             "kimi".to_string(),
             "forgecode".to_string(),
@@ -710,11 +839,13 @@ pub async fn search_all_providers(
             "openinterpreter".to_string(),
             "pi".to_string(),
             "ompi".to_string(),
+            "qoder".to_string(),
             "qwen".to_string(),
             "cline".to_string(),
             "crush".to_string(),
             "cursor".to_string(),
             "cursor-agent".to_string(),
+            "cursor-acp".to_string(),
             "aider".to_string(),
             "amazonq".to_string(),
             "antigravity".to_string(),
@@ -726,6 +857,7 @@ pub async fn search_all_providers(
             "trae".to_string(),
             "vibe".to_string(),
             "zcode".to_string(),
+            "claude-ai".to_string(),
         ]
     });
     // Native loaders use the full active provider selection. WSL loaders use
@@ -934,12 +1066,32 @@ pub async fn search_all_providers(
         }
     }
 
+    // Hermes Agent
+    if providers_to_search.iter().any(|p| p == "hermes") {
+        match providers::hermes::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Hermes Agent search failed: {e}");
+            }
+        }
+    }
+
     // Z Code
     if providers_to_search.iter().any(|p| p == "zcode") {
         match providers::zcode::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Z Code search failed: {e}");
+            }
+        }
+    }
+
+    // Qoder
+    if providers_to_search.iter().any(|p| p == "qoder") {
+        match providers::qoder::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("Qoder search failed: {e}");
             }
         }
     }
@@ -956,22 +1108,20 @@ pub async fn search_all_providers(
 
     // Cline
     if providers_to_search.iter().any(|p| p == "cline") {
-        match providers::cline::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Cline search failed: {e}");
-            }
-        }
+        all_results.extend(providers::cline::search_with_filters(
+            &query,
+            max_results,
+            &parsed_filters,
+        ));
     }
 
     // Crush
     if providers_to_search.iter().any(|p| p == "crush") {
-        match providers::crush::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Crush search failed: {e}");
-            }
-        }
+        all_results.extend(providers::crush::search_with_filters(
+            &query,
+            max_results,
+            &parsed_filters,
+        ));
     }
 
     // Cursor
@@ -994,14 +1144,23 @@ pub async fn search_all_providers(
         }
     }
 
-    // Aider
-    if providers_to_search.iter().any(|p| p == "aider") {
-        match providers::aider::search(&query, max_results) {
+    // Cursor ACP (JetBrains IDEs)
+    if providers_to_search.iter().any(|p| p == "cursor-acp") {
+        match providers::cursor_acp::search(&query, max_results) {
             Ok(results) => all_results.extend(results),
             Err(e) => {
-                log::warn!("Aider search failed: {e}");
+                log::warn!("Cursor ACP search failed: {e}");
             }
         }
+    }
+
+    // Aider
+    if providers_to_search.iter().any(|p| p == "aider") {
+        all_results.extend(providers::aider::search_with_filters(
+            &query,
+            max_results,
+            &parsed_filters,
+        ));
     }
 
     // Amazon Q Developer CLI
@@ -1079,6 +1238,16 @@ pub async fn search_all_providers(
             Ok(results) => all_results.extend(results),
             Err(e) => {
                 log::warn!("Trae search failed: {e}");
+            }
+        }
+    }
+
+    // claude.ai account exports
+    if providers_to_search.iter().any(|p| p == "claude-ai") {
+        match providers::claude_ai::search(&query, max_results) {
+            Ok(results) => all_results.extend(results),
+            Err(e) => {
+                log::warn!("claude.ai export search failed: {e}");
             }
         }
     }
@@ -1181,7 +1350,10 @@ pub async fn search_all_providers(
         }
     }
 
-    all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
+    // Claude, Codex, Aider, Cline and Crush already filter before their cap.
+    // Keep filtering hits from adapters that only expose capped, unfiltered
+    // search; for those adapters an out-of-scope hit can still use up a slot.
+    all_results.retain(|message| parsed_filters.matches(message));
 
     // Prefer the user's matching prompts, then displayable assistant text,
     // while preserving tool-only matches after conversational results.
@@ -1236,10 +1408,51 @@ fn select_wsl_vscode_base_index(bases: &[(PathBuf, &'static str)]) -> Option<usi
 fn merge_tool_execution_messages(messages: Vec<ClaudeMessage>) -> Vec<ClaudeMessage> {
     let mut merged: Vec<ClaudeMessage> = Vec::with_capacity(messages.len());
 
-    for msg in messages {
+    for mut msg in messages {
         if msg.message_type != "user" {
             merged.push(msg);
             continue;
+        }
+
+        // Associate raw metadata with its source result before moving that block.
+        // Other providers own their normalized shapes and are left untouched.
+        if msg.provider.as_deref() == Some("claude") {
+            if let (Some(raw), Some(blocks)) = (
+                msg.tool_use_result.as_ref(),
+                msg.content.as_mut().and_then(Value::as_array_mut),
+            ) {
+                let indices: Vec<usize> = blocks
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, block)| {
+                        block.get("type").and_then(Value::as_str) == Some("tool_result")
+                    })
+                    .map(|(index, _)| index)
+                    .collect();
+                if let Some(&index) = indices.first() {
+                    let block = blocks[index].as_object_mut().expect("typed result block");
+                    let assigned = indices.len() == 1 && !block.contains_key("toolUseResult");
+                    if assigned {
+                        block.insert("toolUseResult".into(), raw.clone());
+                    }
+                    let source = crate::models::ToolUseResultSource {
+                        message_uuid: msg.uuid.clone(),
+                        session_id: msg.session_id.clone(),
+                        content_index: index,
+                        association: if assigned {
+                            "single_result"
+                        } else {
+                            "unassigned"
+                        }
+                        .into(),
+                        result_content_indices: if assigned { None } else { Some(indices) },
+                        unassigned_tool_use_result: if assigned { None } else { Some(raw.clone()) },
+                    };
+                    block
+                        .entry("toolUseResultSource")
+                        .or_insert_with(|| serde_json::to_value(source).expect("JSON provenance"));
+                }
+            }
         }
 
         let Some(content_arr) = msg.content.as_ref().and_then(Value::as_array) else {
@@ -1317,6 +1530,289 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::SandboxHome;
+    use serde_json::json;
+    use std::fs;
+
+    async fn search_at_limit_one(
+        provider: &str,
+        query: &str,
+        filters: Option<Value>,
+    ) -> ClaudeMessage {
+        let mut hits = search_all_providers(
+            None,
+            query.to_owned(),
+            Some(vec![provider.to_owned()]),
+            None,
+            filters,
+            Some(1),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(hits.len(), 1, "{provider} search returned {hits:?}");
+        hits.pop().unwrap()
+    }
+
+    async fn scan_only(provider: &str) -> Vec<ClaudeProject> {
+        scan_all_projects(
+            None,
+            Some(vec![provider.to_owned()]),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|listed| listed.project)
+        .collect()
+    }
+
+    async fn listed_sessions(project: &ClaudeProject) -> Vec<ClaudeSession> {
+        let page = load_provider_sessions_page(
+            project.provider.clone().unwrap(),
+            project.path.clone(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(page.total, project.session_count);
+        page.sessions
+            .into_iter()
+            .map(|listed| listed.session)
+            .collect()
+    }
+
+    async fn assert_search_opens_session(
+        project: &ClaudeProject,
+        session: &ClaudeSession,
+        query: &str,
+    ) {
+        let provider = project.provider.as_deref().unwrap();
+        let unscoped = search_at_limit_one(provider, query, None).await;
+        assert_ne!(
+            unscoped.project_path.as_deref(),
+            Some(project.path.as_str()),
+            "fixture must place the desired hit beyond the unfiltered limit"
+        );
+
+        let by_project = search_at_limit_one(
+            provider,
+            query,
+            Some(json!({"projectPaths": [project.path]})),
+        )
+        .await;
+        assert_eq!(
+            by_project.project_path.as_deref(),
+            Some(project.path.as_str())
+        );
+        assert_eq!(
+            by_project.project_name.as_deref(),
+            Some(project.name.as_str())
+        );
+        assert!(
+            by_project.session_id == session.session_id
+                || by_project.session_id == session.actual_session_id,
+            "the palette must resolve the hit to the listed session"
+        );
+        let by_session = search_at_limit_one(
+            provider,
+            query,
+            Some(json!({"sessionIds": [session.session_id, session.actual_session_id]})),
+        )
+        .await;
+        assert_eq!(by_session.project_path, by_project.project_path);
+        assert_eq!(by_session.uuid, by_project.uuid);
+
+        // The frontend opens the listed file_path, not the search message's id.
+        let page = load_provider_messages_paginated(
+            provider.to_owned(),
+            session.file_path.clone(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let loaded = page
+            .messages
+            .iter()
+            .find(|m| m.uuid == by_project.uuid)
+            .unwrap();
+        assert_eq!(loaded.session_id, by_project.session_id);
+        assert_eq!(loaded.content, by_project.content);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn aider_search_opens_the_listed_chat_at_its_index() {
+        let home = SandboxHome::new();
+        for (dir, history) in [
+            ("client/app", "# aider chat started at 2025-01-01 10:00:00\n#### find me"),
+            ("work/app#archive", "# aider chat started at 2025-01-01 10:00:00\n#### other chat\n# aider chat started at 2025-01-02 10:00:00\n#### find me in target\n"),
+        ] {
+            let root = home.path().join(dir);
+            fs::create_dir_all(&root).unwrap();
+            fs::write(root.join(".aider.chat.history.md"), history).unwrap();
+        }
+        let projects = scan_only("aider").await;
+        assert_eq!(projects.len(), 2);
+        let target = projects.iter().find(|p| p.name == "app#archive").unwrap();
+        let sessions = listed_sessions(target).await;
+        assert_eq!(sessions.len(), 2);
+        let target_session = &sessions[0];
+        assert!(target_session.session_id.ends_with("#1"));
+        assert_ne!(target_session.file_path, sessions[1].file_path);
+        assert_search_opens_session(target, target_session, "find me").await;
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn cline_search_opens_tasks_without_a_working_directory_and_sdk_sessions() {
+        use providers::cline::fixtures;
+
+        let home = SandboxHome::new();
+        let known = fixtures::write_extension_task(home.path(), "/work/known");
+        let tasks = known.parent().unwrap().parent().unwrap();
+        let unknown = tasks.join("task-2");
+        fs::create_dir_all(&unknown).unwrap();
+        fs::copy(&known, unknown.join("ui_messages.json")).unwrap();
+        fs::write(
+            tasks.parent().unwrap().join("state/taskHistory.json"),
+            json!([
+                {"id": "task-1", "cwdOnTaskInitialization": "/work/known"},
+                {"id": "task-2"}
+            ])
+            .to_string(),
+        )
+        .unwrap();
+        fixtures::write_sdk_session(home.path(), "/work/sdk");
+
+        let projects = scan_only("cline").await;
+        assert_eq!(projects.len(), 3);
+        for name in ["unknown", "sdk"] {
+            let target = projects.iter().find(|p| p.name == name).unwrap();
+            let sessions = listed_sessions(target).await;
+            assert_eq!(sessions.len(), 1);
+            assert_eq!(sessions[0].project_name, name);
+            assert_search_opens_session(target, &sessions[0], "hi").await;
+        }
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn crush_search_opens_sessions_recovered_from_messages() {
+        let home = SandboxHome::new();
+        for (name, has_sessions_table, has_message) in [
+            ("a-other", true, true),
+            ("b-empty-db", true, false),
+            ("c-no-session-rows", true, true),
+            ("d-no-sessions-table", false, true),
+        ] {
+            let root = home.path().join(name).join(".crush");
+            fs::create_dir_all(&root).unwrap();
+            let conn = rusqlite::Connection::open(root.join("crush.db")).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+                                        role TEXT NOT NULL, parts TEXT NOT NULL, created_at INTEGER);",
+            )
+            .unwrap();
+            if has_sessions_table {
+                conn.execute_batch(
+                    "CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER, updated_at INTEGER);",
+                )
+                .unwrap();
+            }
+            if name == "a-other" {
+                conn.execute(
+                    "INSERT INTO sessions VALUES (?1,'Decoy',1750000000,1750000100)",
+                    [name],
+                )
+                .unwrap();
+            }
+            if has_message {
+                conn.execute(
+                    "INSERT INTO messages VALUES ('m1',?1,'user',?2,1750000000),
+                                                 ('m2',?1,'assistant','[]',1750000001)",
+                    [name, r#"[{"type":"text","data":{"text":"find me"}}]"#],
+                )
+                .unwrap();
+            }
+        }
+
+        let projects = scan_only("crush").await;
+        assert_eq!(projects.len(), 3);
+        for name in ["c-no-session-rows", "d-no-sessions-table"] {
+            let target = projects.iter().find(|p| p.name == name).unwrap();
+            assert_eq!(target.message_count, 2);
+            let sessions = listed_sessions(target).await;
+            assert_eq!(sessions.len(), 1);
+            assert_eq!(sessions[0].actual_session_id, name);
+            assert_eq!(sessions[0].message_count, 2);
+            assert_eq!(
+                parse_rfc3339_utc(&sessions[0].first_message_time)
+                    .unwrap()
+                    .timestamp(),
+                1_750_000_000,
+            );
+            assert_eq!(
+                parse_rfc3339_utc(&sessions[0].last_message_time)
+                    .unwrap()
+                    .timestamp(),
+                1_750_000_001,
+            );
+            assert_eq!(target.last_modified, sessions[0].last_modified);
+            assert_search_opens_session(target, &sessions[0], "find me").await;
+        }
+    }
+
+    #[tokio::test]
+    async fn search_all_providers_honors_session_ids_for_claude() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let project_dir = temp_dir.path().join("projects").join("demo");
+        std::fs::create_dir_all(&project_dir).unwrap();
+        let line = |uuid: &str, session: &str, minute: u32| {
+            format!(
+                r#"{{"uuid":"{uuid}","sessionId":"{session}","timestamp":"2025-06-26T10:{minute:02}:00Z","type":"user","message":{{"role":"user","content":"sessionScopeProbe {uuid}"}}}}"#
+            )
+        };
+        std::fs::write(
+            project_dir.join("old.jsonl"),
+            format!("{}\n", line("old-1", "old", 1)),
+        )
+        .unwrap();
+        std::fs::write(
+            project_dir.join("new.jsonl"),
+            format!("{}\n{}\n", line("new-1", "new", 2), line("new-2", "new", 3)),
+        )
+        .unwrap();
+
+        // The older session must survive a limit of 1 because scoping is
+        // applied before truncation.
+        let results = search_all_providers(
+            Some(temp_dir.path().to_string_lossy().to_string()),
+            "sessionScopeProbe".to_string(),
+            Some(vec!["claude".to_string()]),
+            None,
+            Some(serde_json::json!({ "sessionIds": ["old"] })),
+            Some(1),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap();
+
+        let ids: Vec<&str> = results.iter().map(|m| m.uuid.as_str()).collect();
+        assert_eq!(ids, ["old-1"]);
+        assert_eq!(results[0].provider.as_deref(), Some("claude"));
+    }
 
     #[tokio::test]
     async fn load_provider_session_by_path_rejects_providers_without_a_lookup() {
@@ -1354,37 +1850,13 @@ mod tests {
     fn make_message(message_type: &str, content: Value) -> ClaudeMessage {
         ClaudeMessage {
             uuid: format!("{message_type}-id"),
-            parent_uuid: None,
             session_id: "session-1".to_string(),
             timestamp: "2026-02-19T12:00:00Z".to_string(),
             message_type: message_type.to_string(),
             content: Some(content),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
             role: Some(message_type.to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some("claude".to_string()),
+            ..Default::default()
         }
     }
 
@@ -1746,5 +2218,31 @@ mod tests {
             remaining_user_blocks[2].get("type").and_then(Value::as_str),
             Some("text")
         );
+    }
+
+    /// The viewer opens a Cline session by the file it lists (#707), in
+    /// both stores, through both the paged and the full load.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn cline_sessions_open_by_the_file_they_list() {
+        use crate::providers::cline::fixtures;
+        let home = crate::test_utils::SandboxHome::new();
+        let files = [
+            fixtures::write_extension_task(home.path(), "/work/app"),
+            fixtures::write_sdk_session(home.path(), "/work/app"),
+        ];
+
+        for file in files {
+            let path = file.to_string_lossy().to_string();
+            let page =
+                load_provider_messages_paginated("cline".into(), path.clone(), None, None, None)
+                    .await
+                    .unwrap_or_else(|e| panic!("{path}: {e}"));
+            assert_eq!(page.total_count, 2, "{path}");
+            let full = load_provider_messages("cline".into(), path.clone())
+                .await
+                .unwrap_or_else(|e| panic!("{path}: {e}"));
+            assert_eq!(full.len(), 2, "{path}");
+        }
     }
 }

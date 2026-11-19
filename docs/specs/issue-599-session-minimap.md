@@ -1,12 +1,14 @@
 # Session minimap: strip, viewport box, click and drag, settings switch
 
-> Status: draft for review. The author confirmed every product decision below on 2026-10-05.
+> Status: PR 1 merged as #634 (`508812cb`) on 2026-10-10 and shipped in v1.32.0. PR 2 is
+> specified in the "PR 2" section at the end, added 2026-10-12.
 > Date: 2026-10-04, decisions applied 2026-10-05
-> Verified: every line number below was checked against `develop` at `e1789a79` (after #629,
-> the prompt-jump shortcut, and #630, its follow-up fixes).
-> Scope: PR 1 only (strip, viewport box, click and drag, settings switch, keyboard shortcut).
-> PR 2 (search ticks, not-loaded band, hover previews) is described at a lighter level of detail
-> in its own section below.
+> Verified: every line number above the "PR 2" section was checked against `develop` at
+> `e1789a79` (after #629, the prompt-jump shortcut, and #630, its follow-up fixes). The PR 2
+> section cites `develop` at `e2175dc2`.
+> Scope: PR 1 (strip, viewport box, click and drag, settings switch, keyboard shortcut) in the
+> sections up to "Open questions". PR 2 (search ticks, not-loaded band, hover previews) in the
+> "PR 2" section at the end.
 > Visual reference: https://jprisant.github.io/claude-code-history-viewer/minimap/
 
 ## Background
@@ -368,20 +370,9 @@ flipped, not a field-for-field copy. Registered in `useAppStore.ts` the same way
 - **Frontend-only.** Every input is already in the frontend: no new Tauri command, no new Axum
   route, no change to `src-tauri/`. The WebUI served by `--serve` gets the feature automatically.
 
-### PR 2 (lighter detail): search ticks, not-loaded band, hover previews
+### PR 2: search ticks, not-loaded band, hover previews
 
-- **Search ticks.** Resolve each `SearchMatch` (`types.ts:38-41,49-51`) through
-  `uuidToIndexMap` to a pixel position; draw a tick at the strip's right edge, brighter and
-  taller for the current match, as the prototype's `goToMatch()` does.
-- **Not-loaded band.** Pages load newest-first, 200 at a time, each carrying `total_count`
-  (`messageSlice.ts:117,310,321`). A hatched band at the top, sized by the unloaded share,
-  clicks to load older pages. Without it, the strip implies the session starts at the loaded
-  window.
-- **Hover preview.** A binary search over `measurementsCache` by `start`, as the prototype's
-  `rowAtOffset()` does, finds the row under the pointer; a tooltip shows its kind label and a
-  text snippet.
-
-Acceptance criteria for PR 2 are not written here; this spec covers PR 1 only.
+Specified in full in the "PR 2" section at the end of this document.
 
 ## State
 
@@ -631,3 +622,214 @@ strip's width while it is shown (§2).
 Resolved on 2026-10-05: the strip's width is fixed (decision 8). The OverlayScrollbars track
 needs no restyling; the browser check showed the scrollbar inside the list area, left of the
 strip (Risks).
+
+## PR 2: search ticks, not-loaded band, hover previews
+
+> Date: 2026-10-12. The author confirmed decisions P2-1 to P2-3 on 2026-10-12.
+> Verified: every line number in this section was checked against `develop` at `e2175dc2`.
+> Scope: the three features the maintainer deferred to a second PR on #599. Still
+> frontend-only: no Tauri command, no Axum route, no change to `src-tauri/`.
+
+### Verified constraints (PR 2)
+
+- **Search covers the whole session, not the loaded window.** `setSessionSearchQuery` searches
+  the result of `fetchFullSessionMessages()` (`store/slices/searchSlice.ts:135,168-171`). A
+  `SearchMatch` carries `messageUuid`, `messageIndex`, `matchIndex`, and `matchCount`
+  (`store/slices/types.ts:38-43`). `messageIndex` indexes that full array
+  (`searchSlice.ts:199-210`), not `flattenedMessages`, so the strip must not use it as a row
+  index.
+- `MessageViewer.tsx` already derives `matchedUuids`, a `Set` of matched message uuids
+  (`MessageViewer.tsx:250-252`), and `currentMatchUuid` (`:255-266`). `uuidToIndexMap` maps a
+  uuid to its index in `flattenedMessages` (`hooks/useMessageVirtualization.ts:125`, returned at
+  `MessageViewer.tsx:400`). Stepping to a match in an unloaded page already loads it, through
+  `ensureMessageLoaded` (`MessageViewer.tsx:714-722`).
+- **Pagination is a newest-first window.** `pagination` holds `currentOffset`, `totalCount`,
+  `hasMore`, and `isLoadingMore` (`store/slices/messageSlice.ts:125-131`). `currentOffset` is
+  the number of messages consumed from the newest end (`fetchWindow`, `:284-323`; set at
+  `:381,509`), so `totalCount - currentOffset` is the unloaded count. One page is
+  `MESSAGE_PAGE_SIZE = 200` (`:117`).
+- **Loading an older page keeps the reader's place.** `handleLoadEarlier` records the first
+  visible message row and its on-screen offset before it loads (`MessageViewer.tsx:633-653`).
+  After the prepend, a three-pass restore puts that row back in place (`:655-688`). Scrolling
+  within 300px of the top also calls it (`:693-709`).
+- **Search-highlight tokens exist in every theme variant:** `--highlight`,
+  `--highlight-current`, and `--highlight-foreground` (`index.css:142-145` light, `:266-269`
+  dark, `:382-384` and `:418-420` high contrast). The list's own match marks use them.
+- **Hover text can reuse the Messages panel's helpers.** `previewText(info, toolName)`
+  (`MessageNavigator/classifiedRows.ts:44-52`) and `truncatePreview` (`:24-35`) build its row
+  previews, used together at `:87-90`. `getKindLabelKey` (`MessageNavigator/kindLabels.ts:15-17`)
+  maps a kind to its `navigator.kind.*` label (`i18n/locales/en/message.json:81-88`).
+  `NavigatorEntry.tsx` formats a row's time with `useFormat().time`, the app language's clock
+  time.
+- The strip mounts at `MessageViewer.tsx:1117-1126`, gated by `showMinimapStrip` (`:847`). The
+  right gutter is already reserved for ticks: `MINIMAP_TICK_GUTTER_PX = 7`
+  (`helpers/minimapLayout.ts:69-70`).
+- **Long sessions are common enough to matter.** On the author's machine, 444 of 3,708 local
+  Claude Code sessions (12 percent) exceed 200 JSONL lines, 278 (7 percent) exceed 1,000, and
+  the longest has 8,415. JSONL lines overcount messages, so these are upper bounds.
+
+### Design (PR 2)
+
+**Geometry.** The band sits at the top of the strip, and the session map fills the rest. One
+pure function, `minimapGeometry()` in `minimapLayout.ts`, returns the band height, the map's
+top, the map's height, and the scale (`mapHeight / scrollHeight`). The painter, the viewport
+box, click, drag, and hover all read from it. This mirrors the prototype's `geometry()`. With
+no band, the map's top is 0 and every PR 1 number is unchanged.
+
+**Not-loaded band.**
+- The band shows only while `pagination.hasMore` is true.
+- Its height is the unloaded share of the strip, `stripHeight * unloaded / totalCount`,
+  clamped to at least 24px and at most 25 percent of the strip. The cap wins when the two
+  conflict on a very short strip.
+- It is a DOM `div` over the canvas, not canvas paint, so a test can read its height. It is
+  hatched with `--muted-foreground` at reduced opacity and has a bottom border.
+- It shows the unloaded count, grouped in the app language (`useFormat().count`), when it is at
+  least 16px tall: the caption chip's 15px line plus a pixel.
+- A click calls `handleLoadEarlier`, passed down as a prop, which loads one older page. A press
+  on the band never starts a drag. While a page loads, the band pulses and ignores clicks.
+
+**Search ticks.**
+- `MessageViewer` passes `matchedUuids`, `currentMatchUuid`, and `getScrollIndex`. Each
+  matched uuid resolves through `getScrollIndex` to a row, and then to that row's `start` in
+  `measurementsCache`, plus the list offset PR 1 already applies.
+- A member of a collapsed agent task or progress group resolves to its group's leader, as a jump to the
+  match does. The member's own row is zero-height, so a tick there would sit below the leader.
+- One tick per matched message: several matches inside one message share its tick.
+- A tick is 5px wide and 2px tall, in the right gutter, 2px from the strip's edge, as the
+  prototype draws it.
+- The current match's tick is 4px tall. It is drawn last, filled with `--highlight-current`
+  inside a 1px `--highlight-foreground` outline. Other ticks are filled with
+  `--highlight-foreground`. This is the same token pairing as the list's own current-match mark,
+  and it stays legible on the strip's background in every theme variant. `--highlight` alone
+  is a pale background tint, close to the strip's own background in the light theme.
+- Colors are read at draw time (Decision 4), so ticks follow a theme switch.
+- A match in an unloaded page has no row and draws no tick (P2-3). The band's tooltip counts
+  those matches. A match whose message the display filter hides also has no row, and gets no
+  tick.
+
+**Hover preview.**
+- A binary search over `measurementsCache` finds the last row whose `start` is at or before
+  the pointer's position, mapped back through the band, the scale, and the list offset. This is the
+  prototype's `rowAtOffset()`. Zero-height rows (collapsed agent task group members) never win.
+- The tooltip shows the row's kind label and time, then a text snippet of at most 120
+  characters, built with `previewText` and `truncatePreview`.
+- Over the band, it shows "Not loaded yet", the unloaded count, and any count of unloaded
+  matches.
+- Date dividers, hidden placeholders, and the list's header or footer show no tooltip.
+- The text is recomputed only when the hovered row changes, not on every pointer move,
+  because `previewText` runs regexes.
+- The tooltip is a positioned `div` to the left of the strip, not the app's `Tooltip`
+  component. The strip is `aria-hidden` and has no focusable trigger to attach one to. It hides
+  when a drag starts and when the pointer leaves the strip.
+- `previewText`, `truncatePreview`, and `getKindLabelKey` are imported from
+  `MessageNavigator/`, not moved. `classifiedRows.ts` already imports from
+  `MessageViewer/helpers/`, but no file-level import cycle results.
+
+### Decisions (PR 2)
+
+1. **P2-1: the band is proportional, capped at 25 percent of the strip, at least 24px.**
+   *Alternatives:* exactly proportional, as the prototype draws it, or a fixed short band. A
+   proportional band gives 98 percent of the strip to the band when 200 of 8,415 messages are
+   loaded, which squeezes the loaded session into a few pixels. A fixed band says nothing about
+   how much is missing.
+2. **P2-2: a band click loads one older page, through `handleLoadEarlier`.** *Alternatives:*
+   load everything down to the clicked point, or make the band a label only. One page reuses the
+   existing anchor restore, so the list does not jump. Loading thousands of rows at once would
+   push them all into the virtualizer in one step. The Messages panel's outline chose a label
+   with no button (its D10), because the list already loads near its top. The band is different:
+   it is a pointer surface beside a list that may not be near its top, and the spec the
+   maintainer read on #599 says it "clicks to load older pages".
+3. **P2-3: matches in unloaded pages draw no tick; the band's tooltip counts them.**
+   *Alternative:* draw them inside the band at estimated positions. `messageIndex` indexes the
+   full session after the sidechain and system filters, which need not line up with
+   `totalCount`, so an estimated position could mislead. The search toolbar's next and previous
+   buttons already load an unloaded match when the reader steps to it.
+
+### Acceptance (PR 2)
+
+1. With `pagination.hasMore` true, a hatched band renders at the top of the strip. Its height is
+   `stripHeight * unloaded / totalCount`, clamped to at least 24px and at most 25 percent of the
+   strip. With `hasMore` false, no band renders.
+2. With a band present, the blocks, the viewport box, click, and drag all map onto the region
+   below it. At the top of the scroll content, the box starts at the band's bottom edge. At the
+   bottom, it ends at the strip's bottom.
+3. Clicking the band calls the list's load-earlier handler once. While a page is loading, a
+   click does nothing. A press on the band does not start a drag.
+4. After a page loads, the band shrinks, or disappears when nothing is left, and the map
+   redraws, with no reload.
+5. During a session search, each loaded, displayed message with at least one match has exactly
+   one tick in the right gutter, at its row's position. Bars never paint into the gutter.
+6. The current match's tick is taller than the others and drawn on top of them. It moves when
+   the reader steps to the next or previous match.
+7. Matches in unloaded pages draw no tick. The band's tooltip states how many there are.
+8. Tick colors come from the search-highlight tokens, read at draw time. They change with the
+   theme, with no reload.
+9. Hovering a message row shows its kind label, its time, and a snippet of at most 120
+   characters. Hovering the band shows the not-loaded text. Hovering a date divider or a hidden
+   placeholder shows nothing.
+10. The tooltip hides when a drag starts and when the pointer leaves the strip.
+11. The strip's root stays `aria-hidden="true"`, and PR 2 adds nothing reachable by Tab.
+12. New strings exist in all five locales, with plural forms where a count appears.
+    `pnpm run i18n:validate` passes.
+13. `pnpm exec tsc --build .`, `pnpm exec vitest run`, `pnpm lint`, and
+    `pnpm run i18n:validate` pass. `src-tauri/` is untouched.
+
+### i18n (PR 2)
+
+New keys in `src/i18n/locales/*/message.json`, all five locales, next to the other
+`messageViewer.*` keys. English text:
+
+```
+messageViewer.minimap.notLoadedTitle             "Not loaded yet"
+messageViewer.minimap.notLoadedBody_one          "{{count}} older message. Click to load the previous page."
+messageViewer.minimap.notLoadedBody_other        "{{count}} older messages. Click to load the previous page."
+messageViewer.minimap.matchesNotLoaded_one       "{{count}} search match is in older messages."
+messageViewer.minimap.matchesNotLoaded_other     "{{count}} search matches are in older messages."
+```
+
+The band reuses `common.loading` while a page loads. Hover labels reuse `navigator.kind.*`. None
+of the new strings names the product, so the Omnilogue rename (#646) does not touch them.
+
+### Tests (PR 2)
+
+Red first, per this repo's test discipline.
+- **`minimapLayout.test.ts`:** `minimapGeometry` with no band, a proportional band, the 24px
+  floor, the 25 percent cap, and a strip too short for both; `rowIndexAtOffset` on the
+  header, inside a row, on a boundary, past the end, and next to zero-height rows; tick
+  positions, one per row, with the current tick last.
+- **`SessionMinimap.test.tsx`:** the band's height and its absence; a band click calls the
+  handler, and a click while loading does not; a band press does not scroll the list; the
+  viewport box sits below the band; ticks paint in the gutter, with the current tick taller;
+  hover shows a kind label and snippet, and the band text over the band; the tooltip hides on
+  pointer leave and on drag.
+- **`MessageViewer.minimap.test.tsx`:** the strip receives the search and pagination props.
+  The stale stub comment at line 80, written before #632 merged, is reworded.
+
+### Build order (PR 2)
+
+| # | Step |
+|---|---|
+| 1 | `minimapGeometry`, `rowIndexAtOffset`, and tick positions in `minimapLayout.ts`, with unit tests |
+| 2 | The painter, viewport box, click, and drag read the geometry; existing tests stay green |
+| 3 | The band `div`, its click, its loading state, and the new props from `MessageViewer` |
+| 4 | Ticks on the canvas |
+| 5 | The hover tooltip |
+| 6 | i18n keys in five locales, regenerated types, validation |
+| 7 | Gates, then a browser check on the fictional demo session in light, dark, and high contrast |
+
+### Risks (PR 2)
+
+- **Dragging to the top loads older pages, one per approach (observed 2026-10-12).** A drag
+  that brings the list within 300px of its top triggers the list's auto-load, as scrolling
+  there does. The anchor restore then keeps the same rows on screen: in the browser check, the
+  drag wrote `scrollTop` 0, and 40 ms later the restore wrote 21,062, the same rows' new
+  offset. The viewport box moves down the strip as the map rescales, and the next pointer move
+  at the top loads the next page. The list never oscillated, and the drag stopped loading once
+  every page was in. This behavior predates PR 2 (PR 1 has the same auto-load); suppressing
+  auto-load during a drag, so the band is the only load control on the strip, is a possible
+  follow-up and is not in this PR.
+- **The band moves the map while a page loads.** When a page arrives, the band shrinks and the
+  map grows, so every block shifts down. That is correct, but it is visible motion under a
+  stationary pointer. The tooltip recomputes on the next pointer move.
+- **Hover positions inherit the height-estimate drift** described in PR 1's Risks. A row the
+  reader has never scrolled past may sit a few pixels from where the tooltip says it is.

@@ -1,32 +1,20 @@
 import { create } from "zustand";
 import { toast } from "sonner";
 import { storageAdapter } from "@/services/storage";
+import { saveSetting } from "@/services/settingsSync";
 import { isTauri } from "@/utils/platform";
 import i18n from "../i18n";
 import type { SupportedLanguage } from "../i18n";
-import { languageLocaleMap } from "../i18n";
+import { toSupportedLanguage as getSupportedLanguage } from "../i18n/documentLanguage";
 
 interface LanguageStore {
   language: SupportedLanguage;
   isLoading: boolean;
   setLanguage: (language: SupportedLanguage) => Promise<void>;
   loadLanguage: () => Promise<void>;
+  /** A language chosen in another window (issue #656): applied here, not saved again. */
+  applySharedLanguage: (language: unknown) => void;
 }
-
-const getSupportedLanguage = (lang: string): SupportedLanguage => {
-  if (lang.startsWith("zh")) {
-    const region = lang.split("-")[1]?.toUpperCase();
-    if (region === "TW" || region === "HK" || region === "MO") {
-      return "zh-TW";
-    }
-    return "zh-CN";
-  }
-  const primary = lang.split("-")[0];
-  if (primary && primary in languageLocaleMap) {
-    return primary as SupportedLanguage;
-  }
-  return "en";
-};
 
 const getCurrentLanguage = (): SupportedLanguage => {
   const storedLang = localStorage.getItem("i18nextLng");
@@ -45,12 +33,18 @@ export const useLanguageStore = create<LanguageStore>((set, get) => ({
     set({ language });
 
     try {
-      const store = await storageAdapter.load("settings.json", { defaults: {}, autoSave: true });
-      await store.set("language", language);
-      await store.save();
+      await saveSetting("language", language);
     } catch {
       toast.error(i18n.t("common.settings.language.saveFailed"));
     }
+  },
+
+  applySharedLanguage: (language) => {
+    if (typeof language !== "string") return;
+    const next = getSupportedLanguage(language);
+    if (next === get().language) return;
+    set({ language: next });
+    void i18n.changeLanguage(next);
   },
 
   loadLanguage: async () => {

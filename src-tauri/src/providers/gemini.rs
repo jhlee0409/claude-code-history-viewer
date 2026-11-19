@@ -1,4 +1,5 @@
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, search_json_value_case_insensitive};
 use serde_json::Value;
@@ -31,13 +32,22 @@ pub fn get_base_path() -> Option<String> {
 
 /// Scan for all Gemini CLI projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+/// [`scan_projects_from_path`], recording in `report` the project and chat
+/// directories and session files it could not read.
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Gemini base path")?;
 
     let tmp_dir = PathBuf::from(base_path).join("tmp");
 
-    let is_real_dir = std::fs::symlink_metadata(&tmp_dir)
-        .map(|m| m.file_type().is_dir())
-        .unwrap_or(false);
+    let is_real_dir = report
+        .symlink_metadata(&tmp_dir)
+        .is_some_and(|m| m.file_type().is_dir());
     if !is_real_dir {
         return Ok(Vec::new());
     }
@@ -53,12 +63,12 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         }
 
         let project_dir = entry.path();
-        if !project_dir.is_dir() {
+        if !report.is_dir(&project_dir) {
             continue;
         }
 
         let chats_dir = project_dir.join("chats");
-        if is_symlink(&chats_dir) || !chats_dir.is_dir() {
+        if is_symlink(&chats_dir) || !report.is_dir(&chats_dir) {
             continue;
         }
 
@@ -76,21 +86,19 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
         let mut message_count = 0usize;
         let mut last_modified = String::new();
 
-        if let Ok(entries) = fs::read_dir(&chats_dir) {
-            for chat_entry in entries.flatten() {
-                let path = chat_entry.path();
-                if !is_session_file(&chat_entry) {
+        for chat_entry in report.read_dir(&chats_dir) {
+            let path = chat_entry.path();
+            if !is_session_file(&chat_entry) {
+                continue;
+            }
+            if let Some(meta) = extract_session_metadata(&path, report) {
+                if meta.kind == "subagent" {
                     continue;
                 }
-                if let Some(meta) = extract_session_metadata(&path) {
-                    if meta.kind == "subagent" {
-                        continue;
-                    }
-                    session_count += 1;
-                    message_count += meta.message_count;
-                    if meta.last_updated > last_modified {
-                        last_modified = meta.last_updated;
-                    }
+                session_count += 1;
+                message_count += meta.message_count;
+                if meta.last_updated > last_modified {
+                    last_modified = meta.last_updated;
                 }
             }
         }
@@ -101,7 +109,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
         projects.push(ClaudeProject {
             name: project_name.clone(),
-            path: format!("gemini://{}", project_dir.to_string_lossy()),
+            path: project_path_for(&project_dir),
             actual_path,
             session_count,
             message_count,
@@ -118,14 +126,28 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
 /// Scan for all Gemini CLI projects from the default location.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Could not determine Gemini base path")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_path_reporting(&base, report)
 }
 
 /// Load sessions for a Gemini project
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the chat directory and session
+/// files it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let dir = project_path
         .strip_prefix("gemini://")
@@ -135,7 +157,7 @@ pub fn load_sessions(
     let project_dir = validate_gemini_path(dir)?;
     let chats_dir = project_dir.join("chats");
 
-    if is_symlink(&chats_dir) || !chats_dir.is_dir() {
+    if is_symlink(&chats_dir) || !report.is_dir(&chats_dir) {
         return Ok(Vec::new());
     }
 
@@ -149,7 +171,7 @@ pub fn load_sessions(
 
     let mut entries: Vec<_> = fs::read_dir(&chats_dir)
         .map_err(|e| format!("Failed to read chats dir: {e}"))?
-        .filter_map(Result::ok)
+        .filter_map(|entry| report.read(&chats_dir, entry))
         .filter(is_session_file)
         .collect();
 
@@ -159,7 +181,7 @@ pub fn load_sessions(
         let path = entry.path();
 
         // W-3: lightweight metadata extraction instead of full file parse
-        let meta = match extract_session_metadata(&path) {
+        let meta = match extract_session_metadata(&path, report) {
             Some(m) => m,
             None => continue,
         };
@@ -234,7 +256,17 @@ pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
 /// Search across all Gemini sessions
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
     let base = get_base_path().ok_or("Could not determine Gemini base path")?;
-    let tmp_dir = PathBuf::from(&base).join("tmp");
+    search_from_path(&base, query, limit)
+}
+
+/// [`search`] under a specific base path; the counterpart of
+/// [`scan_projects_from_path`], whose project paths the hits carry.
+fn search_from_path(
+    base_path: &str,
+    query: &str,
+    limit: usize,
+) -> Result<Vec<ClaudeMessage>, String> {
+    let tmp_dir = PathBuf::from(base_path).join("tmp");
 
     if !tmp_dir.is_dir() {
         return Ok(Vec::new());
@@ -253,12 +285,14 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             continue;
         }
 
-        let chats_dir = project_entry.path().join("chats");
+        let project_dir = project_entry.path();
+        let chats_dir = project_dir.join("chats");
         if is_symlink(&chats_dir) || !chats_dir.is_dir() {
             continue;
         }
 
         let project_name = project_entry.file_name().to_string_lossy().to_string();
+        let project_path = project_path_for(&project_dir);
 
         for chat_entry in fs::read_dir(&chats_dir).into_iter().flatten().flatten() {
             let path = chat_entry.path();
@@ -289,6 +323,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 if search_json_value_case_insensitive(msg, &query_lower) {
                     if let Some(mut claude_msg) = convert_gemini_message(msg, &session_id) {
                         claude_msg.project_name = Some(project_name.clone());
+                        claude_msg.project_path = Some(project_path.clone());
                         results.push(claude_msg);
                         if results.len() >= limit {
                             return Ok(results);
@@ -305,6 +340,11 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
 // ============================================================================
 // Path validation & file helpers
 // ============================================================================
+
+/// Opaque project identity of a `tmp/<project>` dir, shared by scan and search.
+fn project_path_for(project_dir: &Path) -> String {
+    format!("gemini://{}", project_dir.to_string_lossy())
+}
 
 /// Resolve and validate that a path is inside `~/.gemini/tmp/`
 fn validate_gemini_path(raw_path: &str) -> Result<PathBuf, String> {
@@ -473,9 +513,10 @@ struct SessionMetadata {
 /// Extract metadata fields from a session file.
 /// Note: this reads and parses the full JSON file. The "lightweight" aspect is
 /// that it only inspects top-level fields and message-level `toolCalls` presence,
-/// avoiding per-message content conversion.
-fn extract_session_metadata(path: &Path) -> Option<SessionMetadata> {
-    let data = fs::read_to_string(path).ok()?;
+/// avoiding per-message content conversion. A file that cannot be read is
+/// recorded in `report`; one that does not parse is not a session.
+fn extract_session_metadata(path: &Path, report: &ScanReport) -> Option<SessionMetadata> {
+    let data = report.read_to_string(path)?;
     let (record, messages) = parse_gemini_session(&data)?;
 
     let session_id = record
@@ -650,16 +691,17 @@ fn convert_gemini_response(
             // If tool has result, add tool_result block
             if let Some(result) = tc.get("result") {
                 let result_content = extract_tool_result_content(result);
-                let status = tc
-                    .get("status")
-                    .and_then(Value::as_str)
-                    .unwrap_or("success");
+                let status = tc.get("status").and_then(Value::as_str).unwrap_or("");
 
                 content_blocks.push(serde_json::json!({
                     "type": "tool_result",
                     "tool_use_id": tool_id,
                     "content": result_content,
-                    "is_error": status == "error"
+                    "is_error": status == "error",
+                    // Only explicit producer success is no-error; absence/unknown are derived.
+                    // https://github.com/google-gemini/gemini-cli/blob/6814e00d6b148c3a1d57244d5d7040f7c541009d/packages/core/src/services/chatRecordingTypes.ts#L54-L60
+                    // https://github.com/google-gemini/gemini-cli/blob/6814e00d6b148c3a1d57244d5d7040f7c541009d/packages/core/src/scheduler/tool-executor.ts#L480-L520
+                    "is_error_source": if status == "success" { "producer" } else { "derived" }
                 }));
             }
 
@@ -1032,6 +1074,42 @@ fn map_gemini_tool_name(name: &str) -> &str {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn search_hits_carry_scanned_project_path() {
+        let temp = tempfile::TempDir::new().unwrap();
+        for (dir, id) in [("hash-a", "s-a"), ("hash-b", "s-b")] {
+            let chats = temp.path().join("tmp").join(dir).join("chats");
+            fs::create_dir_all(&chats).unwrap();
+            let session = json!({
+                "sessionId": id,
+                "projectHash": dir,
+                "lastUpdated": "2026-03-24T12:05:00Z",
+                "messages": [{"id": "u1", "type": "user", "content": [{"text": "shared needle"}]}]
+            });
+            fs::write(chats.join("session-1.json"), session.to_string()).unwrap();
+        }
+        let base = temp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_path(&base).unwrap();
+        assert_eq!(projects.len(), 2);
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search_from_path(&base, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let dir = if hit.session_id == "s-a" {
+                "hash-a"
+            } else {
+                "hash-b"
+            };
+            let project = projects
+                .iter()
+                .find(|p| p.name == dir)
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
+    }
 
     #[test]
     fn test_parse_gemini_session_legacy_json() {
@@ -1625,5 +1703,20 @@ mod tests {
         assert_eq!(arr[0]["type"], "thinking");
         assert_eq!(arr[1]["type"], "text");
         assert_eq!(arr[1]["text"], "Here is my answer.");
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let msg = convert_gemini_response(
+            &serde_json::json!({"toolCalls":[{"id":"c","name":"read_file","result":{}}]}),
+            "m",
+            "s",
+            "",
+        );
+        assert_eq!(msg.content.unwrap()[1]["is_error_source"], "derived");
     }
 }

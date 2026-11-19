@@ -1,5 +1,6 @@
 pub mod antigravity;
 pub mod archive;
+pub mod claude_ai_export;
 pub mod claude_settings;
 pub mod feedback;
 pub mod fs_utils;
@@ -16,4 +17,10 @@ pub mod watcher;
 pub mod wsl;
 
 #[cfg(test)]
+pub(crate) mod codex_preservation_tests;
+#[cfg(test)]
 mod proptest_examples;
+#[cfg(test)]
+pub(crate) mod provider_evidence_tests;
+#[cfg(test)]
+pub(crate) mod tool_result_metadata_tests;

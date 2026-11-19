@@ -11,6 +11,8 @@ pub mod antigravity_cli;
 /// transcripts cannot provide.
 pub mod antigravity_state_sync;
 pub mod claude;
+/// claude.ai account exports registered in Settings (read in place).
+pub mod claude_ai;
 pub mod cline;
 mod cline_sdk;
 pub mod codebuddy;
@@ -20,11 +22,14 @@ pub mod copilot;
 pub mod copilot_cli;
 pub mod crush;
 pub mod cursor;
+/// Cursor's ACP bridge for `JetBrains` IDEs (`~/.cursor/acp-sessions`).
+pub mod cursor_acp;
 pub mod cursor_agent;
 pub mod forgecode;
 pub mod gemini;
 pub mod goose;
 pub mod grok;
+pub mod hermes;
 /// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store surfaced through
 /// its own provider id; the pre-migration Cline-family store stays with
 /// `cline`.
@@ -43,7 +48,13 @@ pub mod pearai;
 pub mod pi;
 /// Shared `ConversationState` parsing for the Amazon Q CLI lineage (amazon_q + kiro).
 pub mod q_conversation;
+/// Qoder (Alibaba) CLI, desktop app and IDE agent — Claude Code-format JSONL
+/// transcripts under `~/.qoder/projects`, `~/.qoder-cn/projects` and the
+/// IDE's `SharedClientCache/cli/projects`.
+pub mod qoder;
 pub mod qwen;
+/// What a provider scan could not read; collected for usage coverage.
+pub mod scan_report;
 pub mod trae;
 pub mod vibe;
 pub mod vscode;
@@ -58,6 +69,9 @@ pub enum ProviderId {
     /// Amazon Q Developer CLI (`amazon-q/data.sqlite3`).
     AmazonQ,
     Claude,
+    /// claude.ai account export (`conversations.json`, zip or folder).
+    #[serde(rename = "claude-ai")]
+    ClaudeAi,
     Cline,
     Codebuddy,
     Codex,
@@ -73,12 +87,19 @@ pub enum ProviderId {
     /// Charmbracelet Crush (per-project `.crush/crush.db`).
     Crush,
     Cursor,
+    /// Cursor through the Agent Client Protocol bridge (`JetBrains` IDEs):
+    /// `~/.cursor/acp-sessions/<id>/{meta.json,store.db}`.
+    #[serde(rename = "cursor-acp")]
+    CursorAcp,
     #[serde(rename = "cursor-agent")]
     CursorAgent,
     Gemini,
     Goose,
     /// xAI Grok CLI (`~/.grok/sessions`).
     Grok,
+    /// Nous Research Hermes Agent (`state.db` in `$HERMES_HOME`, else
+    /// `%LOCALAPPDATA%\hermes` / `~/.hermes`, plus `profiles/<name>/`).
+    Hermes,
     /// Kilo Code (`~/.local/share/kilo`) — OpenCode-core store (`kilo.db`).
     /// The pre-migration Cline-family store is still surfaced by `Cline`.
     Kilo,
@@ -96,6 +117,9 @@ pub enum ProviderId {
     Pi,
     /// oh-my-pi (`omp`) — a `pi` fork with the same session format under `~/.omp`.
     Ompi,
+    /// Qoder (Alibaba) — Claude Code-format JSONL transcripts (`~/.qoder/projects`,
+    /// `~/.qoder-cn/projects`, the IDE's `SharedClientCache/cli/projects`).
+    Qoder,
     /// Qwen Code (Gemini-CLI fork) — JSONL transcripts under `~/.qwen/projects`.
     Qwen,
     Antigravity,
@@ -115,6 +139,7 @@ impl ProviderId {
             Self::Aider => "aider",
             Self::AmazonQ => "amazonq",
             Self::Claude => "claude",
+            Self::ClaudeAi => "claude-ai",
             Self::Cline => "cline",
             Self::Codebuddy => "codebuddy",
             Self::Codex => "codex",
@@ -123,10 +148,12 @@ impl ProviderId {
             Self::Copilot => "copilot",
             Self::Crush => "crush",
             Self::Cursor => "cursor",
+            Self::CursorAcp => "cursor-acp",
             Self::CursorAgent => "cursor-agent",
             Self::Gemini => "gemini",
             Self::Goose => "goose",
             Self::Grok => "grok",
+            Self::Hermes => "hermes",
             Self::Kilo => "kilo",
             Self::Kimi => "kimi",
             Self::ForgeCode => "forgecode",
@@ -137,6 +164,7 @@ impl ProviderId {
             Self::OpenHands => "openhands",
             Self::Pi => "pi",
             Self::Ompi => "ompi",
+            Self::Qoder => "qoder",
             Self::Qwen => "qwen",
             Self::Antigravity => "antigravity",
             Self::Zed => "zed",
@@ -151,6 +179,7 @@ impl ProviderId {
             "aider" => Some(Self::Aider),
             "amazonq" => Some(Self::AmazonQ),
             "claude" => Some(Self::Claude),
+            "claude-ai" => Some(Self::ClaudeAi),
             "cline" => Some(Self::Cline),
             "codebuddy" => Some(Self::Codebuddy),
             "codex" => Some(Self::Codex),
@@ -159,10 +188,12 @@ impl ProviderId {
             "copilot" => Some(Self::Copilot),
             "crush" => Some(Self::Crush),
             "cursor" => Some(Self::Cursor),
+            "cursor-acp" => Some(Self::CursorAcp),
             "cursor-agent" => Some(Self::CursorAgent),
             "gemini" => Some(Self::Gemini),
             "goose" => Some(Self::Goose),
             "grok" => Some(Self::Grok),
+            "hermes" => Some(Self::Hermes),
             "kilo" => Some(Self::Kilo),
             "kimi" => Some(Self::Kimi),
             "forgecode" => Some(Self::ForgeCode),
@@ -173,6 +204,7 @@ impl ProviderId {
             "openhands" => Some(Self::OpenHands),
             "pi" => Some(Self::Pi),
             "ompi" => Some(Self::Ompi),
+            "qoder" => Some(Self::Qoder),
             "qwen" => Some(Self::Qwen),
             "antigravity" => Some(Self::Antigravity),
             "zed" => Some(Self::Zed),
@@ -188,6 +220,7 @@ impl ProviderId {
             Self::Aider => "Aider",
             Self::AmazonQ => "Amazon Q CLI",
             Self::Claude => "Claude Code",
+            Self::ClaudeAi => "Claude.ai",
             Self::Cline => "Cline",
             Self::Codebuddy => "CodeBuddy Code",
             Self::Codex => "Codex CLI",
@@ -196,10 +229,12 @@ impl ProviderId {
             Self::Copilot => "Copilot",
             Self::Crush => "Crush",
             Self::Cursor => "Cursor",
+            Self::CursorAcp => "Cursor ACP",
             Self::CursorAgent => "Cursor Agent",
             Self::Gemini => "Gemini CLI",
             Self::Goose => "Goose",
             Self::Grok => "Grok CLI",
+            Self::Hermes => "Hermes Agent",
             Self::Kilo => "Kilo Code",
             Self::Kimi => "Kimi",
             Self::ForgeCode => "ForgeCode",
@@ -210,6 +245,7 @@ impl ProviderId {
             Self::OpenHands => "OpenHands",
             Self::Pi => "Pi",
             Self::Ompi => "oh-my-pi",
+            Self::Qoder => "Qoder",
             Self::Qwen => "Qwen Code",
             Self::Antigravity => "Antigravity",
             Self::Zed => "Zed",
@@ -236,6 +272,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     if let Some(info) = claude::detect() {
         providers.push(info);
     }
+    if let Some(info) = claude_ai::detect() {
+        providers.push(info);
+    }
     if let Some(info) = codex::detect() {
         providers.push(info);
     }
@@ -252,6 +291,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = grok::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = hermes::detect() {
         providers.push(info);
     }
     if let Some(info) = kilo::detect() {
@@ -278,6 +320,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
     if let Some(info) = openhands::detect() {
         providers.push(info);
     }
+    if let Some(info) = qoder::detect() {
+        providers.push(info);
+    }
     if let Some(info) = qwen::detect() {
         providers.push(info);
     }
@@ -294,6 +339,9 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
         providers.push(info);
     }
     if let Some(info) = cursor_agent::detect() {
+        providers.push(info);
+    }
+    if let Some(info) = cursor_acp::detect() {
         providers.push(info);
     }
     if let Some(info) = crush::detect() {
@@ -329,3 +377,4 @@ pub fn detect_providers() -> Vec<ProviderInfo> {
 
     providers
 }
+mod result_evidence;

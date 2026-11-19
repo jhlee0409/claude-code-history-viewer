@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import type { ClaudeMessage } from "../../../types";
 import {
   classifyMessage,
+  countToolUseBlocks,
   getMessageKind,
   isTaskNotification,
   parseTaskNotification,
   parseTaskNotifications,
   isTurnStart,
+  isUserAnswer,
 } from "./messageKinds";
 
 const makeMessage = (overrides: Record<string, unknown>): ClaudeMessage => ({
@@ -183,6 +185,90 @@ describe("getMessageKind", () => {
   });
 });
 
+// Shapes from a Claude Code 2.1 transcript: the call, then the user record
+// holding its tool_result and the `toolUseResult` payload. The backend moves
+// the result block (with that payload) into the call's assistant row.
+const QUESTIONS = [
+  {
+    question: "Which notification channel?",
+    header: "Channel",
+    options: [{ label: "GitHub issue" }, { label: "Webhook" }],
+    multiSelect: false,
+  },
+  { question: "Timeout?", header: "Timeout", options: [{ label: "1200s" }], multiSelect: false },
+];
+const ANSWERED = {
+  questions: QUESTIONS,
+  answers: { "Which notification channel?": "GitHub issue", "Timeout?": "Keep 180s, but retry once" },
+  annotations: {},
+};
+const RESULT_TEXT = 'Your questions have been answered: "Which notification channel?"="GitHub issue". You can now continue.';
+const askCall = { type: "tool_use", id: "toolu_ask", name: "AskUserQuestion", input: { questions: QUESTIONS } };
+const askResult = (extra: Record<string, unknown> = {}) => ({
+  type: "tool_result",
+  tool_use_id: "toolu_ask",
+  content: RESULT_TEXT,
+  toolUseResult: ANSWERED,
+  ...extra,
+});
+const askRow = (content: unknown[]) => makeMessage({ type: "assistant", role: "assistant", content });
+
+describe("user answers to AskUserQuestion", () => {
+  it("classifies the answered call as the user's answer, previewed by the answers", () => {
+    const row = askRow([askCall, askResult()]);
+    expect(classifyMessage(row)).toEqual({ kind: "answer", text: "GitHub issue · Keep 180s, but retry once" });
+    expect(isUserAnswer(row)).toBe(true);
+  });
+
+  it("falls back to the result text when the payload holds no answers", () => {
+    const row = askRow([askCall, askResult({ toolUseResult: undefined })]);
+    expect(classifyMessage(row)).toEqual({ kind: "answer", text: RESULT_TEXT });
+  });
+
+  it("keeps the question alone a tool row: unanswered, declined, or another tool's result", () => {
+    const unanswered = askRow([askCall]);
+    const declined = askRow([askCall, askResult({ is_error: true, content: "The user doesn't want to proceed." })]);
+    const otherTool = askRow([
+      { type: "tool_use", id: "toolu_bash", name: "Bash", input: {} },
+      { type: "tool_result", tool_use_id: "toolu_bash", content: "ok", toolUseResult: ANSWERED },
+    ]);
+    for (const row of [unanswered, declined, otherTool]) {
+      expect(getMessageKind(row)).toBe("tool");
+      expect(isUserAnswer(row)).toBe(false);
+    }
+  });
+
+  it("classifies an unmerged result record (call on an unloaded page) as the answer", () => {
+    const row = makeMessage({
+      content: [{ type: "tool_result", tool_use_id: "toolu_ask", content: RESULT_TEXT }],
+      toolUseResult: ANSWERED,
+    });
+    expect(classifyMessage(row)).toEqual({ kind: "answer", text: "GitHub issue · Keep 180s, but retry once" });
+    expect(isUserAnswer(row)).toBe(true);
+  });
+
+  it("does not count the answer twice when its result block was merged away", () => {
+    // The leftover record keeps `toolUseResult` beside client text; the
+    // answer now lives on the call's row.
+    const leftover = makeMessage({ content: [{ type: "text", text: "Tool loaded." }], toolUseResult: ANSWERED });
+    expect(getMessageKind(leftover)).toBe("tool");
+    expect(isUserAnswer(leftover)).toBe(false);
+  });
+
+  it("keeps other tool-result records tool rows", () => {
+    const row = makeMessage({
+      content: [{ type: "tool_result", tool_use_id: "toolu_bash", content: "ok" }],
+      toolUseResult: { stdout: "ok", stderr: "" },
+    });
+    expect(getMessageKind(row)).toBe("tool");
+    expect(isUserAnswer(row)).toBe(false);
+  });
+
+  it("does not start a turn at an answer", () => {
+    expect(isTurnStart(classifyMessage(askRow([askCall, askResult()])))).toBe(false);
+  });
+});
+
 describe("isTurnStart", () => {
   const startsTurn = (overrides: Record<string, unknown>) =>
     isTurnStart(classifyMessage(makeMessage(overrides)));
@@ -251,5 +337,71 @@ describe("parseTaskNotification", () => {
       status: undefined,
       summary: undefined,
     });
+  });
+});
+
+describe("countToolUseBlocks", () => {
+  it("counts content blocks even when the backend backfilled toolUse from the first one", () => {
+    // load.rs sets `toolUse` from the FIRST tool_use block when the raw record
+    // has none, so `toolUse` being set says nothing about how many calls there are.
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+        { type: "tool_use", id: "toolu_3", name: "Grep", input: {} },
+      ],
+    }))).toBe(3);
+  });
+
+  it("counts 1 for a toolUse set directly on a message without a content array", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      toolUse: { id: "toolu_1", name: "Bash", input: {} },
+      content: "",
+    }))).toBe(1);
+  });
+
+  it("counts every tool_use block in a tool-only assistant message", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+      ],
+    }))).toBe(2);
+  });
+
+  it("counts tool_use blocks on a reply row that also carries text", () => {
+    // A row of kind "reply" can still carry tool_use blocks (Verified
+    // constraints); the outline's tool-calls count depends on this.
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [
+        { type: "text", text: "Scrubbing first, then the LICENSE." },
+        { type: "tool_use", id: "toolu_1", name: "Bash", input: {} },
+        { type: "tool_use", id: "toolu_2", name: "Read", input: {} },
+      ],
+    }))).toBe(2);
+  });
+
+  it("returns 0 for a message with no tool_use blocks", () => {
+    expect(countToolUseBlocks(makeMessage({
+      type: "assistant",
+      role: "assistant",
+      content: [{ type: "text", text: "Done." }],
+    }))).toBe(0);
+    expect(countToolUseBlocks(makeMessage({ content: "Scrub for pii" }))).toBe(0);
+  });
+
+  it("returns 0 when content is not an array and toolUse is unset", () => {
+    expect(countToolUseBlocks(makeMessage({
+      content: { stdout: "ok" } as unknown as string,
+    }))).toBe(0);
   });
 });

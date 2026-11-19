@@ -11,6 +11,8 @@ import {
 import { useAppStore } from "@/store/useAppStore";
 import type { SessionPickerCandidate } from "@/store/slices/sessionPickerSlice";
 import { cn } from "@/lib/utils";
+import { appFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 /**
  * Opened automatically by `preloadSessionFromCli` when a `--session-title`
@@ -23,8 +25,7 @@ export const SessionPickerModal: React.FC = () => {
     const candidates = useAppStore((s) => s.sessionPickerCandidates);
     const hintValue = useAppStore((s) => s.sessionPickerHintValue);
     const closeSessionPicker = useAppStore((s) => s.closeSessionPicker);
-    const selectProject = useAppStore((s) => s.selectProject);
-    const selectSession = useAppStore((s) => s.selectSession);
+    const navigate = useAppStore((s) => s.navigate);
     const getSessionDisplayName = useAppStore((s) => s.getSessionDisplayName);
 
     const isOpen = candidates !== null && candidates.length > 0;
@@ -39,10 +40,13 @@ export const SessionPickerModal: React.FC = () => {
     const handleSelect = useCallback(
         async (candidate: SessionPickerCandidate) => {
             closeSessionPicker();
-            await selectProject(candidate.project);
-            await selectSession(candidate.session);
+            await navigate({
+                view: "conversation",
+                project: candidate.project,
+                session: candidate.session,
+            });
         },
-        [closeSessionPicker, selectProject, selectSession],
+        [closeSessionPicker, navigate],
     );
 
     const handleDismiss = useCallback(() => {
@@ -124,7 +128,7 @@ export const SessionPickerModal: React.FC = () => {
                             ?? c.session.summary
                             ?? c.session.actual_session_id;
                         const lastMod = c.session.last_modified
-                            ? new Date(c.session.last_modified).toLocaleString()
+                            ? appFormat().dateTime(c.session.last_modified)
                             : "";
                         return (
                             <li
@@ -141,15 +145,15 @@ export const SessionPickerModal: React.FC = () => {
                                 onClick={() => handleSelect(c)}
                                 onMouseEnter={() => setSelectedIndex(i)}
                             >
-                                <div className="font-medium text-sm truncate">
+                                <div className="font-medium text-body truncate">
                                     {displayName}
                                 </div>
-                                <div className="text-xs text-muted-foreground flex gap-2">
+                                <div className="text-list text-muted-foreground flex gap-2">
                                     <span className="truncate">{c.project.name}</span>
                                     {lastMod && (
                                         <>
                                             <span aria-hidden>·</span>
-                                            <span>{lastMod}</span>
+                                            <span><Num>{lastMod}</Num></span>
                                         </>
                                     )}
                                 </div>

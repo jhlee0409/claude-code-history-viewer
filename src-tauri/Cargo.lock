@@ -780,7 +780,7 @@ checksum = "c3e64b0cc0439b12df2fa678eae89a1c56a529fd067a9115f7827f1fffd22b32"
 
 [[package]]
 name = "claude-code-history-viewer"
-version = "1.32.2"
+version = "2.0.0"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -793,8 +793,11 @@ dependencies = [
  "comrak",
  "criterion",
  "dirs 5.0.1",
+ "dispatch2",
  "fake",
+ "flate2",
  "futures",
+ "gio",
  "insta",
  "lazy_static",
  "log",
@@ -803,6 +806,7 @@ dependencies = [
  "memmap2",
  "mime_guess",
  "mockall",
+ "muda",
  "notify",
  "notify-debouncer-mini",
  "once_cell",
@@ -813,9 +817,11 @@ dependencies = [
  "rstest",
  "rusqlite",
  "rust-embed",
+ "rustix",
  "serde",
  "serde_json",
  "serial_test",
+ "sha2",
  "simd-json",
  "tauri",
  "tauri-build",
@@ -837,7 +843,9 @@ dependencies = [
  "urlencoding",
  "uuid",
  "walkdir",
+ "windows-sys 0.61.2",
  "winreg",
+ "zip",
  "zstd",
 ]
 
@@ -7615,6 +7623,7 @@ checksum = "95ab361742de920c5535880f89bbd611ee62002bf11341d16a5f057bb8ba6899"
 dependencies = [
  "arbitrary",
  "crc32fast",
+ "flate2",
  "indexmap 2.14.0",
  "memchr",
 ]

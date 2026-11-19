@@ -3,7 +3,12 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { ViewMenuGroup } from "./ViewMenuGroup";
 
 const { storeState } = vi.hoisted(() => ({
-  storeState: { isMinimapOpen: false, toggleMinimap: vi.fn() },
+  storeState: {
+    isMinimapOpen: false,
+    toggleMinimap: vi.fn(),
+    showInlineTokenUsage: false,
+    toggleInlineTokenUsage: vi.fn(),
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -64,7 +69,11 @@ describe("ViewMenuGroup", () => {
     cleanup();
     vi.clearAllMocks();
     storeState.isMinimapOpen = false;
+    storeState.showInlineTokenUsage = false;
   });
+
+  const minimapItem = () => screen.getByRole("menuitemcheckbox", { name: /showMinimap/ });
+  const tokensItem = () => screen.getByRole("menuitemcheckbox", { name: /showInlineTokens/ });
 
   it("renders its own View heading", () => {
     render(<ViewMenuGroup />);
@@ -73,19 +82,35 @@ describe("ViewMenuGroup", () => {
 
   it("activating the item calls toggleMinimap", () => {
     render(<ViewMenuGroup />);
-    screen.getByRole("menuitemcheckbox").click();
+    minimapItem().click();
     expect(storeState.toggleMinimap).toHaveBeenCalledTimes(1);
+    expect(storeState.toggleInlineTokenUsage).not.toHaveBeenCalled();
   });
 
   it("aria-checked follows the store", () => {
     storeState.isMinimapOpen = true;
     render(<ViewMenuGroup />);
-    expect(screen.getByRole("menuitemcheckbox")).toHaveAttribute("aria-checked", "true");
+    expect(minimapItem()).toHaveAttribute("aria-checked", "true");
   });
 
   it("aria-checked is false when the store flag is off", () => {
     storeState.isMinimapOpen = false;
     render(<ViewMenuGroup />);
-    expect(screen.getByRole("menuitemcheckbox")).toHaveAttribute("aria-checked", "false");
+    expect(minimapItem()).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("the token usage item is off by default and toggles inline token usage (#570)", () => {
+    render(<ViewMenuGroup />);
+    expect(tokensItem()).toHaveAttribute("aria-checked", "false");
+    tokensItem().click();
+    expect(storeState.toggleInlineTokenUsage).toHaveBeenCalledTimes(1);
+    expect(storeState.toggleMinimap).not.toHaveBeenCalled();
+  });
+
+  it("the token usage item's checked state follows the store", () => {
+    storeState.showInlineTokenUsage = true;
+    render(<ViewMenuGroup />);
+    expect(tokensItem()).toHaveAttribute("aria-checked", "true");
+    expect(minimapItem()).toHaveAttribute("aria-checked", "false");
   });
 });

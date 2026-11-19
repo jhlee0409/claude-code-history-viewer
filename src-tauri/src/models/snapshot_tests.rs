@@ -17,37 +17,13 @@ mod claude_message_snapshots {
     fn snapshot_user_message() {
         let message = ClaudeMessage {
             uuid: "test-uuid-1234".to_string(),
-            parent_uuid: None,
             session_id: "session-abc".to_string(),
             timestamp: "2025-01-01T12:00:00Z".to_string(),
             message_type: "user".to_string(),
             content: Some(json!("Hello, Claude!")),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
             is_sidechain: Some(false),
-            usage: None,
             role: Some("user".to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         assert_json_snapshot!("user_message", message);
@@ -57,6 +33,8 @@ mod claude_message_snapshots {
     fn snapshot_assistant_message() {
         let message = ClaudeMessage {
             uuid: "test-uuid-5678".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: Some("test-uuid-1234".to_string()),
             session_id: "session-abc".to_string(),
             timestamp: "2025-01-01T12:00:01Z".to_string(),
@@ -65,6 +43,7 @@ mod claude_message_snapshots {
                 {"type": "text", "text": "Hello! How can I help you today?"}
             ])),
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: Some(false),
@@ -107,6 +86,8 @@ mod claude_message_snapshots {
     fn snapshot_forgecode_message() {
         let message = ClaudeMessage {
             uuid: "forgecode://workspace/ws-123/conversation/conv-456/message/3".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "conv-456".to_string(),
             timestamp: "2026-01-10T08:00:10Z".to_string(),
@@ -121,6 +102,7 @@ mod claude_message_snapshots {
                 }
             ])),
             project_name: None,
+            project_path: None,
             tool_use: Some(json!({
                 "type": "tool_use",
                 "id": "tool-456",
@@ -178,6 +160,8 @@ mod claude_message_snapshots {
     fn snapshot_pi_message() {
         let message = ClaudeMessage {
             uuid: "a1".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: Some("u1".to_string()),
             session_id: "0197a288-41fb-4cce-8b2d-a027c391b4da".to_string(),
             timestamp: "2026-06-08T20:32:10.000Z".to_string(),
@@ -192,6 +176,7 @@ mod claude_message_snapshots {
                 }
             ])),
             project_name: None,
+            project_path: None,
             tool_use: None,
             tool_use_result: None,
             is_sidechain: None,
@@ -234,6 +219,8 @@ mod claude_message_snapshots {
     fn snapshot_message_with_tool_use() {
         let message = ClaudeMessage {
             uuid: "test-uuid-tool".to_string(),
+            source_execution: None,
+            codex_evidence: None,
             parent_uuid: None,
             session_id: "session-abc".to_string(),
             timestamp: "2025-01-01T12:00:02Z".to_string(),
@@ -249,6 +236,7 @@ mod claude_message_snapshots {
                 }
             ])),
             project_name: None,
+            project_path: None,
             tool_use: Some(json!({
                 "name": "Read",
                 "input": {"file_path": "/path/to/file.rs"}
@@ -485,6 +473,7 @@ mod stats_snapshots {
     #[test]
     fn snapshot_session_token_stats() {
         let stats = SessionTokenStats {
+            token_usage_recording: crate::models::TokenUsageRecording::Unknown,
             session_id: "session-stats".to_string(),
             project_name: "stats-project".to_string(),
             total_input_tokens: 5000,
@@ -499,6 +488,7 @@ mod stats_snapshots {
             summary: None,
             most_used_tools: Vec::new(),
             model_distribution: Vec::new(),
+            subagent_stats: None,
         };
 
         assert_json_snapshot!("session_token_stats", stats);

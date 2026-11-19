@@ -8,7 +8,7 @@
 // Provider Types
 // ============================================================================
 
-export type ProviderId = "aider" | "amazonq" | "antigravity" | "claude" | "cline" | "codebuddy" | "codex" | "continue" | "copilot" | "crush" | "cursor" | "cursor-agent" | "forgecode" | "gemini" | "goose" | "grok" | "kilo" | "kimi" | "kiro" | "llm" | "ompi" | "opencode" | "openhands" | "openinterpreter" | "pearai" | "pi" | "qwen" | "trae" | "vibe" | "zcode" | "zed";
+export type ProviderId = "aider" | "amazonq" | "antigravity" | "claude" | "claude-ai" | "cline" | "codebuddy" | "codex" | "continue" | "copilot" | "crush" | "cursor" | "cursor-acp" | "cursor-agent" | "forgecode" | "gemini" | "goose" | "grok" | "hermes" | "kilo" | "kimi" | "kiro" | "llm" | "ompi" | "opencode" | "openhands" | "openinterpreter" | "pearai" | "pi" | "qoder" | "qwen" | "trae" | "vibe" | "zcode" | "zed";
 
 export interface ProviderInfo {
   id: ProviderId;
@@ -52,6 +52,8 @@ export interface ClaudeProject {
   /** Decoded actual filesystem path (e.g., "/Users/jack/client/my-project") */
   actual_path: string;
   session_count: number;
+  /** Database-stored subagent runs excluded from session_count. */
+  subagent_count?: number;
   message_count: number;
   last_modified: string;
   /** Path-dependent actions are unavailable while the last-known path is missing. */
@@ -69,6 +71,8 @@ export interface ClaudeProject {
 export interface ClaudeSession {
   session_id: string; // Unique ID based on file path
   actual_session_id: string; // Actual session ID from the messages
+  /** Provider-qualified id of the session that spawned this database run. */
+  parent_session_id?: string;
   file_path: string; // JSONL file full path
   project_name: string;
   message_count: number;
@@ -83,8 +87,11 @@ export interface ClaudeSession {
   relevance?: number;
   /** Provider identifier (claude, codex, opencode) */
   provider?: ProviderId;
-  /** Storage type (json, jsonl, sqlite) */
-  storage_type?: "json" | "jsonl" | "sqlite";
+  /**
+   * Storage type (json, jsonl, sqlite). `prompt_history`: a Claude Code
+   * session whose transcript is gone, only its prompts left (#764).
+   */
+  storage_type?: "json" | "jsonl" | "sqlite" | "prompt_history";
   /**
    * Originating client/surface for the session. Raw value from the JSONL
    * `entrypoint` field. Known values:
@@ -95,9 +102,50 @@ export interface ClaudeSession {
   entrypoint?: string;
 }
 
+// ============================================================================
+// Unavailable-location cleanup (`preview_unavailable_session_cleanup`,
+// `clear_unavailable_sessions`, #780)
+// ============================================================================
+
+/** Why a project's sessions are not cleared. */
+export type CleanupExclusion =
+  | "permanent_delete"
+  | "unsupported"
+  | "location_available"
+  | "invalid_project";
+
+/** One session the cleanup would move to the system trash. */
+export interface CleanupTarget {
+  session_path: string;
+  /** Everything moved to the trash for this session, the session itself first. */
+  trash_paths: string[];
+}
+
+export interface UnavailableCleanupPreview {
+  provider: string;
+  project_path: string;
+  /** The last-known location, when the project was resolved. */
+  location: string | null;
+  excluded: CleanupExclusion | null;
+  /** What made the project invalid, for `invalid_project`. */
+  detail: string | null;
+  targets: CleanupTarget[];
+  /** Sessions of an eligible project that are not cleared, with the reason. */
+  skipped: { session_path: string; reason: string }[];
+}
+
+/** The outcome for one confirmed session; `error` is null when it went to the trash. */
+export interface ClearedSession {
+  provider: string;
+  project_path: string;
+  session_path: string;
+  error: string | null;
+}
+
 export interface SessionPage {
   sessions: ClaudeSession[];
   total: number;
+  subagentCount?: number;
   offset: number;
   limit: number;
   nextOffset: number;

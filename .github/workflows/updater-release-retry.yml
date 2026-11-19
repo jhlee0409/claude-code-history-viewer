@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate and upload latest.json
+        id: metadata
         uses: actions/github-script@v7
         with:
           script: |
@@ -32,6 +33,7 @@ jobs:
             });
 
             const tagName = releaseData.tag_name;
+            core.setOutput('tag', tagName);
             const version = tagName.replace(/^v/, '');
             const pubDate = new Date().toISOString();
             const platforms = {};
@@ -107,6 +109,7 @@ jobs:
             });
 
       - name: Sync Homebrew tap cask
+        if: steps.metadata.outputs.tag != 'v2.0.0'
         uses: actions/github-script@v7
         env:
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
@@ -116,7 +119,7 @@ jobs:
             const releaseId = Number.parseInt(releaseIdRaw, 10);
             const tapOwner = 'jhlee0409';
             const tapRepo = 'homebrew-tap';
-            const caskPath = 'Casks/claude-code-history-viewer.rb';
+            const caskPath = 'Casks/omnilogue.rb';
 
             if (!Number.isFinite(releaseId)) {
               throw new Error(`Invalid release_id: ${releaseIdRaw}`);
@@ -268,6 +271,7 @@ jobs:
             console.log(`Verified Homebrew cask v${version}`);
 
       - name: Publish release
+        if: steps.metadata.outputs.tag != 'v2.0.0'
         uses: actions/github-script@v7
         with:
           script: |

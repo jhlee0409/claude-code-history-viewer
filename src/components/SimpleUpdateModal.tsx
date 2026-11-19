@@ -8,7 +8,7 @@ import {
   Button,
 } from "@/components/ui";
 import { LoadingSpinner, LoadingProgress } from "@/components/ui/loading";
-import { Download, AlertTriangle, CheckCircle, X, RotateCw } from 'lucide-react';
+import { Download, ExternalLink, TriangleAlert, CircleCheckBig, X, RotateCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { toast } from "sonner";
 import type { UseUpdaterReturn } from '@/hooks/useUpdater';
@@ -97,6 +97,8 @@ export function SimpleUpdateModal({
   const localizedError = updater.state.error
     ? resolveUpdateErrorMessage(updater.state.error, t)
     : null;
+  // format-guard: not-a-share — download progress (0-100), how far the update has got
+  const downloadingLabel = t('simpleUpdateModal.downloading', { progress: updater.state.downloadProgress });
   const shouldShowManualRestartNotice =
     updater.state.requiresManualRestart && !updater.state.isRestarting;
 
@@ -160,31 +162,31 @@ export function SimpleUpdateModal({
           {/* Version info */}
           <div className="flex items-center justify-between p-2.5 bg-info/10 border border-info/20 rounded-md">
             <div className="text-center">
-              <div className="text-px11 text-muted-foreground">{t('simpleUpdateModal.currentVersion')}</div>
-              <div className="text-xs font-medium text-foreground">{currentVersion}</div>
+              <div className="text-caption text-muted-foreground">{t('simpleUpdateModal.currentVersion')}</div>
+              <div className="text-list font-medium text-foreground">{currentVersion}</div>
             </div>
-            <div className="text-lg text-muted-foreground">→</div>
+            <div className="text-title text-muted-foreground">→</div>
             <div className="text-center">
-              <div className="text-px11 text-muted-foreground">{t('simpleUpdateModal.newVersion')}</div>
-              <div className="text-xs font-medium text-info">{newVersion}</div>
+              <div className="text-caption text-muted-foreground">{t('simpleUpdateModal.newVersion')}</div>
+              <div className="text-list font-medium text-info">{newVersion}</div>
             </div>
           </div>
 
           {(releaseName || releaseNotes) && (
             <div className="space-y-1.5 p-2.5 bg-muted/40 border border-border/60 rounded-md">
               {releaseName && (
-                <p className="text-px11 text-muted-foreground" data-testid="update-release-name">
+                <p className="text-caption text-muted-foreground" data-testid="update-release-name">
                   <span className="font-medium">{t('simpleUpdateModal.releaseName')}</span>{' '}
                   {releaseName}
                 </p>
               )}
               {releaseNotes && (
                 <div className="space-y-1">
-                  <p className="text-px11 font-medium text-muted-foreground">
+                  <p className="text-caption font-medium text-muted-foreground">
                     {t('simpleUpdateModal.changes')}
                   </p>
                   <p
-                    className="text-xs text-foreground whitespace-pre-wrap max-h-28 overflow-y-auto pr-1 leading-relaxed"
+                    className="text-list text-foreground whitespace-pre-wrap max-h-28 overflow-y-auto pr-1 leading-relaxed"
                     data-testid="update-release-notes"
                   >
                     {releaseNotes}
@@ -197,13 +199,13 @@ export function SimpleUpdateModal({
           {/* Restarting overlay */}
           {updater.state.isRestarting && (
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-list">
                 <RotateCw className="w-3.5 h-3.5 animate-spin text-info" />
                 <span className="text-foreground font-medium">
                   {t('simpleUpdateModal.restarting')}
                 </span>
               </div>
-              <p className="text-px11 text-muted-foreground">
+              <p className="text-caption text-muted-foreground">
                 {t('simpleUpdateModal.restartingDescription')}
               </p>
             </div>
@@ -214,10 +216,10 @@ export function SimpleUpdateModal({
             !updater.state.isInstalling &&
             !updater.state.isRestarting && (
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-list">
                 <Download className="w-3.5 h-3.5 animate-bounce text-foreground" />
                 <span className="text-muted-foreground">
-                  {t('simpleUpdateModal.downloading', { progress: updater.state.downloadProgress })}
+                  {downloadingLabel}
                 </span>
               </div>
               <LoadingProgress
@@ -231,7 +233,7 @@ export function SimpleUpdateModal({
           {/* Installing state */}
           {updater.state.isInstalling && !updater.state.isRestarting && (
             <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex items-center gap-2 text-list">
                 <LoadingSpinner size="xs" variant="default" />
                 <span className="text-muted-foreground">
                   {t('simpleUpdateModal.installing')}
@@ -243,24 +245,30 @@ export function SimpleUpdateModal({
           {/* Download complete — guide user to quit and reopen */}
           {shouldShowManualRestartNotice && (
             <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
-              <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <div className="flex items-center gap-2 text-list text-emerald-600 dark:text-emerald-400 font-medium">
+                <CircleCheckBig className="w-3.5 h-3.5 flex-shrink-0" />
                 <span>{t('common.error.updateDownloadCompleteRestart')}</span>
               </div>
-              <p className="mt-1.5 text-px11 text-muted-foreground ml-5.5">
+              <p className="mt-1.5 text-caption text-muted-foreground ml-5.5">
                 {t('common.error.updateDownloadCompleteRestartHint')}
               </p>
             </div>
           )}
 
+          {updater.state.isFlatpak && (
+            <p className="text-caption text-muted-foreground" data-testid="update-flatpak-hint">
+              {t('simpleUpdateModal.flatpakHint')}
+            </p>
+          )}
+
           {/* Error display */}
           {localizedError && !updater.state.isRestarting && !shouldShowManualRestartNotice && (
             <div className="p-2.5 bg-destructive/10 border border-destructive/20 rounded-md">
-              <div className="flex items-center gap-2 text-xs text-destructive">
-                <AlertTriangle className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 text-list text-destructive">
+                <TriangleAlert className="w-3.5 h-3.5" />
                 <span>{t('simpleUpdateModal.errorOccurred', { error: localizedError })}</span>
               </div>
-              <p className="mt-2 text-px11 text-muted-foreground">
+              <p className="mt-2 text-caption text-muted-foreground">
                 {t('simpleUpdateModal.failureGuide')}
               </p>
               <Button
@@ -306,6 +314,11 @@ export function SimpleUpdateModal({
                 <LoadingSpinner size="xs" variant="default" />
                 {t('simpleUpdateModal.downloadingShort')}
               </>
+            ) : updater.state.isFlatpak ? (
+              <>
+                <ExternalLink className="w-3.5 h-3.5" />
+                {t('simpleUpdateModal.openReleasePage')}
+              </>
             ) : (
               <>
                 <Download className="w-3.5 h-3.5" />
@@ -325,7 +338,7 @@ export function SimpleUpdateModal({
                 updater.state.isRestarting ||
                 updater.state.requiresManualRestart
               }
-              className="flex-1 text-xs"
+              className="flex-1 text-list"
             >
               {t('simpleUpdateModal.remindLater')}
             </Button>
@@ -339,7 +352,7 @@ export function SimpleUpdateModal({
                 updater.state.isRestarting ||
                 updater.state.requiresManualRestart
               }
-              className="flex-1 text-xs"
+              className="flex-1 text-list"
             >
               {t('simpleUpdateModal.skipVersion')}
             </Button>

@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Claude Code History Viewer",
-  "version": "1.32.2",
+  "version": "2.0.0",
   "identifier": "com.claude.history-viewer",
   "build": {
     "frontendDist": "../dist",
@@ -22,13 +22,13 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "visible": true,
+        "visible": false,
         "focus": true,
-        "zoomHotkeysEnabled": true
+        "zoomHotkeysEnabled": false
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://github.com https://*.githubusercontent.com https://fonts.googleapis.com https://fonts.gstatic.com; font-src 'self' data: https://fonts.gstatic.com; frame-ancestors 'none'",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://api.github.com https://github.com https://*.githubusercontent.com; font-src 'self' data:; frame-ancestors 'none'",
       "capabilities": [
         "default"
       ]
@@ -38,7 +38,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://github.com/jhlee0409/claude-code-history-viewer/releases/latest/download/latest.json"
+        "https://github.com/jhlee0409/omnilogue/releases/latest/download/latest.json"
       ],
       "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg0RUExOEVGNTlEQzFDRDMKUldUVEhOeFo3eGpxaEZGYkZYcmFKTERPdys5dXh2c1Z5ZU1uTDREZ3RyWDF1bHhSc1JOeW05MzUK"

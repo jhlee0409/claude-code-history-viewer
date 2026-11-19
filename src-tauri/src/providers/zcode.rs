@@ -6,8 +6,10 @@
 //!   time_created, time_updated, time_archived)` — `directory` is the session
 //!   cwd, `title` a generated/first-input title, epoch-ms timestamps.
 //! - `message(id, session_id, sequence, time_created, data)` — `data` JSON:
-//!   `{role, time:{created,completed}, parentID, modelID, tokens:{...},
-//!   finish}`.
+//!   `{role, time:{created,completed}, parentID, modelId, tokens:{...},
+//!   finish}`. Z Code writes the assistant model as camelCase `modelId`
+//!   (only `parentID` keeps the opencode-style capital D); older databases
+//!   still carry `modelID`, so both spellings are accepted.
 //! - `part(id, message_id, session_id, sequence, data)` — content blocks in
 //!   order: `{type:"text"|"reasoning"|"tool"|"file"|"timeline"|"step-start"|
 //!   "step-finish", ...}`. A `tool` part merges the call and its result:
@@ -23,6 +25,8 @@
 //! `conversation_only` does not.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::opencode::ChildSession;
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
 use rusqlite::{Connection, OpenFlags};
@@ -51,8 +55,14 @@ fn runtime_base() -> Option<PathBuf> {
 }
 
 fn db_path() -> Option<PathBuf> {
+    db_path_reporting(&ScanReport::default())
+}
+
+/// [`db_path`], recording in `report` a directory on the way to the
+/// database that may not be looked into.
+fn db_path_reporting(report: &ScanReport) -> Option<PathBuf> {
     let path = runtime_base()?.join("cli").join("db").join("db.sqlite");
-    path.is_file().then_some(path)
+    report.is_file(&path).then_some(path)
 }
 
 /// Open the store read-only (WAL readers are fine alongside a live writer).
@@ -62,6 +72,18 @@ fn open_db(path: &Path) -> Result<Connection, String> {
     conn.busy_timeout(Duration::from_secs(5))
         .map_err(|e| format!("Failed to set Z Code db busy timeout: {e}"))?;
     Ok(conn)
+}
+
+/// The database for a scan that records what it cannot read: `None` when
+/// there is none, or when it is there but cannot be opened (recorded).
+fn open_db_reporting(report: &ScanReport) -> Option<(PathBuf, Connection)> {
+    let path = db_path_reporting(report)?;
+    let conn = report.db(
+        &path,
+        Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY),
+    )?;
+    report.db(&path, conn.busy_timeout(Duration::from_secs(5)))?;
+    Some((path, conn))
 }
 
 /// Detect a Z Code installation.
@@ -90,8 +112,42 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     scan_projects_conn(&conn)
 }
 
+/// [`scan_projects`], recording in `report` a database, or a row of it,
+/// that cannot be read. Unlike [`scan_projects`], a database that cannot be
+/// opened is no projects, not an error: for a caller that counts the report
+/// only.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
+    match open_db_reporting(report) {
+        Some((path, conn)) => scan_projects_conn_reporting(&conn, &path, report),
+        None => Ok(vec![]),
+    }
+}
+
+/// Project identity for a session `directory` — shared by scan and search
+/// so search hits group under the scanned project (#672).
+fn project_path_for(directory: &str) -> String {
+    format!("{SCHEME}{directory}")
+}
+
+/// Display name for a session `directory` (its leaf, else the directory).
+fn project_name_for(directory: &str) -> String {
+    Path::new(directory)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| directory.to_string())
+}
+
 /// Projects (one row per session `directory`) with session/message counts.
 fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_conn_reporting(conn, Path::new(""), &ScanReport::default())
+}
+
+fn scan_projects_conn_reporting(
+    conn: &Connection,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     // One row per directory already: GROUP BY aggregates the counts and
     // `WHERE s.m_cnt > 0` keeps only sessions that would appear when loaded.
     let mut stmt = conn
@@ -115,16 +171,12 @@ fn scan_projects_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
             ))
         })
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|row| report.db(db, row))
         .map(|(dir, sessions, messages, updated)| {
-            let name = Path::new(&dir)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| dir.clone());
+            let name = project_name_for(&dir);
             ClaudeProject {
                 name,
-                path: format!("{SCHEME}{dir}"),
+                path: project_path_for(&dir),
                 actual_path: dir,
                 session_count: sessions.max(0) as usize,
                 message_count: messages.unwrap_or(0).max(0) as usize,
@@ -153,8 +205,32 @@ pub fn load_sessions(
     load_sessions_conn(&conn, directory)
 }
 
+/// [`load_sessions`], recording in `report` a database, or a row of it,
+/// that cannot be read. Unlike [`load_sessions`], a database that cannot be
+/// opened is no sessions, not an error: for a caller that counts the report
+/// only.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let directory = project_path.strip_prefix(SCHEME).unwrap_or(project_path);
+    match open_db_reporting(report) {
+        Some((path, conn)) => load_sessions_conn_reporting(&conn, directory, &path, report),
+        None => Ok(vec![]),
+    }
+}
+
 /// Sessions of one Z Code project (`directory`), newest first.
 fn load_sessions_conn(conn: &Connection, directory: &str) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_conn_reporting(conn, directory, Path::new(""), &ScanReport::default())
+}
+
+fn load_sessions_conn_reporting(
+    conn: &Connection,
+    directory: &str,
+    db: &Path,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT s.id, s.title, s.title_source, s.time_created, s.time_updated, \
@@ -185,7 +261,7 @@ fn load_sessions_conn(conn: &Connection, directory: &str) -> Result<Vec<ClaudeSe
             ))
         })
         .map_err(|e| e.to_string())?
-        .flatten()
+        .filter_map(|row| report.db(db, row))
         .filter(|(_, _, _, _, _, msg_cnt, _)| *msg_cnt > 0)
         .map(
             |(id, title, title_source, created, updated, msg_cnt, has_tool)| {
@@ -294,6 +370,53 @@ fn session_has_parent_id(conn: &Connection) -> Result<bool, String> {
         .prepare("SELECT 1 FROM pragma_table_info('session') WHERE name = 'parent_id'")
         .map_err(|e| e.to_string())?;
     stmt.exists([]).map_err(|e| e.to_string())
+}
+
+/// The subagent runs `session_path` (`zcode://<directory>#<session_id>`)
+/// spawned directly: `subagent_child` rows whose `parent_id` is the session,
+/// oldest first. Z Code keeps them in its database rather than as sidechain
+/// files, so the `SubAgent` panel reads them from there, as it does for
+/// `OpenCode` (#761). A deeper run is listed by its own parent. Empty when
+/// there is no store or it predates `parent_id`; a failing query is an error.
+pub fn load_child_sessions(session_path: &str) -> Result<Vec<ChildSession>, String> {
+    let (_, session_id) = parse_session_path(session_path)?;
+    let Some(path) = db_path() else {
+        return Ok(Vec::new());
+    };
+    let conn = open_db(&path)?;
+    load_child_sessions_conn(&conn, &session_id)
+}
+
+fn load_child_sessions_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Vec<ChildSession>, String> {
+    if !session_has_parent_id(conn)? {
+        return Ok(Vec::new());
+    }
+    // Counted like the session list counts a session's messages.
+    let mut stmt = conn
+        .prepare(
+            "SELECT s.id, s.title, s.time_created, s.time_updated, \
+                    (SELECT COUNT(*) FROM message m WHERE m.session_id = s.id) \
+             FROM session s \
+             WHERE s.parent_id = ?1 AND s.task_type = 'subagent_child' AND s.id != ?1 \
+             ORDER BY s.time_created, s.id",
+        )
+        .map_err(|e| e.to_string())?;
+    let rows = stmt
+        .query_map([session_id], |row| {
+            Ok(ChildSession {
+                id: row.get(0)?,
+                title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
+                created_at: ms_to_iso(row.get::<_, i64>(2)?.max(0) as u64),
+                updated_at: ms_to_iso(row.get::<_, i64>(3)?.max(0) as u64),
+                message_count: row.get::<_, i64>(4)?.max(0) as usize,
+            })
+        })
+        .map_err(|e| e.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())
 }
 
 /// Split `zcode://<directory>#<session_id>` into its two parts.
@@ -405,6 +528,7 @@ fn append_message(
                     "tool_use_id": call_id,
                     "content": output,
                     "is_error": status == "failed" || status == "error",
+                    "is_error_source": "derived",
                 }));
             }
             // step-start / step-finish are agent-loop step markers, timeline is
@@ -417,8 +541,13 @@ fn append_message(
         return;
     }
 
+    // Z Code stores the assistant model as camelCase `modelId` — only
+    // `parentID` keeps the opencode-style capital D. Older databases, and rows
+    // the model-selection migration never rewrote, still carry `modelID`, so
+    // accept both spellings and prefer the current one.
     let model = rec
-        .get("modelID")
+        .get("modelId")
+        .or_else(|| rec.get("modelID"))
         .and_then(Value::as_str)
         .map(str::to_string);
     let mut msg = build_provider_message(
@@ -591,10 +720,8 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
         if results.len() >= limit {
             break;
         }
-        let project_name = Path::new(&directory)
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_else(|| directory.clone());
+        let project_name = project_name_for(&directory);
+        let project_path = project_path_for(&directory);
         for mut msg in load_messages_conn(conn, &session_id)? {
             if results.len() >= limit {
                 break;
@@ -606,6 +733,7 @@ fn search_conn(conn: &Connection, query: &str, limit: usize) -> Result<Vec<Claud
                 .unwrap_or(false);
             if matched {
                 msg.project_name = Some(project_name.clone());
+                msg.project_path = Some(project_path.clone());
                 results.push(msg);
             }
         }
@@ -838,6 +966,79 @@ mod tests {
     }
 
     #[test]
+    fn load_messages_accepts_camelcase_model_field() {
+        // Z Code writes the assistant model as camelCase `modelId` (only
+        // `parentID` keeps the opencode-style capital D). The parser must
+        // accept that spelling, otherwise `model` stays empty and the whole
+        // message-details row — model name, token usage, cost, duration —
+        // silently disappears from the viewer.
+        let conn = test_db();
+        seed(&conn);
+        insert_message(
+            &conn,
+            "m8",
+            "sess-1",
+            2,
+            concat!(
+                r#"{"role":"assistant","time":{"created":1788599956241,"completed":1788599961259},"#,
+                r#""parentID":"m2","modelId":"GLM-5.3-Flash","#,
+                r#""tokens":{"input":32028,"output":1481,"reasoning":7,"cache":{"read":30000,"write":28}}}"#
+            ),
+        );
+        insert_part(
+            &conn,
+            "p8",
+            "m8",
+            "sess-1",
+            0,
+            r#"{"type":"text","text":"done"}"#,
+        );
+
+        let messages = load_messages_conn(&conn, "sess-1").unwrap();
+        let a = messages.iter().find(|m| m.uuid == "m8").unwrap();
+        assert_eq!(a.model.as_deref(), Some("GLM-5.3-Flash"));
+        assert_eq!(a.stop_reason.as_deref(), None);
+        let usage = a.usage.as_ref().unwrap();
+        assert_eq!(usage.input_tokens, Some(2028)); // 32028 - 30000 cached
+        assert_eq!(usage.output_tokens, Some(1481));
+        assert_eq!(usage.cache_read_input_tokens, Some(30000));
+        assert_eq!(usage.cache_creation_input_tokens, Some(28));
+        assert_eq!(usage.reasoning_tokens, Some(7));
+    }
+
+    #[test]
+    fn load_messages_prefers_camelcase_model_field_over_legacy_spelling() {
+        // Z Code's model-selection migration patches `modelId` into the stored
+        // row without removing the legacy `modelID`, so both spellings can be
+        // present at once. The current contract wins when they disagree.
+        let conn = test_db();
+        seed(&conn);
+        insert_message(
+            &conn,
+            "m9",
+            "sess-1",
+            3,
+            concat!(
+                r#"{"role":"assistant","time":{"created":1788599956241},"#,
+                r#""modelID":"legacy-name","modelId":"GLM-5.3-Flash","#,
+                r#""tokens":{"input":10,"output":5,"reasoning":0,"cache":{"read":0,"write":0}}}"#
+            ),
+        );
+        insert_part(
+            &conn,
+            "p9",
+            "m9",
+            "sess-1",
+            0,
+            r#"{"type":"text","text":"done"}"#,
+        );
+
+        let messages = load_messages_conn(&conn, "sess-1").unwrap();
+        let a = messages.iter().find(|m| m.uuid == "m9").unwrap();
+        assert_eq!(a.model.as_deref(), Some("GLM-5.3-Flash"));
+    }
+
+    #[test]
     fn search_prefilters_ascii_queries() {
         let conn = test_db();
         seed(&conn);
@@ -846,6 +1047,45 @@ mod tests {
         let hits = search_conn(&conn, "login", 10).unwrap();
         assert!(!hits.is_empty());
         assert!(hits.iter().all(|m| m.provider.as_deref() == Some("zcode")));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_directories() {
+        let conn = test_db();
+        for (sid, dir) in [("sa", "/work/client-a/app"), ("sb", "/work/client-b/app")] {
+            insert_session(&conn, sid, dir, "t", "interactive");
+            let mid = format!("m-{sid}");
+            insert_message(
+                &conn,
+                &mid,
+                sid,
+                0,
+                r#"{"role":"user","time":{"created":1}}"#,
+            );
+            let text = format!(r#"{{"type":"text","text":"needle {sid}"}}"#);
+            insert_part(&conn, &format!("p-{sid}"), &mid, sid, 0, &text);
+        }
+
+        let projects = scan_projects_conn(&conn).unwrap();
+        let path_of = |dir: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == dir)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+
+        let hits = search_conn(&conn, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let text = hit.content.as_ref().unwrap().to_string();
+            let expected = if text.contains("needle sa") { &a } else { &b };
+            assert_eq!(hit.project_path.as_ref(), Some(expected));
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 
     #[test]
@@ -1012,6 +1252,81 @@ mod tests {
         conn.execute_batch("ALTER TABLE session RENAME COLUMN task_type TO kind")
             .unwrap();
         assert!(descendant_subagent_ids(&conn, "parent").is_err());
+    }
+
+    #[test]
+    fn child_sessions_list_direct_subagent_runs_only() {
+        // #761: the SubAgent panel lists the `subagent_child` rows a session
+        // spawned. The grandchild belongs to `child`, and the interactive
+        // fork is a session of its own.
+        let conn = test_db();
+        seed_subagent_tree(&conn);
+        insert_child_session(&conn, "child-2", "parent", "subagent_child");
+        conn.execute(
+            "UPDATE session SET time_created = 1788599956000, title = '' WHERE id = 'child-2'",
+            [],
+        )
+        .unwrap();
+
+        let children = load_child_sessions_conn(&conn, "parent").unwrap();
+        let ids: Vec<_> = children.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["child-2", "child"], "oldest first");
+        assert_eq!(children[1].title, "child");
+        assert_eq!(children[1].message_count, 1);
+        assert_eq!(children[0].message_count, 0);
+
+        let grandchildren = load_child_sessions_conn(&conn, "child").unwrap();
+        let ids: Vec<_> = grandchildren.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["grandchild"]);
+    }
+
+    #[test]
+    fn store_without_parent_id_has_no_child_sessions() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(&TEST_SCHEMA.replace(" parent_id text,", ""))
+            .unwrap();
+        insert_session(&conn, "parent", "/Users/jack/proj", "main", "interactive");
+        assert!(load_child_sessions_conn(&conn, "parent")
+            .unwrap()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn session_subagents_command_lists_zcode_children() {
+        let (_temp, conn, original) = temp_zcode_home();
+        seed_subagent_tree(&conn);
+        let subagents = crate::commands::session::get_session_subagents(
+            "zcode:///Users/jack/proj#parent".to_string(),
+        )
+        .await;
+        let missing = crate::commands::session::get_session_subagents(
+            "zcode:///Users/jack/proj#no-such-session".to_string(),
+        )
+        .await;
+        // The listed path opens through the Z Code reader.
+        let child_messages = subagents
+            .as_ref()
+            .ok()
+            .and_then(|s| s.first())
+            .map(|s| load_messages(&s.file_path));
+        restore_zcode_home(original);
+
+        let subagents = subagents.expect("Z Code subagents load");
+        assert_eq!(subagents.len(), 1);
+        assert_eq!(subagents[0].agent_id, "child");
+        assert_eq!(subagents[0].file_path, "zcode:///Users/jack/proj#child");
+        assert_eq!(subagents[0].message_count, 1);
+        assert_eq!(subagents[0].summary.as_deref(), Some("child"));
+        assert!(missing.expect("unknown session").is_empty());
+
+        let ids: Vec<_> = child_messages
+            .expect("a child is listed")
+            .expect("child messages")
+            .into_iter()
+            .map(|m| m.uuid)
+            .collect();
+        assert_eq!(ids, vec!["m-child".to_string()]);
     }
 
     #[tokio::test]
@@ -1197,5 +1512,28 @@ mod tests {
         assert_eq!(dir, "/a/b");
         assert_eq!(id, "sess-9");
         assert!(parse_session_path("zcode:///no-separator").is_err());
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        let mut out = Vec::new();
+        append_message(
+            &mut out,
+            "s",
+            "m",
+            0,
+            &serde_json::json!({"role":"assistant"}),
+            &[
+                serde_json::json!({"type":"tool","tool":"Read","callID":"c","state":{"output":"synthetic"}}),
+            ],
+        );
+        assert_eq!(
+            out.last().unwrap().content.as_ref().unwrap()[0]["is_error_source"],
+            "derived"
+        );
     }
 }

@@ -15,11 +15,13 @@
  */
 
 import { memo } from "react";
-import { History, FileArchive, Clock, Link2, FolderArchive } from "lucide-react";
+import { RotateCcwClock, FileArchive, Clock, Link2, FolderArchive } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { getVariantStyles, layout } from "@/components/renderers";
 import { cn } from "@/lib/utils";
 import type { FileHistorySnapshotData } from "../../types";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 type Props = {
   messageId: string;
@@ -34,6 +36,7 @@ export const FileHistorySnapshotRenderer = memo(
     isSnapshotUpdate,
   }: Props) {
     const { t } = useTranslation();
+    const fmt = useFormat();
 
     const trackedFilesCount = Object.keys(snapshot.trackedFileBackups || {}).length;
     const trackedFiles = Object.entries(snapshot.trackedFileBackups || {});
@@ -44,7 +47,7 @@ export const FileHistorySnapshotRenderer = memo(
       <div className={cn("border", layout.rounded, layout.containerPadding, styles.container)}>
         {/* Header */}
         <div className={cn("flex items-center mb-2", layout.iconSpacing)}>
-          <History className={cn(layout.iconSize, styles.icon)} />
+          <RotateCcwClock className={cn(layout.iconSize, styles.icon)} />
           <span className={cn(`${layout.smallText} font-medium`, styles.title)}>
             {isSnapshotUpdate
               ? t("fileHistorySnapshotRenderer.update", {
@@ -77,7 +80,7 @@ export const FileHistorySnapshotRenderer = memo(
             <div className={cn("flex items-center", layout.iconSpacing, styles.icon)}>
               <Clock className={layout.iconSizeSmall} />
               <span>
-                {new Date(snapshot.timestamp).toLocaleString()}
+                <Num>{fmt.dateTime(snapshot.timestamp)}</Num>
               </span>
             </div>
           )}

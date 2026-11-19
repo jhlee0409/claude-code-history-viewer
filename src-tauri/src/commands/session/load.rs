@@ -1,5 +1,6 @@
 //! Session loading functions
 
+use super::timestamp_fill::fill_missing_timestamps;
 use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, RawLogEntry};
 use crate::utils::{extract_project_name, find_line_ranges, find_line_starts};
@@ -64,15 +65,19 @@ struct SessionMetadataCache {
 // stale caches must be invalidated to recompute project_name.
 // Bumped 11 -> 12: Claude Code `ai-title` records now set the session title
 // (and are no longer counted as messages); stale caches must be invalidated.
-const CACHE_VERSION: u32 = 12;
+// Bumped 12 -> 13: Claude Code `api-request*` records are no longer counted as
+// messages, so a cached count could keep a subagent transcript listed (#735).
+const CACHE_VERSION: u32 = 13;
 const DEFAULT_SESSION_PAGE_LIMIT: usize = 250;
 const MAX_SESSION_PAGE_LIMIT: usize = 500;
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SessionPage {
-    pub sessions: Vec<ClaudeSession>,
+pub struct SessionPage<T = ClaudeSession> {
+    pub sessions: Vec<T>,
     pub total: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subagent_count: Option<usize>,
     pub offset: usize,
     pub limit: usize,
     pub next_offset: usize,
@@ -84,10 +89,15 @@ fn get_cache_path(project_path: &str) -> PathBuf {
     PathBuf::from(project_path).join(".session_cache.json")
 }
 
-/// Load cache from disk
+/// Load cache from disk. The cache file lies in the project's history
+/// folder, so it is opened as a history file is: a symlink or a FIFO named
+/// like it is no cache (`session_files::open_history_file`).
 fn load_cache(project_path: &str) -> SessionMetadataCache {
     let cache_path = get_cache_path(project_path);
-    if let Ok(content) = fs::read_to_string(&cache_path) {
+    let mut content = String::new();
+    let read = session_files::open_history_file(&cache_path)
+        .and_then(|mut file| std::io::Read::read_to_string(&mut file, &mut content));
+    if read.is_ok() {
         if let Ok(cache) = serde_json::from_str::<SessionMetadataCache>(&content) {
             if cache.version == CACHE_VERSION {
                 return cache;
@@ -178,6 +188,10 @@ struct LineClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    // Presence only (no allocation): the parser drops a line with neither.
+    #[serde(rename = "sessionId")]
+    session_id: Option<serde::de::IgnoredAny>,
+    timestamp: Option<serde::de::IgnoredAny>,
 }
 
 /// Minimal struct for extracting session metadata without full message parsing
@@ -256,8 +270,14 @@ struct SessionExtractionResult {
 /// Phase 1: Extract essential metadata from first ~50 lines
 /// Phase 2: Count remaining messages with minimal parsing
 /// Always extracts total count (without sidechain filtering) for caching purposes
-fn extract_session_metadata_from_file(file_path: &PathBuf) -> Option<SessionExtractionResult> {
-    extract_session_metadata_internal(file_path, None)
+///
+/// `root` is the canonical project folder the file was found in: the file is
+/// read inside it only (`session_files::open_session_file`).
+fn extract_session_metadata_from_file(
+    file_path: &PathBuf,
+    root: &Path,
+) -> Option<SessionExtractionResult> {
+    extract_session_metadata_internal(file_path, root, None)
 }
 
 /// The lines of a session file for a metadata scan. A line that is not UTF-8
@@ -278,28 +298,30 @@ fn session_lines(reader: impl BufRead) -> impl Iterator<Item = String> {
 /// Incremental session metadata extraction - only parses new content from given offset
 fn extract_session_metadata_incremental(
     file_path: &PathBuf,
+    root: &Path,
     state: IncrementalParseState,
 ) -> Option<SessionExtractionResult> {
-    extract_session_metadata_internal(file_path, Some(state))
+    extract_session_metadata_internal(file_path, root, Some(state))
 }
 
 /// Internal extraction function that supports both full and incremental parsing
 fn extract_session_metadata_internal(
     file_path: &PathBuf,
+    root: &Path,
     incremental_state: Option<IncrementalParseState>,
 ) -> Option<SessionExtractionResult> {
-    let metadata = file_path.metadata().ok();
-    let file_size = metadata.as_ref().map_or(0, std::fs::Metadata::len);
+    // The size and time are the opened file's own.
+    let (mut file, metadata) = session_files::open_session_file(file_path, root).ok()?;
+    let file_size = metadata.len();
     let last_modified = metadata
-        .as_ref()
-        .and_then(|m| m.modified().ok())
+        .modified()
+        .ok()
         .map(|t| {
             let dt: DateTime<Utc> = t.into();
             dt.to_rfc3339()
         })
         .unwrap_or_else(|| Utc::now().to_rfc3339());
 
-    let mut file = session_files::open_regular_file(file_path).ok()?;
     let file_path_str = file_path.to_string_lossy().to_string();
 
     // Initialize from incremental state or start fresh
@@ -698,7 +720,7 @@ fn extract_session_metadata_internal(
 }
 
 /// Message types that should always be excluded from the viewer
-const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
+const EXCLUDED_MESSAGE_TYPES: [&str; 10] = [
     "progress",
     "queue-operation",
     "file-history-snapshot",
@@ -709,6 +731,17 @@ const EXCLUDED_MESSAGE_TYPES: [&str; 7] = [
     "agent-name",
     // Claude Code's auto-generated session title; used as the session name, not a message.
     "ai-title",
+    // Claude Code's record of each API request it sent (2.1.302 and later): the
+    // request, its content-addressed message blobs, and its prompt shape. A blob's
+    // `message` repeats a conversation message, and none of these records carries
+    // `isSidechain`, so counting them listed every subagent transcript as a
+    // session of its own (#735). Real-record counts, keys only: the 60 newest
+    // local transcripts on 2026-11-07 (Claude Code 2.1.317 to 2.1.319) held
+    // 1,541 `api-request`, 1,749 `api-request-blob` and 89 `api-request-shape`
+    // records, and no record of the three types had an `isSidechain` key.
+    "api-request",
+    "api-request-blob",
+    "api-request-shape",
 ];
 
 /// System subtypes that are internal metadata (excluded from the viewer).
@@ -1140,14 +1173,20 @@ fn load_project_sessions_page_blocking(
         return Err("project_path must be an absolute path".to_string());
     }
 
+    // Prompt-history sessions (#764) are listed beside the files; a project
+    // whose folder is gone has nothing else to list.
+    let prompt_sessions = super::prompt_history::project_sessions(project_root);
+
     // The canonical root is only used to reject symlinked files that escape
     // the project directory. Cache keys and the cache file location keep the
     // caller-provided path form so they match the entries written by
     // `load_project_sessions` (canonicalizing here would orphan that cache,
     // e.g. `/var` vs `/private/var` on macOS).
-    let canonical_project_root = project_root
-        .canonicalize()
-        .map_err(|error| format!("Failed to resolve project_path: {error}"))?;
+    let canonical_project_root = match project_root.canonicalize() {
+        Ok(root) => root,
+        Err(_) if !prompt_sessions.is_empty() => project_root.to_path_buf(),
+        Err(error) => return Err(format!("Failed to resolve project_path: {error}")),
+    };
 
     let exclude = exclude_sidechain.unwrap_or(false);
     let offset = offset.unwrap_or(0);
@@ -1164,7 +1203,13 @@ fn load_project_sessions_page_blocking(
     // history) instead of one entry per file.
     let superseded = super::chain::superseded_chain_paths(project_root);
 
-    let mut candidates: Vec<SessionPageCandidate> = Vec::new();
+    let mut candidates: Vec<SessionPageCandidate> = prompt_sessions
+        .into_iter()
+        .map(|session| SessionPageCandidate {
+            sort_key: session_sort_key(&session),
+            source: SessionPageCandidateSource::Cached(Box::new(session), 0),
+        })
+        .collect();
     let mut known_dropped_candidates = 0usize;
 
     // Regular files only, no symlink below the project followed
@@ -1267,7 +1312,8 @@ fn load_project_sessions_page_blocking(
                         None,
                     ),
                     SessionPageCandidateSource::Parse(path) => {
-                        let result = extract_session_metadata_from_file(&path);
+                        let result =
+                            extract_session_metadata_from_file(&path, &canonical_project_root);
                         (SessionPageCandidateSource::Parse(path), result)
                     }
                     SessionPageCandidateSource::KnownDropped => {
@@ -1382,6 +1428,7 @@ fn load_project_sessions_page_blocking(
     Ok(SessionPage {
         sessions,
         total,
+        subagent_count: None,
         offset,
         limit,
         next_offset,
@@ -1414,6 +1461,16 @@ pub fn find_project_session_by_path(
     let project_root = Path::new(project_path);
     if !project_root.is_absolute() {
         return Err("project_path must be an absolute path".to_string());
+    }
+    // A prompt-history session (#764) names no file: it is looked up in the
+    // prompt log of the project's Claude root.
+    if super::prompt_history::is_session_path(file_path) {
+        let in_project = Path::new(file_path).parent() == Some(project_root);
+        return if in_project {
+            Ok(super::prompt_history::find_session(file_path))
+        } else {
+            Err("file_path is outside the project".to_string())
+        };
     }
     let path = PathBuf::from(file_path);
     if !path.is_absolute() || path.extension().and_then(|e| e.to_str()) != Some("jsonl") {
@@ -1466,7 +1523,7 @@ pub fn find_project_session_by_path(
         .filter(|c| Some(c.modified_time) == current_mtime && c.file_size == current_size);
     let (session, sidechain_count) = match cached {
         Some(cached) => (cached.session, cached.sidechain_count),
-        None => match extract_session_metadata_from_file(&path) {
+        None => match extract_session_metadata_from_file(&path, &canonical_project_root) {
             Some(result) => (Some(result.session), result.sidechain_count),
             None => (None, 0),
         },
@@ -1521,10 +1578,18 @@ fn load_project_sessions_blocking(
     let mut cache = load_cache(&project_path);
     let mut cache_updated = false;
 
+    // Prompt-history sessions (#764) are listed beside the files; a project
+    // whose folder is gone has nothing else to list.
+    let prompt_sessions = super::prompt_history::project_sessions(Path::new(&project_path));
+
     // 2. Collect the session files: regular files only, no symlink below the
     // project followed (`session_files`). A linked file would be read
     // wherever it points; a directory named like a session used to stall
     // this load, and a FIFO would block it.
+    // Each is read inside the project folder, resolved before the walk.
+    let Ok(canonical_project_root) = fs::canonicalize(&project_path) else {
+        return prompt_sessions;
+    };
     let file_paths: Vec<PathBuf> = session_files::regular_session_files(Path::new(&project_path));
 
     #[cfg(debug_assertions)]
@@ -1614,18 +1679,24 @@ fn load_project_sessions_blocking(
         .map(|strategy| match &strategy {
             FileParseStrategy::UseCached(_, _) => (strategy, None),
             FileParseStrategy::Incremental(path, state) => {
-                let result = extract_session_metadata_incremental(path, state.clone());
+                let result = extract_session_metadata_incremental(
+                    path,
+                    &canonical_project_root,
+                    state.clone(),
+                );
                 (strategy, result)
             }
             FileParseStrategy::FullParse(path) => {
-                let result = extract_session_metadata_from_file(path);
+                let result = extract_session_metadata_from_file(path, &canonical_project_root);
                 (strategy, result)
             }
         })
         .collect();
 
     // 5. Process results and update cache
-    let mut sessions: Vec<ClaudeSession> = Vec::with_capacity(results.len());
+    let mut sessions: Vec<ClaudeSession> =
+        Vec::with_capacity(results.len() + prompt_sessions.len());
+    sessions.extend(prompt_sessions);
 
     for (strategy, result_opt) in results {
         match strategy {
@@ -1773,32 +1844,7 @@ fn parse_line_to_message(
                 .unwrap_or_else(|| Utc::now().to_rfc3339()),
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         });
     }
 
@@ -1834,7 +1880,6 @@ fn parse_line_to_message(
             .unwrap_or_else(|| Utc::now().to_rfc3339()),
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
-        project_name: None,
         tool_use: log_entry.tool_use,
         tool_use_result: log_entry.tool_use_result,
         is_sidechain: log_entry.is_sidechain,
@@ -1859,7 +1904,7 @@ fn parse_line_to_message(
         prevented_continuation: log_entry.prevented_continuation,
         compact_metadata: log_entry.compact_metadata,
         microcompact_metadata: log_entry.microcompact_metadata,
-        provider: None,
+        ..Default::default()
     })
 }
 
@@ -1898,37 +1943,10 @@ fn parse_line_simd(
             session_id: log_entry
                 .session_id
                 .unwrap_or_else(|| "unknown-session".to_string()),
-            timestamp: log_entry
-                .timestamp
-                .unwrap_or_else(|| Utc::now().to_rfc3339()),
+            timestamp: log_entry.timestamp.unwrap_or_default(), // filled by fill_missing_timestamps
             message_type: "summary".to_string(),
             content: Some(serde_json::Value::String(summary_text)),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         });
     }
 
@@ -1972,12 +1990,9 @@ fn parse_line_simd(
         session_id: log_entry
             .session_id
             .unwrap_or_else(|| "unknown-session".to_string()),
-        timestamp: log_entry
-            .timestamp
-            .unwrap_or_else(|| Utc::now().to_rfc3339()),
+        timestamp: log_entry.timestamp.unwrap_or_default(), // filled by fill_missing_timestamps
         message_type: log_entry.message_type,
         content: log_entry.message.map(|m| m.content).or(log_entry.content),
-        project_name: None,
         tool_use: log_entry.tool_use.or(extracted_tool_use),
         tool_use_result: log_entry.tool_use_result,
         is_sidechain: log_entry.is_sidechain,
@@ -2002,7 +2017,7 @@ fn parse_line_simd(
         prevented_continuation: log_entry.prevented_continuation,
         compact_metadata: log_entry.compact_metadata,
         microcompact_metadata: log_entry.microcompact_metadata,
-        provider: None,
+        ..Default::default()
     })
 }
 
@@ -2011,6 +2026,10 @@ fn parse_line_simd(
 pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMessage>, String> {
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
+    // A prompt-history session (#764) is read from the prompt log.
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::load_messages(&session_path);
+    }
 
     // Resolve any cross-file continuation chain (see `chain.rs`) and load
     // every file in it, oldest first, so a session that Claude Code split
@@ -2056,7 +2075,7 @@ pub async fn load_session_messages(session_path: String) -> Result<Vec<ClaudeMes
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>, String> {
     // Use memory-mapped file for faster I/O
-    let file = session_files::open_regular_file(session_path)
+    let file = session_files::open_history_file(session_path)
         .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
@@ -2081,23 +2100,36 @@ fn load_all_messages_from_file(session_path: &Path) -> Result<Vec<ClaudeMessage>
             // Create a mutable copy for simd-json (it requires mutable slice)
             let mut line_bytes = mmap[start..end].to_vec();
 
-            parse_line_simd(line_num, &mut line_bytes, false)
-                .filter(|msg| {
-                    if is_system_message_type(&msg.message_type) {
-                        return false;
-                    }
-                    if msg.message_type == "system" {
-                        return !is_hidden_system_subtype(msg.subtype.as_deref());
-                    }
-                    true
-                })
-                .map(|msg| (line_num, msg))
+            parse_viewer_line(line_num, &mut line_bytes).map(|msg| (line_num, msg))
         })
         .collect();
 
     // Sort by line number to maintain original order
     messages.sort_by_key(|(line_num, _)| *line_num);
+    let line_at = |i: usize| {
+        let end = line_starts.get(i + 1).map_or(mmap.len(), |&e| e - 1);
+        &mmap[line_starts[i]..end]
+    };
+    fill_missing_timestamps(line_starts.len(), line_at, &mut messages);
     Ok(messages.into_iter().map(|(_, msg)| msg).collect())
+}
+
+/// One line of a Claude Code-format transcript as the viewer shows it: the
+/// parsed message, or `None` for a line the viewer hides (bookkeeping
+/// records, hidden system subtypes, meta lines, a summary). Shared with the
+/// providers that write this format (Qoder) so their messages are built and
+/// filtered exactly as Claude's are. An empty `timestamp` is left for
+/// [`fill_missing_timestamps`](super::timestamp_fill::fill_missing_timestamps).
+pub(crate) fn parse_viewer_line(line_num: usize, line: &mut [u8]) -> Option<ClaudeMessage> {
+    parse_line_simd(line_num, line, false).filter(|msg| {
+        if is_system_message_type(&msg.message_type) {
+            return false;
+        }
+        if msg.message_type == "system" {
+            return !is_hidden_system_subtype(msg.subtype.as_deref());
+        }
+        true
+    })
 }
 
 // ============================================================================
@@ -2206,6 +2238,44 @@ fn kilo_subagents(session_path: &str) -> Vec<SubagentSession> {
         .collect()
 }
 
+/// Whether `session_path` is another provider's session file: subagent
+/// transcripts are kept beside Claude sessions, and beside Qoder's (which
+/// writes the same `<session>/subagents/` layout), only; any other file is
+/// answered with no subagents and never opened (#643).
+pub(crate) fn is_other_provider_session_file(session_path: &str) -> bool {
+    !session_path.contains("://")
+        && !crate::commands::stats::is_claude_session_path(session_path)
+        && !crate::providers::qoder::is_session_path(session_path)
+}
+
+/// Subagent rows for a `zcode://<directory>#<session_id>` parent: the
+/// `subagent_child` sessions Z Code keeps in its SQLite store (#761), each
+/// addressed by its own `zcode://` id so the panel opens it through the same
+/// reader as any Z Code session. A path without a session id has none.
+fn zcode_subagents(session_path: &str) -> Result<Vec<SubagentSession>, String> {
+    let Some((directory, _)) = session_path
+        .strip_prefix("zcode://")
+        .and_then(|rest| rest.rsplit_once('#'))
+    else {
+        return Ok(Vec::new());
+    };
+
+    Ok(crate::providers::zcode::load_child_sessions(session_path)?
+        .into_iter()
+        .map(|child| SubagentSession {
+            file_path: format!("zcode://{directory}#{}", child.id),
+            agent_id: child.id,
+            message_count: child.message_count,
+            file_size: 0,
+            first_message_time: Some(child.created_at),
+            last_message_time: Some(child.updated_at),
+            summary: (!child.title.trim().is_empty()).then_some(child.title),
+            tool_use_id: None,
+            workflow_run_id: None,
+        })
+        .collect())
+}
+
 /// Returns subagent sessions for a given parent session file.
 #[tauri::command]
 pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentSession>, String> {
@@ -2220,8 +2290,27 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
         return Ok(kilo_subagents(&session_path));
     }
 
+    if session_path.starts_with("zcode://") {
+        return zcode_subagents(&session_path);
+    }
+
+    // Other providers' files, and prompt-history sessions (#764): only the
+    // prompts survive, no subagent run.
+    if is_other_provider_session_file(&session_path)
+        || super::prompt_history::is_session_path(&session_path)
+    {
+        return Ok(Vec::new());
+    }
+
     let path = PathBuf::from(&session_path);
     if !path.is_absolute() {
+        // Providers that keep conversations in a database mint opaque ids
+        // (`cursor://…`, `zed://…`, `forgecode-db://…`) instead of files. They
+        // have no on-disk subagent folder to scan, so no subagents is the
+        // correct answer rather than a path error shown on every selection.
+        if session_path.contains("://") {
+            return Ok(Vec::new());
+        }
         return Err("session_path must be an absolute path".to_string());
     }
     // Regular files only, never through a symlinked folder
@@ -2232,6 +2321,9 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
     if subagent_files.is_empty() {
         return Ok(Vec::new());
     }
+    // Each transcript and its meta file is read inside the session's folder
+    // (`session_files::open_session_file`).
+    let root = session_files::own_folder(&path).map_err(|e| format!("{}: {e}", path.display()))?;
 
     let mut sessions: Vec<SubagentSession> = Vec::new();
     for sa_path in subagent_files {
@@ -2247,16 +2339,15 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
             .unwrap_or(&file_name)
             .to_string();
 
-        let file_size = fs::metadata(&sa_path).map(|m| m.len()).unwrap_or(0);
-
         // Quick scan: first and last lines + line count
-        let (message_count, first_time, last_time, summary) = extract_subagent_metadata(&sa_path);
+        let (file_size, message_count, first_time, last_time, summary) =
+            extract_subagent_metadata(&sa_path, &root);
 
         // Newer Claude Code persists the spawning Task tool_use id in a sibling
         // `agent-<id>.meta.json`. Read it so multi-subagent sessions can map a click
         // to the right file (#288); older sessions have no meta file -> None.
         let meta_path = sa_path.with_file_name(format!("{file_name}.meta.json"));
-        let tool_use_id = read_subagent_tool_use_id(&meta_path);
+        let tool_use_id = read_subagent_tool_use_id(&meta_path, &root);
         let workflow_run_id = workflow_run_id_for(&sa_path);
 
         sessions.push(SubagentSession {
@@ -2279,15 +2370,14 @@ pub async fn get_session_subagents(session_path: String) -> Result<Vec<SubagentS
 }
 
 /// Read the `toolUseId` from a subagent's sibling `agent-<id>.meta.json`.
-/// Returns `None` if the file is missing, a symlink, unreadable, or has no
-/// non-empty `toolUseId` — all non-fatal, so a subagent without a meta file still
-/// lists. The symlink guard mirrors the session-path hardening.
-fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
-    let meta = std::fs::symlink_metadata(meta_path).ok()?;
-    if meta.file_type().is_symlink() {
-        return None;
-    }
-    let content = std::fs::read_to_string(meta_path).ok()?;
+/// Returns `None` if the file is missing, a symlink, not a regular file,
+/// unreadable, or has no non-empty `toolUseId` — all non-fatal, so a subagent
+/// without a meta file still lists. It is read inside `root` like the
+/// transcripts (`session_files::open_session_file`).
+fn read_subagent_tool_use_id(meta_path: &Path, root: &Path) -> Option<String> {
+    let (mut file, _) = session_files::open_session_file(meta_path, root).ok()?;
+    let mut content = String::new();
+    std::io::Read::read_to_string(&mut file, &mut content).ok()?;
 
     #[derive(serde::Deserialize)]
     struct SubagentMeta {
@@ -2299,19 +2389,23 @@ fn read_subagent_tool_use_id(meta_path: &std::path::Path) -> Option<String> {
     parsed.tool_use_id.filter(|s| !s.is_empty())
 }
 
-/// Metadata extraction from a subagent JSONL file.
+/// Metadata extraction from a subagent JSONL file, read inside `root`.
 ///
 /// Scans all lines to count messages, extract first/last timestamps, and find
-/// the first user message content as a summary.
+/// the first user message content as a summary. Only lines the viewer shows
+/// count (`is_viewer_visible_line`, sidechain lines included, since every
+/// conversation line of a subagent transcript is one), so the "N messages"
+/// label matches what opening the transcript loads. The size is the opened
+/// file's own; a file that cannot be opened lists as empty.
 fn extract_subagent_metadata(
     path: &PathBuf,
-) -> (usize, Option<String>, Option<String>, Option<String>) {
-    let file = match session_files::open_regular_file(path) {
-        Ok(f) => f,
-        Err(_) => return (0, None, None, None),
+    root: &Path,
+) -> (u64, usize, Option<String>, Option<String>, Option<String>) {
+    let Ok((file, metadata)) = session_files::open_session_file(path, root) else {
+        return (0, 0, None, None, None);
     };
     let reader = std::io::BufReader::new(file);
-    let mut line_count: usize = 0;
+    let mut message_count: usize = 0;
     let mut first_time: Option<String> = None;
     let mut last_time: Option<String> = None;
     let mut summary: Option<String> = None;
@@ -2320,14 +2414,20 @@ fn extract_subagent_metadata(
         if line.trim().is_empty() {
             continue;
         }
-        line_count += 1;
 
         // Parse only the fields we need with a minimal struct
         #[derive(serde::Deserialize)]
         struct MinimalEntry {
             timestamp: Option<String>,
+            #[serde(rename = "sessionId")]
+            session_id: Option<String>,
             #[serde(rename = "type")]
             msg_type: Option<String>,
+            subtype: Option<String>,
+            #[serde(rename = "isSidechain")]
+            is_sidechain: Option<bool>,
+            #[serde(rename = "isMeta")]
+            is_meta: Option<bool>,
             message: Option<MinimalMessage>,
         }
         #[derive(serde::Deserialize)]
@@ -2337,6 +2437,21 @@ fn extract_subagent_metadata(
         }
 
         if let Ok(entry) = serde_json::from_str::<MinimalEntry>(&line) {
+            let visible = entry.msg_type.as_deref().is_some_and(|msg_type| {
+                is_viewer_visible_line(
+                    msg_type,
+                    entry.subtype.as_deref(),
+                    entry.is_sidechain,
+                    entry.is_meta,
+                    entry.session_id.is_some() || entry.timestamp.is_some(),
+                    false,
+                )
+            });
+            if !visible {
+                continue;
+            }
+            message_count += 1;
+
             if let Some(ref ts) = entry.timestamp {
                 if first_time.is_none() {
                     first_time = Some(ts.clone());
@@ -2365,18 +2480,33 @@ fn extract_subagent_metadata(
         }
     }
 
-    (line_count, first_time, last_time, summary)
+    (
+        metadata.len(),
+        message_count,
+        first_time,
+        last_time,
+        summary,
+    )
 }
 
 /// Shared viewer-visibility rules for a classified JSONL line.
 /// Must stay in sync with the filtering in `load_session_messages`.
-fn is_viewer_visible_line(
+///
+/// `has_session_or_timestamp`: whether the line carries `sessionId` or
+/// `timestamp`. The parser drops a line with neither (a forked agent's
+/// `fork-context-ref`, for one), so counting it would leave a total that no
+/// page can reach, and `has_more` would stay true (#768).
+pub(crate) fn is_viewer_visible_line(
     message_type: &str,
     subtype: Option<&str>,
     is_sidechain: Option<bool>,
     is_meta: Option<bool>,
+    has_session_or_timestamp: bool,
     exclude_sidechain: bool,
 ) -> bool {
+    if !has_session_or_timestamp {
+        return false;
+    }
     if message_type == "summary" {
         return false;
     }
@@ -2412,10 +2542,21 @@ fn classify_line_fast(line: &[u8], exclude_sidechain: bool) -> bool {
             classifier.subtype.as_deref(),
             classifier.is_sidechain,
             classifier.is_meta,
+            classifier.session_id.is_some() || classifier.timestamp.is_some(),
             exclude_sidechain,
         );
     }
     false
+}
+
+/// Whether one raw JSONL line is a message the viewer shows, by the same
+/// classifier the paginated loader counts with. Shared with the archive
+/// counts so an archived session or subagent reports the messages opening it
+/// would show (#773). `exclude_sidechain` mirrors the viewer's sidechain
+/// filter: a main session hides sidechain lines by default, while every
+/// conversation line of a subagent transcript is one and must count.
+pub(crate) fn is_viewer_visible_jsonl_line(line: &str, exclude_sidechain: bool) -> bool {
+    classify_line_fast(line.as_bytes(), exclude_sidechain)
 }
 
 /// Minimal classifier that also captures the message uuid.
@@ -2431,6 +2572,9 @@ struct LineUuidClassifier {
     is_sidechain: Option<bool>,
     #[serde(rename = "isMeta")]
     is_meta: Option<bool>,
+    #[serde(rename = "sessionId")]
+    session_id: Option<serde::de::IgnoredAny>,
+    timestamp: Option<serde::de::IgnoredAny>,
     uuid: Option<String>,
 }
 
@@ -2447,7 +2591,10 @@ pub fn get_session_message_offset(
     message_uuid: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<Option<usize>, String> {
-    let file = session_files::open_regular_file(Path::new(&session_path))
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::message_offset(&session_path, &message_uuid);
+    }
+    let file = session_files::open_history_file(Path::new(&session_path))
         .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
@@ -2479,6 +2626,7 @@ pub fn get_session_message_offset(
             classifier.subtype.as_deref(),
             classifier.is_sidechain,
             classifier.is_meta,
+            classifier.session_id.is_some() || classifier.timestamp.is_some(),
             exclude,
         ) {
             continue;
@@ -2494,20 +2642,24 @@ pub fn get_session_message_offset(
 }
 
 /// Load a chat-style window of messages from a SINGLE file (the pre-chain
-/// pagination algorithm, unchanged). `offset_from_end` counts messages
-/// already consumed from the newest end of this file.
+/// pagination algorithm). `offset_from_end` counts classified lines already
+/// consumed from the newest end of this file.
 ///
 /// Returns the window's messages (oldest-to-newest), this file's own total
-/// viewer-visible message count, and whether the window reached line 0 of
-/// the file (i.e. there is nothing older left to read from this file).
+/// count of classified (viewer-visible) lines, and how many classified lines
+/// the window consumed. A classified line that then fails the full parse
+/// (a numeric `sessionId`, a malformed field) is consumed but yields no
+/// message, so the consumed count can exceed `messages.len()`; callers must
+/// advance their offset by it, or a page of such lines would repeat forever
+/// (#771).
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn load_message_window_from_file(
     session_path: &Path,
     offset_from_end: usize,
     limit: usize,
     exclude: bool,
-) -> Result<(Vec<ClaudeMessage>, usize, bool), String> {
-    let file = session_files::open_regular_file(session_path)
+) -> Result<(Vec<ClaudeMessage>, usize, usize), String> {
+    let file = session_files::open_history_file(session_path)
         .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
@@ -2527,7 +2679,7 @@ fn load_message_window_from_file(
 
     let total_count = valid_indices.len();
     if total_count == 0 || offset_from_end >= total_count {
-        return Ok((vec![], total_count, offset_from_end >= total_count));
+        return Ok((vec![], total_count, 0));
     }
 
     let remaining_messages = total_count - offset_from_end;
@@ -2547,15 +2699,20 @@ fn load_message_window_from_file(
         .collect();
 
     parsed.sort_by_key(|(line_num, _)| *line_num);
+    let line_at = |i: usize| {
+        let (start, end) = line_ranges[i];
+        &mmap[start..end]
+    };
+    fill_missing_timestamps(line_ranges.len(), line_at, &mut parsed);
     let messages: Vec<ClaudeMessage> = parsed.into_iter().map(|(_, msg)| msg).collect();
 
-    Ok((messages, total_count, start_idx == 0))
+    Ok((messages, total_count, messages_to_load))
 }
 
 /// Count viewer-visible messages in a single file (the pre-chain algorithm).
 #[allow(unsafe_code)] // Required for mmap performance optimization
 fn count_valid_messages_in_file(session_path: &Path, exclude: bool) -> Result<usize, String> {
-    let file = session_files::open_regular_file(session_path)
+    let file = session_files::open_history_file(session_path)
         .map_err(|e| format!("Failed to open session file: {e}"))?;
 
     // SAFETY: We're only reading the file, and the file handle is kept open
@@ -2582,15 +2739,25 @@ pub async fn load_session_messages_paginated(
     #[cfg(debug_assertions)]
     let start_time = std::time::Instant::now();
 
+    // A prompt-history session (#764): no sidechain to exclude.
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::message_page(&session_path, offset, limit);
+    }
+
     let exclude = exclude_sidechain.unwrap_or(false);
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
 
+    // `offset`, `next_offset` and `total_count` all count classified lines
+    // (see `MessagePage`). `next_offset` advances by the lines a page
+    // consumed, not the messages it returned: a line that passes the fast
+    // classifier but fails the full parse still moves the cursor, so paging
+    // always terminates and never repeats a window (#771).
     let page = if chain.len() <= 1 {
         // Common case: no cross-file continuation. Same algorithm and
         // performance characteristics as before this feature existed.
-        let (messages, total_count, _) =
+        let (messages, total_count, consumed) =
             load_message_window_from_file(Path::new(&session_path), offset, limit, exclude)?;
-        let next_offset = offset + messages.len();
+        let next_offset = offset + consumed;
         MessagePage {
             messages,
             total_count,
@@ -2602,6 +2769,7 @@ pub async fn load_session_messages_paginated(
         // requested chat-style window, then present them oldest -> newest.
         let mut skip = offset;
         let mut remaining = limit;
+        let mut consumed_total = 0usize;
         let mut chunks: Vec<Vec<ClaudeMessage>> = Vec::new();
         let mut total_count = 0usize;
 
@@ -2618,7 +2786,7 @@ pub async fn load_session_messages_paginated(
                 requested_limit,
                 exclude,
             );
-            let (messages, file_total, _) = match result {
+            let (messages, file_total, consumed) = match result {
                 Ok(result) => result,
                 Err(error) if is_leaf => return Err(error),
                 Err(error) => {
@@ -2638,14 +2806,15 @@ pub async fn load_session_messages_paginated(
                 skip -= file_total;
                 continue;
             }
-            remaining -= messages.len();
+            remaining -= consumed;
+            consumed_total += consumed;
             chunks.push(messages);
             skip = 0;
         }
 
         chunks.reverse();
         let messages: Vec<ClaudeMessage> = chunks.into_iter().flatten().collect();
-        let next_offset = offset + messages.len();
+        let next_offset = offset + consumed_total;
         MessagePage {
             messages,
             total_count,
@@ -2669,6 +2838,9 @@ pub async fn get_session_message_count(
     session_path: String,
     exclude_sidechain: Option<bool>,
 ) -> Result<usize, String> {
+    if super::prompt_history::is_session_path(&session_path) {
+        return super::prompt_history::load_messages(&session_path).map(|messages| messages.len());
+    }
     let exclude = exclude_sidechain.unwrap_or(false);
     let chain = super::chain::resolve_session_chain(Path::new(&session_path));
 
@@ -2762,6 +2934,247 @@ mod tests {
             .unwrap();
         let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
         assert_eq!(types, vec!["user", "assistant"]);
+    }
+
+    /// Claude Code (2.1.302 and later) request bookkeeping: one `api-request-shape`,
+    /// two `api-request-blob` and one `api-request` record. The key sets match real
+    /// transcripts. None of the records carries `isSidechain`, not even in a subagent
+    /// transcript, and a blob's `message` has the shape of a conversation message.
+    fn create_sample_api_request_records(session_id: &str, agent_id: Option<&str>) -> String {
+        let agent = agent_id.map_or(String::new(), |id| format!(r#","agentId":"{id}""#));
+        [
+            format!(
+                r#"{{"type":"api-request-shape","sessionId":"{session_id}"{agent},"shapeHash":"s1","timestamp":"2025-06-26T10:00:30Z","version":"2.1.319","shape":{{"system":[]}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request-blob","sessionId":"{session_id}"{agent},"hash":"h1","message":{{"role":"user","content":"Hello"}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request-blob","sessionId":"{session_id}"{agent},"hash":"h2","message":{{"role":"assistant","content":[{{"type":"text","text":"Hi!"}}]}}}}"#
+            ),
+            format!(
+                r#"{{"type":"api-request","sessionId":"{session_id}"{agent},"id":"req-1","timestamp":"2025-06-26T10:00:30Z","version":"2.1.319","querySource":"repl_main_thread","shapeHash":"s1","params":{{}},"keep":0,"tail":["h1","h2"],"cacheControl":{{}},"requestDigest":"d1"}}"#
+            ),
+        ]
+        .join("\n")
+    }
+
+    /// A subagent transcript as Claude Code writes it: every conversation line is a
+    /// sidechain line, and the request records interleave with them.
+    fn create_sample_subagent_transcript(session_id: &str, agent_id: &str) -> String {
+        format!(
+            r#"{{"uuid":"sub-1","sessionId":"{session_id}","agentId":"{agent_id}","timestamp":"2025-06-26T10:02:00Z","type":"user","isSidechain":true,"message":{{"role":"user","content":"Subtask"}}}}
+{records}
+{{"uuid":"sub-2","sessionId":"{session_id}","agentId":"{agent_id}","timestamp":"2025-06-26T10:03:00Z","type":"assistant","isSidechain":true,"message":{{"role":"assistant","content":[{{"type":"text","text":"Done"}}],"id":"msg_sub","model":"claude-opus-4-20250514","usage":{{"input_tokens":10,"output_tokens":5}}}}}}
+"#,
+            records = create_sample_api_request_records(session_id, Some(agent_id)),
+        )
+    }
+
+    fn create_sample_session_with_api_requests(session_id: &str) -> String {
+        format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", session_id, "Hello"),
+            create_sample_api_request_records(session_id, None),
+            create_sample_assistant_message("uuid-2", session_id, "Hi!"),
+        )
+    }
+
+    /// A project folder holding one session and one of its subagent transcripts at
+    /// `<session>/subagents/agent-<id>.jsonl`, the layout Claude Code writes.
+    fn create_project_with_subagent_transcript() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        std::fs::write(
+            temp_dir.path().join("session-1.jsonl"),
+            create_sample_session_with_api_requests("session-1"),
+        )
+        .unwrap();
+        let subagents = temp_dir.path().join("session-1").join("subagents");
+        std::fs::create_dir_all(&subagents).unwrap();
+        std::fs::write(
+            subagents.join("agent-a1.jsonl"),
+            create_sample_subagent_transcript("session-1", "a1"),
+        )
+        .unwrap();
+        temp_dir
+    }
+
+    #[tokio::test]
+    async fn test_api_request_records_are_not_viewer_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(
+            &temp_dir,
+            "test.jsonl",
+            &create_sample_session_with_api_requests("session-1"),
+        );
+        let file_path = file_path.to_string_lossy().to_string();
+
+        let messages = load_session_messages(file_path.clone()).await.unwrap();
+        let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
+        assert_eq!(types, vec!["user", "assistant"]);
+
+        let page = load_session_messages_paginated(file_path, 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 2);
+    }
+
+    #[tokio::test]
+    async fn test_api_request_records_are_not_counted() {
+        let content = create_sample_session_with_api_requests("session-1");
+        let session = load_single_session(&content).await;
+        assert_eq!(session.message_count, 2);
+
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+        let count = get_session_message_count(file_path.to_string_lossy().to_string(), None)
+            .await
+            .unwrap();
+        assert_eq!(count, 2);
+    }
+
+    /// #735: with the sidechain filter on, a subagent transcript must not be listed
+    /// as a session of its own just because its request records lack `isSidechain`.
+    #[tokio::test]
+    async fn test_sidechain_filter_hides_subagent_transcript_with_api_request_records() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+
+        // The fixture is reachable: without the filter both files are listed.
+        let all = load_project_sessions(project_path.clone(), None)
+            .await
+            .unwrap();
+        assert_eq!(all.len(), 2);
+
+        let filtered = load_project_sessions(project_path.clone(), Some(true))
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
+        assert_eq!(filtered[0].message_count, 2);
+
+        let page = load_project_sessions_page(project_path, Some(true), Some(0), Some(10))
+            .await
+            .unwrap();
+        assert_eq!(page.total, 1);
+        assert_eq!(page.sessions.len(), 1);
+    }
+
+    /// A metadata cache written before request records were excluded holds their
+    /// counts. It must be reparsed rather than trusted, or every subagent transcript
+    /// it lists stays listed until the file changes.
+    #[tokio::test]
+    async fn test_cache_from_before_api_request_exclusion_is_reparsed() {
+        let temp_dir = create_project_with_subagent_transcript();
+        let project_path = temp_dir.path().to_string_lossy().to_string();
+        load_project_sessions(project_path.clone(), Some(true))
+            .await
+            .unwrap();
+
+        // Rewrite the cache as the previous version left it: version 12, and the
+        // subagent transcript's count including its four request records.
+        let cache_path = temp_dir.path().join(".session_cache.json");
+        let mut cache: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&cache_path).unwrap()).unwrap();
+        cache["version"] = serde_json::json!(12);
+        let entries = cache["entries"].as_object_mut().unwrap();
+        let (_, subagent_entry) = entries
+            .iter_mut()
+            .find(|(path, _)| path.contains("agent-a1.jsonl"))
+            .expect("the subagent transcript is cached");
+        let count = subagent_entry["session"]["message_count"].as_u64().unwrap();
+        subagent_entry["session"]["message_count"] = serde_json::json!(count + 4);
+        std::fs::write(&cache_path, serde_json::to_string(&cache).unwrap()).unwrap();
+
+        let filtered = load_project_sessions(project_path, Some(true))
+            .await
+            .unwrap();
+        assert_eq!(filtered.len(), 1);
+        assert!(filtered[0].file_path.ends_with("session-1.jsonl"));
+    }
+
+    /// The subagent list labels each transcript "N messages", and the Inspector
+    /// shows the same count after opening it. It must match what the viewer then
+    /// loads, so request records are not counted here either.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_subagent_message_count_matches_viewer() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let temp_dir = create_project_with_subagent_transcript();
+        let session_path = temp_dir.path().join("session-1.jsonl");
+
+        let subagents = get_session_subagents(session_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(subagents.len(), 1);
+
+        // Every line of a subagent transcript is a sidechain line, so the viewer
+        // opens it with the sidechain filter off.
+        let page = load_session_messages_paginated(subagents[0].file_path.clone(), 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.total_count, 2);
+        assert_eq!(subagents[0].message_count, page.total_count);
+    }
+
+    /// A forked agent's transcript opens with a `fork-context-ref` record, which has
+    /// neither `sessionId` nor `timestamp`. The parser drops such lines, so the
+    /// subagent count must not include them.
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_subagent_message_count_skips_lines_the_parser_drops() {
+        let _home = crate::test_utils::SandboxHome::new();
+        let temp_dir = create_project_with_subagent_transcript();
+        let session_path = temp_dir.path().join("session-1.jsonl");
+        let agent_path = temp_dir
+            .path()
+            .join("session-1")
+            .join("subagents")
+            .join("agent-a1.jsonl");
+        // Key set copied from real forked-agent transcripts; values are invented.
+        let fork_ref = r#"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"session-1","parentLastUuid":"uuid-2","contextLength":2}"#;
+        let transcript = std::fs::read_to_string(&agent_path).unwrap();
+        std::fs::write(&agent_path, format!("{fork_ref}\n{transcript}")).unwrap();
+
+        let subagents = get_session_subagents(session_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        let loaded = load_session_messages(agent_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        assert_eq!(loaded.len(), 2);
+        assert_eq!(subagents[0].message_count, loaded.len());
+
+        // The paginated loader and the count API must agree. A total that counts
+        // the dropped line left `has_more` true forever: each "load earlier" page
+        // read only that line, parsed nothing, and kept the same offset.
+        let agent = agent_path.to_string_lossy().to_string();
+        let page = load_session_messages_paginated(agent.clone(), 0, 10, None)
+            .await
+            .unwrap();
+        assert_eq!(page.messages.len(), 2);
+        assert_eq!(page.total_count, 2);
+        assert!(!page.has_more);
+        assert_eq!(get_session_message_count(agent, None).await.unwrap(), 2);
+    }
+
+    /// The fast classifier checks only that `sessionId` or `timestamp` is present.
+    /// A JSON `null` must read as absent, as it does for the parser's
+    /// `Option<String>`, or such a line would be counted but never load.
+    #[test]
+    fn test_classify_line_fast_requires_session_id_or_timestamp() {
+        let fast = |line: &str| classify_line_fast(line.as_bytes(), false);
+        assert!(fast(r#"{"type":"user","sessionId":"s"}"#));
+        assert!(fast(
+            r#"{"type":"user","timestamp":"2025-06-26T10:00:00Z"}"#
+        ));
+        assert!(!fast(r#"{"type":"user"}"#));
+        assert!(!fast(
+            r#"{"type":"user","sessionId":null,"timestamp":null}"#
+        ));
+        assert!(!fast(
+            r#"{"type":"fork-context-ref","agentId":"a1","parentSessionId":"s","parentLastUuid":"u","contextLength":2}"#
+        ));
     }
 
     #[tokio::test]
@@ -3002,6 +3415,77 @@ mod tests {
         assert!(page.has_more);
     }
 
+    /// An undated record the viewer still shows (`mode` carries no `timestamp`).
+    /// Not `api-request-blob`: #768 excludes the request records from the viewer.
+    fn create_sample_undated_record(session_id: &str) -> String {
+        format!(r#"{{"type":"mode","sessionId":"{session_id}","mode":"normal"}}"#)
+    }
+
+    #[tokio::test]
+    async fn test_undated_message_inherits_previous_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+            create_sample_undated_record("s1"),
+            create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        let timestamps: Vec<&str> = messages.iter().map(|m| m.timestamp.as_str()).collect();
+        assert_eq!(
+            timestamps,
+            [
+                "2025-06-26T10:00:00Z",
+                "2025-06-26T10:00:00Z",
+                "2025-06-26T11:00:00Z"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_leading_undated_message_takes_next_timestamp() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n",
+            create_sample_undated_record("s1"),
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        assert_eq!(messages[0].timestamp, "2025-06-26T10:00:00Z");
+    }
+
+    #[tokio::test]
+    async fn test_paginated_undated_message_looks_before_its_page() {
+        let temp_dir = TempDir::new().unwrap();
+        let content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message_at("u1", "s1", "2025-06-26T10:00:00Z", "first"),
+            create_sample_undated_record("s1"),
+            create_sample_user_message_at("u2", "s1", "2025-06-26T11:00:00Z", "second"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        // offset counts from the end: skip "second", take only the blob.
+        let page =
+            load_session_messages_paginated(file_path.to_string_lossy().to_string(), 1, 1, None)
+                .await
+                .unwrap();
+
+        assert_eq!(page.messages.len(), 1);
+        assert_eq!(page.messages[0].message_type, "mode");
+        assert_eq!(page.messages[0].timestamp, "2025-06-26T10:00:00Z");
+    }
+
     #[tokio::test]
     async fn test_load_session_messages_paginated_merges_continuation_chain() {
         let temp_dir = TempDir::new().unwrap();
@@ -3074,6 +3558,115 @@ mod tests {
         assert_eq!(page.total_count, 5);
         assert_eq!(page.messages.len(), 2); // Only 2 remaining
         assert!(!page.has_more);
+    }
+
+    /// Lines that pass the fast classifier (type plus a present `sessionId` or
+    /// `timestamp`) but fail the full `RawLogEntry` parse: a numeric
+    /// `sessionId`, a numeric `timestamp`, and a numeric `cwd`.
+    fn create_unparseable_classified_lines(tag: &str) -> String {
+        [
+            format!(
+                r#"{{"uuid":"{tag}-bad-sid","sessionId":42,"timestamp":"2025-06-26T10:00:00Z","type":"user","message":{{"role":"user","content":"x"}}}}"#
+            ),
+            format!(
+                r#"{{"uuid":"{tag}-bad-ts","sessionId":"s","timestamp":1750932000,"type":"user","message":{{"role":"user","content":"x"}}}}"#
+            ),
+            format!(
+                r#"{{"uuid":"{tag}-bad-cwd","sessionId":"s","timestamp":"2025-06-26T10:00:00Z","type":"user","cwd":7,"message":{{"role":"user","content":"x"}}}}"#
+            ),
+        ]
+        .join("\n")
+    }
+
+    /// Walk every page from the newest end, as the frontend does, and return
+    /// the loaded uuids oldest-to-newest plus the pages seen. Panics if paging
+    /// does not terminate.
+    async fn walk_all_pages(path: &str, limit: usize) -> (Vec<String>, Vec<MessagePage>) {
+        let mut offset = 0;
+        let mut pages = Vec::new();
+        let mut uuids: Vec<String> = Vec::new();
+        for _ in 0..50 {
+            let page = load_session_messages_paginated(path.to_string(), offset, limit, None)
+                .await
+                .unwrap();
+            assert!(
+                page.next_offset > offset || !page.has_more,
+                "page at offset {offset} did not advance: {page:?}"
+            );
+            let mut older: Vec<String> = page.messages.iter().map(|m| m.uuid.clone()).collect();
+            older.extend(uuids);
+            uuids = older;
+            offset = page.next_offset;
+            let done = !page.has_more;
+            pages.push(page);
+            if done {
+                return (uuids, pages);
+            }
+        }
+        panic!("pagination did not terminate");
+    }
+
+    #[tokio::test]
+    async fn test_paginated_advances_past_unparseable_classified_lines() {
+        let temp_dir = TempDir::new().unwrap();
+        // Oldest valid message, then a full page of lines that classify but
+        // do not parse, then two newer valid messages.
+        let content = format!(
+            "{}\n{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Oldest"),
+            create_unparseable_classified_lines("a"),
+            create_sample_user_message("uuid-2", "session-1", "Middle"),
+            create_sample_assistant_message("uuid-3", "session-1", "Newest"),
+        );
+        let path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+        let path = path.to_string_lossy().to_string();
+
+        let (uuids, pages) = walk_all_pages(&path, 2).await;
+        assert_eq!(uuids, vec!["uuid-1", "uuid-2", "uuid-3"]);
+
+        // total_count counts classified lines; next_offset advances by the
+        // lines consumed, including ones that produced no message.
+        let offsets: Vec<(usize, usize, bool, usize)> = pages
+            .iter()
+            .map(|p| (p.messages.len(), p.next_offset, p.has_more, p.total_count))
+            .collect();
+        assert_eq!(
+            offsets,
+            vec![(2, 2, true, 6), (0, 4, true, 6), (1, 6, false, 6)]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_paginated_chain_advances_past_unparseable_classified_lines() {
+        let temp_dir = TempDir::new().unwrap();
+        let older_content = format!(
+            "{}\n{}\n{}\n",
+            create_sample_user_message("uuid-1", "session-1", "Before"),
+            create_unparseable_classified_lines("old"),
+            create_sample_assistant_message("tail-uuid", "session-1", "Earlier reply")
+        );
+        create_test_jsonl_file(&temp_dir, "older.jsonl", &older_content);
+
+        let newer_content = format!(
+            "{{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"uuid\":\"boundary-1\",\"logicalParentUuid\":\"tail-uuid\",\"sessionId\":\"session-2\",\"timestamp\":\"2025-06-26T10:02:00Z\"}}\n{}\n{}\n{}\n",
+            create_unparseable_classified_lines("new"),
+            create_sample_user_message("uuid-3", "session-2", "After"),
+            create_sample_assistant_message("uuid-4", "session-2", "Latest reply")
+        );
+        let newer_path = create_test_jsonl_file(&temp_dir, "newer.jsonl", &newer_content);
+        let newer_path = newer_path.to_string_lossy().to_string();
+
+        for limit in 1..=4 {
+            let (uuids, pages) = walk_all_pages(&newer_path, limit).await;
+            assert_eq!(
+                uuids,
+                vec!["uuid-1", "tail-uuid", "boundary-1", "uuid-3", "uuid-4"],
+                "limit {limit}"
+            );
+            let last = pages.last().unwrap();
+            assert_eq!(last.total_count, 11, "limit {limit}");
+            assert_eq!(last.next_offset, 11, "limit {limit}");
+        }
     }
 
     #[tokio::test]
@@ -4556,6 +5149,11 @@ mod tests {
         );
     }
 
+    /// The canonical folder a test's files are read inside.
+    fn canonical(dir: &TempDir) -> PathBuf {
+        dir.path().canonicalize().unwrap()
+    }
+
     #[test]
     fn read_subagent_tool_use_id_reads_meta_json() {
         let dir = TempDir::new().unwrap();
@@ -4566,7 +5164,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            read_subagent_tool_use_id(&meta),
+            read_subagent_tool_use_id(&meta, &canonical(&dir)),
             Some("toolu_123".to_string())
         );
     }
@@ -4576,21 +5174,24 @@ mod tests {
         let dir = TempDir::new().unwrap();
         // Missing file.
         assert_eq!(
-            read_subagent_tool_use_id(&dir.path().join("nope.meta.json")),
+            read_subagent_tool_use_id(&dir.path().join("nope.meta.json"), &canonical(&dir)),
             None
         );
         // Present but no toolUseId (older meta or different shape).
         let meta = dir.path().join("agent-y.meta.json");
         std::fs::write(&meta, r#"{"agentType":"task"}"#).unwrap();
-        assert_eq!(read_subagent_tool_use_id(&meta), None);
+        assert_eq!(read_subagent_tool_use_id(&meta, &canonical(&dir)), None);
         // Empty toolUseId is treated as absent.
         let meta_empty = dir.path().join("agent-z.meta.json");
         std::fs::write(&meta_empty, r#"{"toolUseId":""}"#).unwrap();
-        assert_eq!(read_subagent_tool_use_id(&meta_empty), None);
+        assert_eq!(
+            read_subagent_tool_use_id(&meta_empty, &canonical(&dir)),
+            None
+        );
         // Invalid JSON is non-fatal.
         let meta_bad = dir.path().join("agent-bad.meta.json");
         std::fs::write(&meta_bad, "not json").unwrap();
-        assert_eq!(read_subagent_tool_use_id(&meta_bad), None);
+        assert_eq!(read_subagent_tool_use_id(&meta_bad, &canonical(&dir)), None);
     }
 
     #[cfg(unix)]
@@ -4601,7 +5202,7 @@ mod tests {
         std::fs::write(&real, r#"{"toolUseId":"toolu_real"}"#).unwrap();
         let link = dir.path().join("agent-link.meta.json");
         std::os::unix::fs::symlink(&real, &link).unwrap();
-        assert_eq!(read_subagent_tool_use_id(&link), None);
+        assert_eq!(read_subagent_tool_use_id(&link, &canonical(&dir)), None);
     }
 
     /// A read that keeps failing ends a metadata scan: `BufRead::lines`
@@ -4619,5 +5220,16 @@ mod tests {
         assert_eq!(session_lines(BufReader::new(Unreadable)).count(), 0);
         let mixed: &[u8] = b"one\n\xff\ntwo\n";
         assert_eq!(session_lines(mixed).collect::<Vec<_>>(), ["one", "two"]);
+    }
+
+    #[tokio::test]
+    async fn provider_uri_sessions_have_no_subagents_to_load() {
+        // Virtual ids name database rows, not files. There is no subagent
+        // folder to scan, and reporting a path error on every selection made
+        // these conversations look broken.
+        let subagents = get_session_subagents("cursor://composer-123".to_string())
+            .await
+            .unwrap();
+        assert!(subagents.is_empty());
     }
 }

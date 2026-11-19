@@ -1,15 +1,11 @@
 /**
- * CodeExecutionToolResultRenderer - Renders legacy Python code execution results
- *
- * Displays stdout/stderr output from Python code execution with appropriate styling.
- * Supports both successful results and error conditions for the legacy code execution API.
+ * CodeExecutionToolResultRenderer - a legacy Python `code_execution_tool_result`
+ * (TR1b): stdout / stderr as one OutputBlock, the outcome from its recorded
+ * return code or error code (TerminalExecutionResultRenderer).
  */
 
 import { memo } from "react";
-import { Code } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@/lib/utils";
-import { getVariantStyles, layout } from "../renderers";
 import { TerminalExecutionResultRenderer } from "./TerminalExecutionResultRenderer";
 import { getCommonToolErrorMessages } from "./toolResultErrorMessages";
 
@@ -41,19 +37,14 @@ export const CodeExecutionToolResultRenderer = memo(function CodeExecutionToolRe
   content,
 }: Props) {
   const { t } = useTranslation();
-  const successStyles = getVariantStyles("success");
-  const errorMessages = getCommonToolErrorMessages(t);
-
   return (
     <TerminalExecutionResultRenderer
       toolUseId={toolUseId}
       content={content}
-      icon={<Code className={cn(layout.iconSize, successStyles.icon)} />}
-      title={t("codeExecutionToolResultRenderer.title")}
-      errorTitle={t("codeExecutionToolResultRenderer.error")}
+      verb="code_execution"
+      resultType="code_execution_tool_result"
       noOutputLabel={t("codeExecutionToolResultRenderer.noOutput")}
-      errorMessages={errorMessages}
-      successVariant="success"
+      errorMessages={getCommonToolErrorMessages(t)}
     />
   );
 });

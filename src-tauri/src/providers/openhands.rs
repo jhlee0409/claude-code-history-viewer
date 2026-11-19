@@ -19,7 +19,7 @@
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::ProviderInfo;
-use crate::utils::{build_provider_message, search_json_value_case_insensitive};
+use crate::utils::build_provider_message;
 use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use std::fs;
@@ -74,6 +74,12 @@ fn session_ids(sessions: &Path) -> Vec<String> {
         .collect()
 }
 
+/// Identity of the single synthetic project — shared by scan and search so
+/// search hits group under the scanned project (#672).
+fn project_path() -> String {
+    format!("{SCHEME}{PROJECT_KEY}")
+}
+
 /// One synthetic project holding every `OpenHands` conversation.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     let Some(dir) = sessions_dir() else {
@@ -95,7 +101,7 @@ pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
     }
     Ok(vec![ClaudeProject {
         name: "OpenHands".to_string(),
-        path: format!("{SCHEME}{PROJECT_KEY}"),
+        path: project_path(),
         actual_path: "OpenHands".to_string(),
         session_count: ids.len(),
         message_count,
@@ -178,6 +184,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         return Ok(vec![]);
     };
     let query_lower = query.to_lowercase();
+    let project_path = project_path();
     let mut results = Vec::new();
     for sid in session_ids(&dir) {
         let events = dir.join(&sid).join("events");
@@ -195,10 +202,11 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
                 let matched = msg
                     .content
                     .as_ref()
-                    .map(|c| search_json_value_case_insensitive(c, &query_lower))
+                    .map(|c| super::result_evidence::content_matches(c, &query_lower))
                     .unwrap_or(false);
                 if matched {
                     msg.project_name = Some("OpenHands".to_string());
+                    msg.project_path = Some(project_path.clone());
                     results.push(msg);
                 }
             }
@@ -329,18 +337,20 @@ fn convert_event(event: &Value, sid: &str, idx: usize) -> Option<ClaudeMessage> 
             .map(ToString::to_string)
             .unwrap_or_default();
         let is_error = event.get("observation").and_then(Value::as_str) == Some("error");
+        let mut result = json!({
+            "type":"tool_result", "tool_use_id":tool_use_id,
+            "content":content, "is_error":is_error, "is_error_source":"derived"
+        });
+        if let Some(extras) = event.get("extras") {
+            super::result_evidence::attach(&mut result, extras, &uuid, sid, 0);
+        }
         Some(make_msg(
             PROVIDER,
             uuid,
             sid,
             timestamp,
             "user",
-            vec![json!({
-                "type": "tool_result",
-                "tool_use_id": tool_use_id,
-                "content": content,
-                "is_error": is_error
-            })],
+            vec![result],
         ))
     } else {
         None
@@ -510,5 +520,20 @@ mod tests {
         assert!(events_dir_for("../../etc").is_err());
         assert!(events_dir_for("a/b").is_err());
         assert!(events_dir_for("").is_err());
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_scanned_project_path() {
+        let home = crate::test_utils::SandboxHome::new();
+        let events = home.path().join(".openhands/sessions/s1/events");
+        fs::create_dir_all(&events).unwrap();
+        fs::write(events.join("1.json"), user_event().to_string()).unwrap();
+
+        let projects = scan_projects().unwrap();
+        assert_eq!(projects.len(), 1);
+        let hits = search("run ls", 10).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].project_path.as_ref(), Some(&projects[0].path));
     }
 }

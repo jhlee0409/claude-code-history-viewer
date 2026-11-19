@@ -1,21 +1,21 @@
 <div align="center">
 
-<img src="docs/assets/app-icon.png" alt="CCHV Logo" width="120" />
+<img src="docs/assets/app-icon.png" alt="Omnilogue logo" width="120" />
 
-# Claude Code History Viewer
+# Omnilogue
 
 **AI 编程助手的统一历史查看器。**
 
 浏览、搜索和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的对话记录 — 桌面应用或无头服务器。100% 离线。
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[官网](https://jhlee0409.github.io/claude-code-history-viewer/) · [下载](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [报告问题](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[官网](https://jhlee0409.github.io/omnilogue/) · [下载](https://github.com/jhlee0409/omnilogue/releases) · [报告问题](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -38,20 +38,20 @@
 
 | 平台 | 下载 |
 |----------|----------|
-| macOS (通用) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (便携版)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
+| macOS (通用) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (便携版)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS)：
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **无头服务器** — 从任意浏览器访问：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -70,19 +70,20 @@ Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)�
 
 AI 编程助手生成了数千条对话消息，但它们都不提供跨工具回顾历史的方式。CCHV 解决了这个问题。
 
-**三十一个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code 会话之间无缝切换 — 比较令牌用量、跨提供商搜索、在一个界面中分析你的工作流。
+**三十三个助手。一个查看器。** 在 Claude Code、GitHub Copilot、Gemini CLI、Antigravity、Codex CLI、Cline（含 Roo Code）、Kilo Code、Cursor、Cursor Agent、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent 和 Qoder 会话之间无缝切换 — 比较令牌用量、跨提供商搜索、在一个界面中分析你的工作流。
 
 | 提供商 | 数据位置 | 获取内容 |
 |----------|--------------|--------------|
 | **Claude Code** | `~/.claude/projects/` | 完整对话历史、工具使用、思维过程、成本 |
 | **GitHub Copilot** | `~/.copilot/session-state/`（CLI 和 Desktop）、VS Code `workspaceStorage/.../chatSessions/` | Copilot CLI、Copilot Desktop 和 VS Code Copilot Chat 历史（只读，支持 WSL） |
 | **Gemini CLI** | `~/.gemini/history/` | 包含工具调用的对话历史 |
-| **Antigravity** | `~/.gemini/antigravity/` | `brain/` 下的对话状态，以及 `.token-monitor/rpc-cache/v1/` 下的 Token 监控数据 |
+| **Antigravity** | `~/.gemini/antigravity/` | 按工作区文件夹分组的完整对话历史（提示词、思考过程、工具调用），读取自 `conversation_summaries.db`、`conversations/*.db` 及 `brain/`，并兼容 `.token-monitor/rpc-cache/v1/` 下的 Token 监控数据 |
 | **Codex CLI** | `~/.codex/sessions/` | 包含代理响应的会话记录 |
 | **Cline**（含 Roo Code；旧版 Kilo Code） | `~/.cline/data/sessions/`（新版 Cline）及 VS Code `globalStorage/<ext>/tasks/`（旧版） | Cline 系列基于任务的对话历史 |
 | **Kilo Code** | `~/.local/share/kilo/`（`kilo.db`） | 2026 年 5 月起改用 OpenCode 核心；迁移前的 Cline 系列数据仍归 Cline |
 | **Cursor** | `~/.cursor/` | Composer 和聊天对话 |
 | **Cursor Agent** | `~/.cursor/projects/.../agent-transcripts/` | Agent 会话记录，独立于 Cursor IDE 数据源 |
+| **Cursor ACP** | `~/.cursor/acp-sessions/<id>/`（Windows 为 `%USERPROFILE%\.cursor\acp-sessions`） | 在 JetBrains IDE（GoLand、IntelliJ IDEA 等）中通过 Agent Client Protocol 桥接使用的 Cursor — 只读，按工作区展示提示词、回复、推理过程和工具调用 |
 | **Aider** | 项目目录 | 聊天记录和编辑日志 |
 | **OpenCode** | `~/.local/share/opencode/` | 对话会话和工具结果 |
 | **ForgeCode** | `~/.forge/.forge.db` | SQLite 数据库中的对话记录 |
@@ -103,12 +104,15 @@ AI 编程助手生成了数千条对话消息，但它们都不提供跨工具�
 | **Qwen Code** | `~/.qwen/projects/.../chats/` | 每会话 JSONL 记录（工具调用、思维过程、Token 用量） |
 | **Zed** | `…/Zed/threads/threads.db` | Agent Panel 线程 — SQLite + Zstd 压缩 JSON |
 | **Z Code** | `~/.zcode/cli/db/db.sqlite` | Z.ai 的 GLM 编程智能体 — session/message/part 三表 SQLite 存储（标题、工具调用、思考过程、Token 用量） |
+| **Hermes Agent** | `HERMES_HOME` 中的 `state.db`（默认 `~/.hermes`，Windows 为 `%LOCALAPPDATA%\hermes`）+ `profiles/<name>/` | Nous Research 的智能体 — SQLite 存储中的 CLI、桌面与网关会话（工具调用、推理过程、会话 Token 用量与费用） |
+| **Claude.ai**（账户导出） | 从 claude.ai → 设置 → 隐私 → 导出数据 获得的 zip 或解压后的文件夹（在设置中添加） | 只读：按 claude.ai 项目分组的对话，可搜索；导出不含令牌用量，因此不计入统计 |
+| **Qoder** | `~/.qoder/projects/`（CLI 与桌面应用，`QODER_CONFIG_DIR`）、`~/.qoder-cn/projects/`（Qoder CN）、IDE 的 `…/Qoder/SharedClientCache/cli/projects/` | 阿里巴巴的智能体 IDE 与 CLI — Claude Code 格式的会话记录（工具调用、思考过程、子智能体运行，以及 Qoder 有记录时的 Token 用量） |
 | **OpenHands** | `~/.openhands/sessions/` | 经典事件存储对话 |
 | **Trae** | `…/Trae/User/workspaceStorage/.../state.vscdb` | 按工作区的聊天记录（icube 存储；实验性，逆向工程） |
 
 无供应商锁定。无云依赖。本地对话文件，精美呈现。
 
-Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/antigravity`，然后从 `brain/` 读取会话状态，并从 `.token-monitor/rpc-cache/v1/` 读取用量/缓存数据；这与当前运行时布局以及 `src-tauri/src/commands/antigravity.rs` 中的根目录解析器一致。
+Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/antigravity`（同时兼容 `~/.gemini/antigravity-cli`）。桌面端会话会自动从 `conversation_summaries.db` 解析工作区路径并按文件夹分组展示；对话转录、思考过程与工具调用会从 `.system_generated/logs/`（`transcript_full.jsonl`、`transcript.jsonl`、`overview.txt`）、`conversations/<session_id>.db` 和 `conversations_fts` 多源还原，并保留 Token 监控与编辑器状态库兜底。
 
 ## 目录
 
@@ -130,7 +134,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 功能 | 描述 |
 |---------|-------------|
-| **多提供商支持** | 统一查看 **31 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae 和 Z Code — 按提供商筛选、跨工具比较 |
+| **多提供商支持** | 统一查看 **33 个 AI 编程助手** — Claude Code、GitHub Copilot、Gemini CLI、Codex CLI、Cursor / Cursor Agent、Cline（含 Roo Code）、Kilo Code、Aider、OpenCode、ForgeCode、CodeBuddy Code、Grok CLI、Kimi、Kiro、Antigravity、Amazon Q CLI、Continue.dev、PearAI、Goose、Crush、llm、Open Interpreter、Pi、oh-my-pi、Mistral Vibe、Qwen Code、Zed、OpenHands、Trae、Z Code、Hermes Agent 和 Qoder — 按提供商筛选、跨工具比较 |
 | **对话浏览器** | 按项目/会话导航对话,支持工作树分组 |
 | **全局搜索** | 即时搜索所有提供商的对话内容 |
 | **分析仪表板** | 双模式 Token 统计（计费 vs 对话）、成本明细、提供商分布图表 |
@@ -143,7 +147,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 提供商 | 说明 |
 |---------|-------|
-| **Antigravity** | 走现有统一 provider 数据流接入。会话来自 token monitor 缓存，可直接参与项目/会话浏览、Token 统计、分析仪表板和全局搜索，无需单独的专用页面。 |
+| **Antigravity** | 走现有统一 provider 数据流接入。桌面端会话按工作区文件夹分组，并从 `brain/` 转录、`conversations/*.db` 和 `conversation_summaries.db` 还原完整对话（提示词、思考过程、工具调用），支持 Token 统计、分析仪表板和全局搜索；在服务器模式（`--serve`）下 WebUI 会实时刷新。 |
 
 ### v1.32.0 新增
 
@@ -164,7 +168,7 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 | 功能 | 说明 |
 |------|------|
-| **WebUI 安全加固** | `--serve` 模式下，会话和项目路径仅限历史记录目录，项目设置仅限已知项目 — 如果你在使用 WebUI，请升级（[安全公告](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **WebUI 安全加固** | `--serve` 模式下，会话和项目路径仅限历史记录目录，项目设置仅限已知项目 — 如果你在使用 WebUI，请升级（[安全公告](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)） |
 | **Claude Code 自动标题** | 会话列表、统计、导出和归档中显示 Claude Code 生成的标题（你手动设置的名称优先） |
 | **区分你的提示与代理更新** | Messages 面板会区分你输入的提示、代理更新、命令和注入的上下文，并提供“仅显示我的提示”筛选 |
 
@@ -273,13 +277,13 @@ Antigravity 说明：查看器将 Antigravity 根目录解析为 `~/.gemini/anti
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 或者使用完整 Cask 路径直接安装:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 如果出现 `No Cask with this name exists`，请使用上面的完整路径命令。
@@ -287,13 +291,13 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 升级:
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 卸载:
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **从手动安装(.dmg)迁移？**
@@ -302,13 +306,24 @@ brew uninstall --cask claude-code-history-viewer
 > 然后运行:
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
+
+### Flatpak (Linux)
+
+每个版本都附带 `.flatpak` 包。从[发布页面](https://github.com/jhlee0409/omnilogue/releases/latest)下载后运行：
+
+```bash
+flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
+flatpak run io.github.jhlee0409.Omnilogue
+```
+
+所需的 GNOME 运行时会从 Flathub 安装。该包不会自动更新：应用提示有新版本时，请用同样的方式安装该版本的 `.flatpak`。沙盒可以读取你的主目录，但只会写入各助手的历史记录文件夹、应用自身的设置和下载文件夹。这对重命名、删除和编辑设置的影响见 [LINUX_BUILD.md](LINUX_BUILD.md#flatpak)。
 
 ## 从源码构建
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -338,7 +353,7 @@ pnpm tauri:build     # Production build
 brew install jhlee0409/tap/cchv-server
 
 # Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 两种方式都会将 `cchv-server` 安装到 PATH。
@@ -369,7 +384,7 @@ cchv-server --serve
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 下载。
+从 [Releases](https://github.com/jhlee0409/omnilogue/releases) 下载。
 
 **CLI 选项:**
 
@@ -443,7 +458,7 @@ GET /health
 ## 使用方法
 
 1. 启动应用
-2. 自动扫描全部 31 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
+2. 自动扫描全部 33 个支持的提供商（Claude Code、Codex CLI、Gemini CLI、Cursor、Cline、Continue.dev、Goose、Zed、Qwen Code、Amazon Q CLI 等 — 参见上方提供商表格）的对话数据
 3. 在左侧边栏浏览项目 — 使用标签栏按提供商筛选
 4. 点击会话查看消息
 5. 使用标签页在消息、分析、Token 统计、最近编辑和会话面板之间切换
@@ -523,7 +538,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | 无法连接 WebUI | `cchv-server` 默认使用 `3727` 端口。使用启动时输出的 URL；远程连接时检查端口冲突以及防火墙/代理规则。 |
 | "Unauthorized" / HTTP 401 | 使用启动时输出的令牌 URL，或发送 `Authorization: Bearer <token>`。固定令牌可通过 `--token` 或 `CCHV_TOKEN` 设置。 |
 | 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能 |
-| 更新问题 | 如果自动更新失败,请从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手动下载 |
+| 更新问题 | 如果自动更新失败,请从 [Releases](https://github.com/jhlee0409/omnilogue/releases) 手动下载 |
 
 ## 贡献
 
@@ -549,12 +564,14 @@ claude-code-history-viewer://session-title/auth%20bug
 
 [MIT](LICENSE) — 免费用于个人和商业用途。
 
+Omnilogue 是独立的开源项目，与其读取会话日志的 Anthropic、OpenAI、GitHub、Google 等任何厂商均无关联、认可或赞助关系。Claude 和 Claude Code 是 Anthropic, PBC 的商标，其他名称为其各自所有者的商标。
+
 ---
 
 <div align="center">
 
 如果这个项目对您有帮助,请给它一个星标!
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

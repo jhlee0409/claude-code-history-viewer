@@ -1,3 +1,4 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{
@@ -50,11 +51,20 @@ pub fn get_base_path() -> Option<String> {
 }
 
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+/// [`scan_projects_from_path`], recording in `report` the session
+/// directories and files it could not read.
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Grok base path")?;
     let base = Path::new(base_path);
     let sessions_root = base.join(SESSIONS_DIR);
 
-    if is_symlink(&sessions_root) || !sessions_root.is_dir() {
+    if is_symlink(&sessions_root) || !report.is_dir(&sessions_root) {
         return Ok(Vec::new());
     }
 
@@ -89,7 +99,7 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
             {
                 continue;
             }
-            if let Some(info) = extract_session_info(&session_entry.path()) {
+            if let Some(info) = extract_session_info(&session_entry.path(), report) {
                 infos.push(info);
             }
         }
@@ -142,8 +152,13 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 }
 
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Grok base path not found")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_path_reporting(&base, report)
 }
 
 pub fn load_sessions(
@@ -154,10 +169,29 @@ pub fn load_sessions(
     load_sessions_from_base_path(&base, project_path, exclude_sidechain)
 }
 
+/// [`load_sessions`], recording in `report` what it could not read.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let base = get_base_path().ok_or("Grok base path not found")?;
+    load_sessions_from_base_path_reporting(&base, project_path, report)
+}
+
 pub fn load_sessions_from_base_path(
     base_path: &str,
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_from_base_path_reporting(base_path, project_path, &ScanReport::default())
+}
+
+/// [`load_sessions_from_base_path`], recording in `report` the session
+/// directories and files it could not read.
+fn load_sessions_from_base_path_reporting(
+    base_path: &str,
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     crate::utils::require_absolute_path(base_path, "Grok base path")?;
     let base = Path::new(base_path);
@@ -185,7 +219,7 @@ pub fn load_sessions_from_base_path(
         }
 
         let session_dir = entry.path();
-        let Some(info) = extract_session_info(&session_dir) else {
+        let Some(info) = extract_session_info(&session_dir, report) else {
             continue;
         };
         let project_name = info
@@ -329,6 +363,7 @@ pub fn search_from_base_path(
                 if let Some(content) = &message.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
                         message.project_name = Some(project.name.clone());
+                        message.project_path = Some(project.path.clone());
                         results.push(message);
                         if results.len() >= limit {
                             return Ok(results);
@@ -354,20 +389,22 @@ struct SessionInfo {
     summary: Option<String>,
 }
 
-fn extract_session_info(session_dir: &Path) -> Option<SessionInfo> {
-    if is_symlink(session_dir) || !session_dir.is_dir() {
+/// A session directory's listing metadata. A session file that cannot be
+/// read is recorded in `report`; one that does not parse is not a session.
+fn extract_session_info(session_dir: &Path, report: &ScanReport) -> Option<SessionInfo> {
+    if is_symlink(session_dir) || !report.is_dir(session_dir) {
         return None;
     }
     let summary_path = session_dir.join(SUMMARY_FILE);
     let chat_path = session_dir.join(CHAT_HISTORY_FILE);
-    if is_symlink(&summary_path) || !summary_path.is_file() {
+    if is_symlink(&summary_path) || !report.is_file(&summary_path) {
         return None;
     }
-    if is_symlink(&chat_path) || !chat_path.is_file() {
+    if is_symlink(&chat_path) || !report.is_file(&chat_path) {
         return None;
     }
 
-    let summary = read_json_file(&summary_path).ok()?;
+    let summary: Value = serde_json::from_str(&report.read_to_string(&summary_path)?).ok()?;
     let session_id = summary
         .pointer("/info/id")
         .and_then(Value::as_str)
@@ -1011,6 +1048,56 @@ mod tests {
 
         let results = search("Hello grok", 10).unwrap();
         assert!(!results.is_empty());
+        assert!(results
+            .iter()
+            .all(|m| m.project_path.as_deref() == Some(projects[0].path.as_str())));
+    }
+
+    #[test]
+    fn search_hits_carry_scanned_project_path_for_same_named_projects() {
+        let temp = TempDir::new().unwrap();
+        for (id, cwd) in [
+            ("sess-a", "/work/client-a/app"),
+            ("sess-b", "/work/client-b/app"),
+        ] {
+            let session_dir = temp
+                .path()
+                .join(SESSIONS_DIR)
+                .join(cwd.replace('/', "%2F"))
+                .join(id);
+            fs::create_dir_all(&session_dir).unwrap();
+            let summary = json!({
+                "info": {"id": id, "cwd": cwd},
+                "created_at": "2026-07-27T20:47:50Z"
+            });
+            fs::write(session_dir.join(SUMMARY_FILE), summary.to_string()).unwrap();
+            fs::write(
+                session_dir.join(CHAT_HISTORY_FILE),
+                r#"{"type":"user","content":[{"type":"text","text":"shared needle"}]}"#,
+            )
+            .unwrap();
+        }
+        let base = temp.path().to_string_lossy().to_string();
+
+        let projects = scan_projects_from_path(&base).unwrap();
+        assert_eq!(projects.len(), 2);
+        assert!(projects.iter().all(|p| p.name == "app"));
+        assert_ne!(projects[0].path, projects[1].path);
+
+        let hits = search_from_base_path(&base, "needle", 10).unwrap();
+        assert_eq!(hits.len(), 2);
+        for hit in &hits {
+            let project = projects
+                .iter()
+                .find(|p| {
+                    load_sessions_from_base_path(&base, &p.path, false)
+                        .unwrap()
+                        .iter()
+                        .any(|s| s.actual_session_id == hit.session_id)
+                })
+                .expect("hit session belongs to a scanned project");
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
+        }
     }
 
     #[test]

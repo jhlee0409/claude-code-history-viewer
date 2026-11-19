@@ -1,10 +1,10 @@
 [package]
 name = "claude-code-history-viewer"
-version = "1.32.2"
+version = "2.0.0"
 description = "Claude Code 대화 기록을 탐색하고 분석하는 데스크톱 애플리케이션"
 authors = ["JaeHyeok Lee"]
 license = "MIT"
-repository = "https://github.com/jhlee0409/claude-code-history-viewer"
+repository = "https://github.com/jhlee0409/omnilogue"
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -23,6 +23,7 @@ tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
 serde_json = "1.0"
+sha2 = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.2", features = [] }
@@ -56,6 +57,13 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 zstd = "0.13"
 notify = { version = "7.0", default-features = false, features = ["macos_fsevent"] }
 notify-debouncer-mini = "0.5"
+# claude.ai account exports are read in place from the downloaded zip.
+# Already in the tree through tauri-plugin-updater; deflate only.
+zip = { version = "4.2", default-features = false, features = ["deflate-flate2"] }
+# zip's `deflate-flate2` enables flate2 without a backend; select the pure-Rust
+# one (miniz_oxide, already in the tree). Without it flate2 fails to compile
+# wherever no other normal dependency picks a backend (Windows).
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 
 # WebUI server mode (optional)
 argon2 = { version = "0.5", optional = true }
@@ -68,8 +76,30 @@ rust-embed = { version = "8", optional = true }
 mime_guess = { version = "2", optional = true }
 comrak = { version = "0.49.0", default-features = false }
 
+# Window state (T11b): orders the window's first show after the restored
+# frame on the main queue. Already in the tree through tao; no new crate.
+[target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3"
+
+# History files are opened without following a symlink and without blocking
+# on a FIFO, and the opened handle's path is checked (`O_NOFOLLOW`,
+# `O_NONBLOCK`, `F_GETPATH`; commands/stats/session_files.rs). Already in the
+# tree through tempfile; no new crate.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1", features = ["fs"] }
+
+# Inside the Flatpak sandbox a deleted session goes to the trash through
+# GIO, which uses the Trash portal there (commands/session/delete.rs).
+# Already in the tree through tauri's GTK stack; no new crate.
+[target.'cfg(target_os = "linux")'.dependencies]
+gio = "0.18"
+
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"
+# A history file's identity is read from its handle
+# (`GetFileInformationByHandle`; commands/stats/session_files.rs), which std
+# does not expose on stable. Already in the tree; no new crate.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [dev-dependencies]
 # Core testing utilities
@@ -81,6 +111,10 @@ criterion = { version = "0.5", features = ["html_reports"] }
 
 # Property-based testing (QuickCheck-style)
 proptest = "1.4"
+
+# The native menu's accelerator parser (already in the tree via tauri), so
+# the manifest's shortcuts are checked as the menu will parse them.
+muda = { version = "0.19", default-features = false }
 
 # Parameterized tests & fixtures
 rstest = "0.18"

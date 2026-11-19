@@ -1,3 +1,4 @@
+use super::scan_report::ScanReport;
 use super::ProviderInfo;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::utils::{
@@ -213,6 +214,15 @@ pub(crate) struct ProjectScanInfo {
 
 /// Scan Codex projects from a specific base path.
 pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_from_path_reporting(base_path, &ScanReport::default())
+}
+
+/// [`scan_projects_from_path`], recording in `report` the session
+/// directories and rollouts it could not read.
+fn scan_projects_from_path_reporting(
+    base_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     crate::utils::require_absolute_path(base_path, "Codex base path")?;
     let base = Path::new(base_path);
 
@@ -222,9 +232,9 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     let session_dirs: Vec<PathBuf> = [sessions_dir, archived_sessions_dir]
         .into_iter()
         .filter(|path| {
-            std::fs::symlink_metadata(path)
-                .map(|m| m.file_type().is_dir())
-                .unwrap_or(false)
+            report
+                .symlink_metadata(path)
+                .is_some_and(|m| m.file_type().is_dir())
         })
         .collect();
 
@@ -236,16 +246,14 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
     let mut project_map: HashMap<String, Vec<ProjectScanInfo>> = HashMap::new();
 
     for session_dir in session_dirs {
-        for entry in WalkDir::new(session_dir)
-            .min_depth(1)
-            .into_iter()
-            .filter_map(Result::ok)
+        for entry in report
+            .walk(WalkDir::new(session_dir).min_depth(1))
             .filter(|e| e.file_type().is_file())
             .filter(|e| is_discoverable_rollout(e.path()))
         {
             let rollout_path = entry.path();
 
-            if let Ok(info) = extract_project_scan_info(rollout_path) {
+            if let Some(info) = report.read(rollout_path, extract_project_scan_info(rollout_path)) {
                 let cwd = info.cwd.clone().unwrap_or_else(|| "unknown".to_string());
                 project_map.entry(cwd).or_default().push(info);
             }
@@ -290,14 +298,29 @@ pub fn scan_projects_from_path(base_path: &str) -> Result<Vec<ClaudeProject>, St
 
 /// Scan Codex projects from the default location.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = get_base_path().ok_or("Codex base path not found")?;
-    scan_projects_from_path(&base)
+    scan_projects_from_path_reporting(&base, report)
 }
 
 /// Load sessions for a Codex project (filtered by cwd)
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` the session directories and
+/// rollouts it could not read: a rollout that cannot be read may belong to
+/// the project.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let session_dirs = get_existing_session_dirs()?;
     let title_index = get_base_path()
@@ -316,10 +339,8 @@ pub fn load_sessions(
     let rollout_paths: Vec<PathBuf> = session_dirs
         .iter()
         .flat_map(|session_dir| {
-            WalkDir::new(session_dir)
-                .min_depth(1)
-                .into_iter()
-                .filter_map(Result::ok)
+            report
+                .walk(WalkDir::new(session_dir).min_depth(1))
                 .filter(|e| e.file_type().is_file())
                 .filter(|e| is_discoverable_rollout(e.path()))
                 .map(walkdir::DirEntry::into_path)
@@ -334,7 +355,7 @@ pub fn load_sessions(
                 Ok(_) | Err(_) => {}
             }
 
-            let info = extract_session_info(rollout_path).ok()?;
+            let info = report.read(rollout_path, extract_session_info(rollout_path))?;
             let native_title = title_index.get(&info.session_id);
             let session_cwd = info.cwd.as_deref().unwrap_or("unknown");
             if session_cwd != target_cwd {
@@ -368,6 +389,8 @@ pub fn load_sessions(
     Ok(sessions)
 }
 
+mod evidence;
+
 /// Load all messages from a Codex rollout file
 pub fn load_messages(session_path: &str) -> Result<Vec<ClaudeMessage>, String> {
     let path = Path::new(session_path);
@@ -397,8 +420,14 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
     let mut prev_output_tokens: u32 = 0;
     let mut prev_cached_tokens: u32 = 0;
     let mut msg_counter = 0u64;
+    let mut turn = evidence::TurnState::default();
+    let mut pending_changes = Vec::new();
+    // Only a paired producer tool/dialect can authenticate the text header. This
+    // stores names, never result evidence, and consumes each association once.
+    let mut pending_tool_names = std::collections::HashMap::new();
 
-    for &(start, end) in &ranges {
+    for (source_line, &(start, end)) in ranges.iter().enumerate() {
+        let previous_len = messages.len();
         let line = &mmap[start..end];
         let mut buf = line.to_vec();
         let val: Value = match simd_json::from_slice(&mut buf) {
@@ -428,6 +457,7 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "turn_context" => {
                 if let Some(payload) = val.get("payload") {
+                    turn.context(payload);
                     if let Some(m) = payload.get("model").and_then(|v| v.as_str()) {
                         current_model = Some(m.to_string());
                     }
@@ -435,13 +465,38 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             "response_item" => {
                 if let Some(payload) = val.get("payload") {
-                    if let Some(msg) = convert_codex_item(
+                    let kind = payload.get("type").and_then(Value::as_str);
+                    let call_id = payload.get("call_id").and_then(Value::as_str);
+                    if matches!(kind, Some("function_call" | "custom_tool_call")) {
+                        if let Some(id) = call_id {
+                            pending_tool_names.insert(
+                                id.to_string(),
+                                payload
+                                    .get("name")
+                                    .and_then(Value::as_str)
+                                    .unwrap_or("")
+                                    .to_string(),
+                            );
+                        }
+                    }
+                    let output_tool = if matches!(
+                        kind,
+                        Some("function_call_output" | "custom_tool_call_output")
+                    ) {
+                        call_id.and_then(|id| pending_tool_names.remove(id))
+                    } else {
+                        None
+                    };
+                    if let Some(mut msg) = convert_codex_item_with_tool(
                         payload,
+                        output_tool.as_deref(),
                         &session_id,
                         current_model.as_ref(),
                         &line_timestamp,
                         &mut msg_counter,
                     ) {
+                        evidence::content_items(&mut msg, payload);
+                        turn.attach(&mut msg);
                         if try_merge_tool_result_into_previous(&mut messages, &msg) {
                             continue;
                         }
@@ -452,6 +507,18 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             "event_msg" => {
                 if let Some(payload) = val.get("payload") {
                     let event_type = payload.get("type").and_then(|t| t.as_str()).unwrap_or("");
+
+                    if matches!(event_type, "task_started" | "turn_started") {
+                        turn.start(payload);
+                    }
+                    if evidence::is_file_change(payload) {
+                        let record = serde_json::json!({"sourceLine":source_line,"record":val});
+                        if let Some(carrier) = messages.last_mut() {
+                            evidence::file_change(carrier, record);
+                        } else {
+                            pending_changes.push(record);
+                        }
+                    }
 
                     // Skip events that duplicate response_item messages.
                     // Codex logs user/assistant text in both response_item (type=message)
@@ -511,10 +578,17 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
                                 });
                             }
                         }
-                    } else if let Some(msg) =
+                    } else if let Some(mut msg) =
                         convert_codex_event(payload, &session_id, &line_timestamp, &mut msg_counter)
                     {
+                        turn.attach(&mut msg);
                         messages.push(msg);
+                    }
+                    if matches!(
+                        event_type,
+                        "task_complete" | "turn_complete" | "turn_aborted"
+                    ) {
+                        turn.finish();
                     }
                 }
             }
@@ -531,17 +605,26 @@ pub(crate) fn parse_rollout_file(canonical_path: &Path) -> Result<Vec<ClaudeMess
             }
             _ => {}
         }
+        if messages.len() > previous_len && !pending_changes.is_empty() {
+            for record in pending_changes.drain(..) {
+                evidence::file_change(&mut messages[previous_len], record);
+            }
+        }
     }
 
     Ok(messages)
 }
 
-fn project_name_for_rollout(rollout_path: &Path) -> Option<String> {
-    let cwd = extract_session_cwd(rollout_path).ok().flatten()?;
-    Path::new(&cwd)
+fn project_identity_for_rollout(rollout_path: &Path) -> (String, String) {
+    let cwd = extract_session_cwd(rollout_path)
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "unknown".to_string());
+    let name = Path::new(&cwd)
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
-        .or_else(|| (!cwd.is_empty()).then_some(cwd))
+        .unwrap_or_else(|| cwd.clone());
+    (name, format!("codex://{cwd}"))
 }
 
 fn bytes_contain_query_case_insensitive(haystack: &[u8], query: &[u8]) -> bool {
@@ -627,6 +710,29 @@ fn rollout_might_contain_query(rollout_path: &Path, query_lower: &str) -> bool {
     false
 }
 
+/// Search the historical display shape, excluding only the additive evidence fields.
+/// Used by both providers sharing the Codex rollout parser; returned messages
+/// still retain the full evidence envelope.
+pub(crate) fn rollout_content_matches(content: &Value, query_lower: &str) -> bool {
+    let Some(blocks) = content.as_array() else {
+        return search_json_value_case_insensitive(content, query_lower);
+    };
+    blocks.iter().any(|block| {
+        if block.get("type").and_then(Value::as_str) == Some("tool_result") {
+            block.as_object().is_some_and(|fields| {
+                fields.iter().any(|(key, value)| {
+                    !matches!(
+                        key.as_str(),
+                        "toolUseResult" | "toolUseResultSource" | "codexOutput" | "codexEvidence"
+                    ) && search_json_value_case_insensitive(value, query_lower)
+                })
+            })
+        } else {
+            search_json_value_case_insensitive(block, query_lower)
+        }
+    })
+}
+
 fn is_searchable_codex_result(message: &ClaudeMessage) -> bool {
     !matches!(message.role.as_deref(), Some("developer" | "system"))
 }
@@ -692,16 +798,18 @@ pub fn search(query: &str, limit: usize, filters: &Value) -> Result<Vec<ClaudeMe
             .into_iter()
             .filter(|msg| {
                 is_searchable_codex_result(msg)
-                    && msg.content.as_ref().is_some_and(|content| {
-                        search_json_value_case_insensitive(content, &query_lower)
-                    })
+                    && msg
+                        .content
+                        .as_ref()
+                        .is_some_and(|content| rollout_content_matches(content, &query_lower))
             })
             .collect();
 
         if !file_results.is_empty() {
-            let project_name = project_name_for_rollout(&rollout_path);
+            let (project_name, project_path) = project_identity_for_rollout(&rollout_path);
             for msg in &mut file_results {
-                msg.project_name.clone_from(&project_name);
+                msg.project_name = Some(project_name.clone());
+                msg.project_path = Some(project_path.clone());
             }
         }
         apply_search_filters(file_results, filters)
@@ -1252,8 +1360,20 @@ fn is_codex_auto_injected_user_text(text: &str) -> bool {
     trimmed.starts_with("<environment_context>")
 }
 
+#[cfg(test)]
 fn convert_codex_item(
     item: &Value,
+    session_id: &str,
+    model: Option<&String>,
+    line_timestamp: &str,
+    counter: &mut u64,
+) -> Option<ClaudeMessage> {
+    convert_codex_item_with_tool(item, None, session_id, model, line_timestamp, counter)
+}
+
+fn convert_codex_item_with_tool(
+    item: &Value,
+    output_tool: Option<&str>,
     session_id: &str,
     model: Option<&String>,
     line_timestamp: &str,
@@ -1365,20 +1485,9 @@ fn convert_codex_item(
                 model.cloned(),
             ))
         }
-        "function_call_output" => {
-            let output = item.get("output").cloned().unwrap_or(Value::Null);
-            let output = normalize_tool_output(output);
-            let call_id = item
-                .get("call_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            let content = serde_json::json!([{
-                "type": "tool_result",
-                "tool_use_id": call_id,
-                "content": output
-            }]);
+        "function_call_output" | "custom_tool_call_output" => {
+            let content =
+                serde_json::json!([codex_tool_result(item, &uuid, session_id, output_tool)]);
 
             Some(build_codex_message(
                 uuid,
@@ -1418,31 +1527,6 @@ fn convert_codex_item(
                 Some("assistant"),
                 Some(content),
                 model.cloned(),
-            ))
-        }
-        "custom_tool_call_output" => {
-            let output = item.get("output").cloned().unwrap_or(Value::Null);
-            let output = normalize_tool_output(output);
-            let call_id = item
-                .get("call_id")
-                .and_then(|v| v.as_str())
-                .unwrap_or("")
-                .to_string();
-
-            let content = serde_json::json!([{
-                "type": "tool_result",
-                "tool_use_id": call_id,
-                "content": output
-            }]);
-
-            Some(build_codex_message(
-                uuid,
-                session_id,
-                timestamp,
-                "user",
-                Some("user"),
-                Some(content),
-                None,
             ))
         }
         "web_search_call" => {
@@ -1793,6 +1877,52 @@ fn normalize_web_search_input(action: Value) -> Value {
     Value::Object(input)
 }
 
+/// Preserve the decoded result envelope before either display merge. The
+/// provenance identifies the source output item, never the matched call.
+fn codex_tool_result(
+    item: &Value,
+    uuid: &str,
+    session_id: &str,
+    output_tool: Option<&str>,
+) -> Value {
+    let output = item.get("output").cloned().unwrap_or(Value::Null);
+    let plain_evidence = output.as_str().and_then(|raw| {
+        // Each dialect is authenticated by its producing raw tool, not a
+        // renderer alias. See evidence::authenticates_header for writer pins.
+        // Mismatched/MCP/unknown/orphan outputs still keep their exact raw data.
+        if evidence::authenticates_header(raw, output_tool) {
+            evidence::plain_output(raw, uuid)
+        } else {
+            raw.split_once("\nOutput:\n")
+                .map(|_| serde_json::json!({"raw":raw,"sourceMessageUuid":uuid}))
+        }
+    });
+    let wrapper = output
+        .as_str()
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        .filter(|parsed| parsed.get("output").is_some());
+    let content = wrapper.as_ref().map_or_else(
+        || normalize_tool_output(output),
+        |parsed| parsed["output"].clone(),
+    );
+    let mut result = serde_json::json!({
+        "type": "tool_result",
+        "tool_use_id": item.get("call_id").and_then(Value::as_str).unwrap_or(""),
+        "content": content
+    });
+    if let Some(plain_evidence) = plain_evidence {
+        result["codexOutput"] = plain_evidence;
+    }
+    if let Some(wrapper) = wrapper {
+        result["toolUseResult"] = wrapper;
+        result["toolUseResultSource"] = serde_json::json!({
+            "messageUuid": uuid, "sessionId": session_id,
+            "contentIndex": 0, "association": "single_result"
+        });
+    }
+    result
+}
+
 fn normalize_tool_output(output: Value) -> Value {
     let Value::String(raw) = output else {
         return output;
@@ -1962,6 +2092,80 @@ mod tests {
     use std::ffi::OsString;
     use std::fs;
     use tempfile::TempDir;
+
+    #[test]
+    fn codex_plain_exit_header_preserves_source_evidence() {
+        for (tool, header, code) in [
+            (
+                "exec_command",
+                "Wall time: 0.1000 seconds\nProcess exited with code 0",
+                0,
+            ),
+            (
+                "write_stdin",
+                "Chunk ID: abc\nWall time: 0.1000 seconds\nProcess exited with code 2",
+                2,
+            ),
+            ("apply_patch", "Exit code: 0\nWall time: 0.1 seconds", 0),
+            ("shell_command", "Exit code: -1\nWall time: 0 seconds", -1),
+        ] {
+            let raw = format!("{header}\nOutput:\nError: ordinary stdout\nExit code: 7\nProcess exited with code 8\nOutput:\nExit code: 9");
+            let result = codex_tool_result(
+                &json!({"type":"function_call_output","call_id":"same","output":raw}),
+                "result-source",
+                "session",
+                Some(tool),
+            );
+            assert_eq!(result["codexOutput"]["exitCode"], code);
+            assert_eq!(result["codexOutput"]["raw"], raw);
+            assert_eq!(result["codexOutput"]["sourceMessageUuid"], "result-source");
+            assert_eq!(result["content"], raw.split_once("\nOutput:\n").unwrap().1);
+        }
+    }
+
+    #[test]
+    fn codex_mismatched_headers_keep_raw_without_exit() {
+        for tool in [
+            Some("exec_command"),
+            Some("write_stdin"),
+            Some("apply_patch"),
+            Some("shell_command"),
+            Some("shell"),
+            Some("local_shell"),
+            Some("container.exec"),
+            Some("mcp__srv__run"),
+            Some("unknown"),
+            Some("Bash"),
+            None,
+        ] {
+            for (label, supported) in [
+                (
+                    "Process exited with code 2",
+                    matches!(tool, Some("exec_command" | "write_stdin")),
+                ),
+                (
+                    "Exit code: 2",
+                    matches!(tool, Some("apply_patch" | "shell_command")),
+                ),
+            ] {
+                if supported {
+                    continue;
+                }
+                let raw = format!("Wall time: 0 seconds\n{label}\nOutput:\nsynthetic stdout");
+                let result = codex_tool_result(
+                    &json!({"type":"function_call_output","call_id":"same","output":raw}),
+                    "result-source",
+                    "session",
+                    tool,
+                );
+                assert_eq!(
+                    result["codexOutput"],
+                    json!({"raw":raw,"sourceMessageUuid":"result-source"}),
+                    "{tool:?}: {label}"
+                );
+            }
+        }
+    }
 
     struct EnvVarGuard {
         key: &'static str,
@@ -3729,6 +3933,54 @@ mod tests {
         let results = search("wallpaper", 100, &json!({})).expect("Codex search should succeed");
 
         assert!(results.is_empty());
+    }
+
+    #[test]
+    #[serial]
+    fn search_distinguishes_same_named_project_paths_before_limit() {
+        let tmp = TempDir::new().expect("temp dir");
+        let sessions_dir = tmp.path().join("sessions/2026/08/13");
+        fs::create_dir_all(&sessions_dir).expect("sessions directory");
+        for (id, cwd, hour) in [
+            ("selected", "/work/client-a/app", "08"),
+            ("newer", "/work/client-b/app", "09"),
+        ] {
+            write_rollout_lines(
+                &sessions_dir,
+                &format!("rollout-2026-08-13T{hour}-00-00-{id}.jsonl"),
+                &[
+                    session_meta_line_with(&format!("2026-08-13T{hour}:00:00Z"), id, cwd),
+                    user_message_line(&format!("2026-08-13T{hour}:00:01Z"), "shared needle"),
+                ],
+            );
+        }
+        let _guard = EnvVarGuard::set("CODEX_HOME", tmp.path());
+        let selected = search(
+            "needle",
+            1,
+            &json!({
+                "projectPaths": ["codex:///work/client-a/app"]
+            }),
+        )
+        .expect("scoped search");
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].session_id, "selected");
+        assert_eq!(selected[0].project_name.as_deref(), Some("app"));
+        let serialized = serde_json::to_value(&selected[0]).expect("serialize search hit");
+        assert_eq!(serialized["projectPath"], "codex:///work/client-a/app");
+
+        // Older callers can still request a name, intentionally matching both roots.
+        let legacy = search("needle", 10, &json!({"projects": ["app"]})).expect("legacy search");
+        assert_eq!(legacy.len(), 2);
+        assert!(search(
+            "needle",
+            10,
+            &json!({
+                "projectPaths": ["codex:///missing/app"]
+            })
+        )
+        .expect("missing path search")
+        .is_empty());
     }
 
     #[test]

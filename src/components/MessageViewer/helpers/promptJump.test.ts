@@ -84,4 +84,29 @@ describe("findTurnStartIndex", () => {
     ];
     expect(findTurnStartIndex(grouped, 0, "next")).toBe(3);
   });
+
+  it("passes over the user's answers to AskUserQuestion: they answer within a turn", () => {
+    const answered = {
+      questions: [{ question: "Proceed?", options: [{ label: "Yes" }] }],
+      answers: { "Proceed?": "Yes, and add tests" },
+    };
+    const withAnswers: FlattenedMessage[] = [
+      prompt("p1"),
+      row("merged", {
+        type: "assistant",
+        role: "assistant",
+        content: [
+          { type: "tool_use", id: "toolu_q", name: "AskUserQuestion", input: {} },
+          { type: "tool_result", tool_use_id: "toolu_q", content: "answered", toolUseResult: answered },
+        ],
+      }),
+      row("unmerged", {
+        content: [{ type: "tool_result", tool_use_id: "toolu_q2", content: "answered" }],
+        toolUseResult: answered,
+      }),
+      prompt("p2"),
+    ];
+    expect(findTurnStartIndex(withAnswers, 0, "next")).toBe(3);
+    expect(findTurnStartIndex(withAnswers, 3, "previous")).toBe(0);
+  });
 });

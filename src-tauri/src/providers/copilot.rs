@@ -19,6 +19,7 @@
 //! storage hashes into the project URL.
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::{copilot_cli, vscode, ProviderInfo};
 use crate::utils::parse_rfc3339_utc;
 use base64::Engine;
@@ -197,16 +198,27 @@ fn tag<I: IntoIterator<Item = ClaudeProject>>(
 
 /// Scan all three Copilot sub-providers and return one merged project list.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what the sub-scanners could not
+/// read — a sub-scanner that fails is one of them, not an empty source.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let mut all = Vec::new();
-    if let Ok(p) = copilot_cli::scan_projects() {
-        all.extend(tag(SourceKind::Cli, p));
-    }
-    if let Ok(p) = copilot_cli::scan_desktop_projects() {
-        all.extend(tag(SourceKind::Desktop, p));
-    }
-    if let Ok(p) = vscode::scan_projects() {
-        all.extend(tag(SourceKind::VsCode, p));
-    }
+    let mut add = |kind: SourceKind, scanned: Result<Vec<ClaudeProject>, String>| match scanned {
+        Ok(projects) => all.extend(tag(kind, projects)),
+        Err(error) => report.unread(error),
+    };
+    add(
+        SourceKind::Cli,
+        copilot_cli::scan_projects_reporting(report),
+    );
+    add(
+        SourceKind::Desktop,
+        copilot_cli::scan_desktop_projects_reporting(report),
+    );
+    add(SourceKind::VsCode, vscode::scan_projects_reporting(report));
     Ok(merge_projects(all))
 }
 
@@ -243,20 +255,39 @@ pub fn load_sessions(project_path: &str, exclude: bool) -> Result<Vec<ClaudeSess
         // don't break in case stale URLs survive in any cache.
         return Ok(load_sessions_fallback(project_path, exclude));
     };
+    Ok(load_sources(project_ref, &ScanReport::default()))
+}
 
+/// [`load_sessions`], recording in `report` what the sub-loaders could not
+/// read — a sub-source that fails to load is one of them.
+#[allow(clippy::unnecessary_wraps)] // Result kept to match the provider interface.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
+) -> Result<Vec<ClaudeSession>, String> {
+    let Some(project_ref) = decode_project_ref(project_path) else {
+        return Ok(load_sessions_fallback(project_path, false));
+    };
+    Ok(load_sources(project_ref, report))
+}
+
+fn load_sources(project_ref: ProjectRef, report: &ScanReport) -> Vec<ClaudeSession> {
     let mut sessions = Vec::new();
     for src in project_ref.sources {
         let result = match src.kind {
-            SourceKind::Cli | SourceKind::Desktop => copilot_cli::load_sessions(&src.path, exclude),
-            SourceKind::VsCode => vscode::load_sessions(&src.path, exclude),
+            SourceKind::Cli | SourceKind::Desktop => {
+                copilot_cli::load_sessions_reporting(&src.path, report)
+            }
+            SourceKind::VsCode => vscode::load_sessions_reporting(&src.path, report),
         };
-        if let Ok(s) = result {
-            sessions.extend(s);
+        match result {
+            Ok(s) => sessions.extend(s),
+            Err(error) => report.unread(error),
         }
     }
 
     sessions.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
-    Ok(sessions)
+    sessions
 }
 
 /// Legacy fallback: if a caller hands us a project URL without an embedded
@@ -300,6 +331,32 @@ fn is_vscode_session_path(session_path: &str) -> bool {
         && (session_path.contains("/chatSessions/") || session_path.contains("\\chatSessions\\"))
 }
 
+/// Re-key sub-provider hits onto the merged project identity (#672). Each
+/// sub-search stamps its own sub-project path (CLI `copilot-cli://…`, VS Code
+/// `vscode://…`); the merged project embeds those as `sources`, so a hit maps
+/// to the merged project holding its sub-project. A hit whose sub-project is
+/// not in `merged` gets `project_path: None` rather than a sub-path.
+fn assign_merged_projects(results: &mut [ClaudeMessage], merged: &[ClaudeProject]) {
+    let mut by_source: HashMap<String, &ClaudeProject> = HashMap::new();
+    for project in merged {
+        if let Some(project_ref) = decode_project_ref(&project.path) {
+            for source in project_ref.sources {
+                by_source.insert(source.path, project);
+            }
+        }
+    }
+    for msg in results {
+        let project = msg
+            .project_path
+            .as_deref()
+            .and_then(|path| by_source.get(path));
+        msg.project_path = project.map(|p| p.path.clone());
+        if let Some(p) = project {
+            msg.project_name = Some(p.name.clone());
+        }
+    }
+}
+
 fn sort_and_truncate_results(results: &mut Vec<ClaudeMessage>, limit: usize) {
     results.sort_by(|a, b| {
         match (
@@ -339,6 +396,10 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         out.extend(r);
     }
     sort_and_truncate_results(&mut out, limit);
+    if !out.is_empty() {
+        // The merged project path encodes every source, so only a scan knows it.
+        assign_merged_projects(&mut out, &scan_projects().unwrap_or_default());
+    }
     Ok(out)
 }
 
@@ -364,6 +425,13 @@ pub fn search_from_paths(
         }
     }
     sort_and_truncate_results(&mut out, limit);
+    if !out.is_empty() {
+        // The label only decorates projects; passing one selects the
+        // base-qualified CLI paths the (always labelled) WSL scan emits.
+        let merged = scan_projects_from_paths(copilot_base_path, vscode_user_data_path, Some(""))
+            .unwrap_or_default();
+        assign_merged_projects(&mut out, &merged);
+    }
     Ok(out)
 }
 
@@ -392,37 +460,11 @@ mod tests {
     fn message(uuid: &str, timestamp: &str) -> ClaudeMessage {
         ClaudeMessage {
             uuid: uuid.to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: timestamp.to_string(),
             message_type: "user".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
             provider: Some(PROVIDER_ID.to_string()),
+            ..Default::default()
         }
     }
 
@@ -535,5 +577,89 @@ mod tests {
         assert!(!is_vscode_session_path(
             "/Users/me/.copilot/session-state/abc/events.jsonl"
         ));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn search_hits_carry_merged_project_path_for_same_named_folders() {
+        use serde_json::json;
+        use std::fs;
+
+        let home = crate::test_utils::SandboxHome::new();
+        let copilot_home = home.path().join(".copilot");
+        let previous = std::env::var_os("COPILOT_CLI_HOME");
+        std::env::set_var("COPILOT_CLI_HOME", &copilot_home);
+
+        for (id, cwd) in [("ca", "/work/client-a/app"), ("cb", "/work/client-b/app")] {
+            let dir = copilot_home.join("session-state").join(id);
+            fs::create_dir_all(&dir).unwrap();
+            let lines = [
+                json!({ "type": "session.start", "timestamp": "2026-01-01T00:00:00.000Z",
+                    "data": { "sessionId": id, "context": { "cwd": cwd } } }),
+                json!({ "type": "user.message", "timestamp": "2026-01-01T00:00:01.000Z",
+                    "data": { "content": format!("needle {cwd} cli") } }),
+            ];
+            let body = lines
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            fs::write(dir.join("events.jsonl"), body).unwrap();
+        }
+        // VS Code workspace for client-a merges with the CLI client-a project.
+        let user_data = if cfg!(target_os = "macos") {
+            home.path().join("Library/Application Support/Code/User")
+        } else if cfg!(target_os = "windows") {
+            home.path().join("AppData/Roaming/Code/User")
+        } else {
+            home.path().join(".config/Code/User")
+        };
+        let ws = user_data.join("workspaceStorage").join("hash-a");
+        fs::create_dir_all(ws.join("chatSessions")).unwrap();
+        fs::write(
+            ws.join("workspace.json"),
+            r#"{"folder":"file:///work/client-a/app"}"#,
+        )
+        .unwrap();
+        fs::write(
+            ws.join("chatSessions/vs-1111-1111-1111-111111111111.jsonl"),
+            json!({ "kind": 0, "v": { "sessionId": "vs-1111-1111-1111-111111111111",
+                "creationDate": 1779490058917u64,
+                "requests": [{ "message": { "text": "needle /work/client-a/app vscode" },
+                    "response": [] }] } })
+            .to_string(),
+        )
+        .unwrap();
+
+        let projects = scan_projects().unwrap();
+        let hits = search("needle", 10).unwrap();
+        match previous {
+            Some(v) => std::env::set_var("COPILOT_CLI_HOME", v),
+            None => std::env::remove_var("COPILOT_CLI_HOME"),
+        }
+
+        let path_of = |actual: &str| {
+            projects
+                .iter()
+                .find(|p| p.actual_path == actual)
+                .map(|p| p.path.clone())
+                .unwrap()
+        };
+        let a = path_of("/work/client-a/app");
+        let b = path_of("/work/client-b/app");
+        assert_ne!(a, b);
+        assert_eq!(decode_project_ref(&a).unwrap().sources.len(), 2);
+
+        assert_eq!(hits.len(), 3);
+        for hit in &hits {
+            let text = hit.content.as_ref().unwrap().to_string();
+            let expected = if text.contains("/work/client-a/app") {
+                &a
+            } else {
+                &b
+            };
+            assert_eq!(hit.project_path.as_ref(), Some(expected), "{text}");
+            assert_eq!(hit.project_name.as_deref(), Some("app"));
+        }
     }
 }

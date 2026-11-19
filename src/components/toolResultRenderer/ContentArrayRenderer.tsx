@@ -3,27 +3,139 @@
  *
  * Displays metadata (execution time, tokens, tool usage) and content items
  * including text, tool_use, and tool_result types.
+ *
+ * TR1b: the items pair like a message's own content (`contentEntries`): a
+ * nested call and its nested results are one ToolRow (the paired path's
+ * card), a call without a result says "No result recorded", a result without
+ * its call is its own row ("Call not recorded"). Each entry has its own
+ * expand scope. A nested update_plan / TodoWrite whose list holds a
+ * non-object member opens as JSON through TR1a's shape gate (#734), instead
+ * of crashing the legacy checklist renderers.
  */
 
 import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
-import { ThinkingRenderer, ToolUseRenderer } from "../contentRenderer";
+import { ThinkingRenderer } from "../contentRenderer/ThinkingRenderer";
+import { ToolUseRenderer } from "../contentRenderer/ToolUseRenderer";
+import { ServerToolUseRenderer } from "../contentRenderer/ServerToolUseRenderer";
+import { MCPToolUseRenderer } from "../contentRenderer/MCPToolUseRenderer";
+import { StandaloneServerResult } from "../contentRenderer/ServerResult";
+import { ImageRenderer } from "../contentRenderer/ImageRenderer";
+import { contentEntries, SERVER_RESULT_TYPES, type ContentEntry } from "../contentRenderer/contentEntries";
+import { ExpandKeyProvider, useExpandKeyPrefix } from "@/contexts/CaptureExpandContext";
 import { ClaudeToolResultItem } from "./ClaudeToolResultItem";
 import { cn } from "@/lib/utils";
 import { getVariantStyles, layout, safeStringify } from "../renderers";
+import { useFormat } from "@/lib/format/useFormat";
+import { Num } from "@/lib/format/Num";
 
 interface ContentArrayRendererProps {
   toolResult: Record<string, unknown>;
   searchQuery?: string;
 }
 
+const ALLOWED_IMAGE_TYPES = /^image\/(jpeg|png|gif|webp|bmp|svg\+xml)$/;
+
+/**
+ * An image block's URL, under the media-type and scheme allowlists the
+ * orphan result card used (TR1b moved it here, so a result's image shows in
+ * the Result zone of a paired or an orphan row alike); null otherwise (the
+ * block then shows a compact media placeholder).
+ */
+function safeImageUrl(source: unknown): string | null {
+  if (source === null || typeof source !== "object") return null;
+  const s = source as Record<string, unknown>;
+  if (s.type === "base64" && typeof s.data === "string" && typeof s.media_type === "string" && ALLOWED_IMAGE_TYPES.test(s.media_type)) {
+    return `data:${s.media_type};base64,${s.data}`;
+  }
+  if (s.type === "url" && typeof s.url === "string" && /^https?:\/\//.test(s.url)) return s.url;
+  return null;
+}
+
 export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRendererProps) => {
   const { t } = useTranslation();
+  const fmt = useFormat();
   const styles = getVariantStyles("info");
+  const expandPrefix = useExpandKeyPrefix();
 
   const content = Array.isArray(toolResult.content) ? toolResult.content : [];
+  const entries = contentEntries(content);
+
+  const renderEntry = (entry: ContentEntry) => {
+    if (entry.kind === "toolExecution") {
+      return <ToolUseRenderer toolUse={entry.toolUse} toolResults={entry.toolResults} searchQuery={searchQuery} />;
+    }
+    if (entry.kind === "serverExecution") {
+      return entry.toolUse.type === "mcp_tool_use" ? (
+        <MCPToolUseRenderer toolUse={entry.toolUse} results={entry.results} searchQuery={searchQuery} />
+      ) : (
+        <ServerToolUseRenderer toolUse={entry.toolUse} results={entry.results} searchQuery={searchQuery} />
+      );
+    }
+    const { item, index } = entry;
+    if (!item || typeof item !== "object") {
+      return (
+        <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
+          <div className={cn("text-muted-foreground mb-1", layout.smallText)}>{t("contentArray.typeUnknown")}</div>
+          <pre className={cn("text-foreground/80 whitespace-pre-wrap", layout.smallText)}>{safeStringify(item)}</pre>
+        </div>
+      );
+    }
+    const itemObj = item as Record<string, unknown>;
+    // A nested call without an id, or a nested result whose call is not in this
+    // array: one ToolRow each (TR1b), never a card head. A nested orphan has no
+    // page: it never claims an earlier page.
+    if (itemObj.type === "tool_use") return <ToolUseRenderer toolUse={itemObj} searchQuery={searchQuery} />;
+    if (itemObj.type === "tool_result") return <ClaudeToolResultItem toolResult={itemObj} index={index} searchQuery={searchQuery} />;
+    if (typeof itemObj.type === "string" && SERVER_RESULT_TYPES.has(itemObj.type)) return <StandaloneServerResult block={itemObj} searchQuery={searchQuery} />;
+    // Codex FunctionCallOutputContentItem serializes input_text/input_image
+    // directly, unlike Claude's text/image blocks. Interpret here, not in the
+    // backend: content stays byte/value-compatible and raw records stay intact.
+    // https://github.com/openai/codex/blob/6aaac694803004a63c6f393d153c96d22521a6b9/codex-rs/protocol/src/models.rs#L2245-L2262
+    const inputImage = itemObj.type === "input_image" && typeof itemObj.image_url === "string" ? itemObj.image_url : null;
+    const dataImage = inputImage?.match(/^data:(image\/(?:jpeg|png|gif|webp|bmp|svg\+xml));base64,([A-Za-z0-9+/=\r\n]+)$/);
+    const imageUrl = itemObj.type === "image" ? safeImageUrl(itemObj.source)
+      : inputImage ? safeImageUrl(dataImage
+        ? { type: "base64", media_type: dataImage[1], data: dataImage[2] }
+        : null) : null;
+    if (imageUrl) return <ImageRenderer imageUrl={imageUrl} />;
+    // Recorded Codex URLs must not make unsolicited network requests. The shared
+    // ImageRenderer supports remote URLs, so use a placeholder here explicitly.
+    // Unsupported/malformed media stays in raw records, never in a huge JSON DOM.
+    if (["input_image", "input_audio", "image"].includes(String(itemObj.type))) {
+      // Count the UTF-8 representation we retain: serialized item JSON here,
+      // data URL text in ImageRenderer's decode-error placeholder.
+      const reference = inputImage && /^https?:\/\//.test(inputImage) ? inputImage : null;
+      return <div className={cn("text-muted-foreground", layout.containerPadding)}>
+        {t("contentArray.mediaPlaceholder", { type: String(itemObj.type), size: new TextEncoder().encode(JSON.stringify(item)).length })}
+        {reference && <pre className="whitespace-pre-wrap break-all">{reference}</pre>}
+      </div>;
+    }
+    return (
+      <div className={cn("bg-card border border-border overflow-y-auto", layout.containerPadding, layout.rounded, layout.contentMaxHeight)}>
+        {(itemObj.type === "text" || itemObj.type === "input_text") && typeof itemObj.text === "string" ? (
+          <div className={layout.prose}>
+            {itemObj.text.includes("<thinking>") && itemObj.text.includes("</thinking>") ? (
+              <ThinkingRenderer thinking={itemObj.text} searchQuery={searchQuery} />
+            ) : (
+              <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
+                {itemObj.text}
+              </ReactMarkdown>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div className={cn("text-muted-foreground mb-1", layout.smallText)}>
+              {t("contentArray.type")} {String(itemObj.type || "unknown")}
+            </div>
+            <pre className={cn("text-foreground/80 whitespace-pre-wrap", layout.smallText)}>{safeStringify(item)}</pre>
+          </div>
+        )}
+      </div>
+    );
+  };
   const totalDurationMs =
     typeof toolResult.totalDurationMs === "number" ? toolResult.totalDurationMs : null;
   const totalTokens =
@@ -53,14 +165,14 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
           <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
             <div className="text-muted-foreground">{t("contentArray.executionTime")}</div>
             <div className="font-medium text-foreground">
-              {(totalDurationMs / 1000).toFixed(2)}{t("contentArray.seconds")}
+              <Num>{fmt.duration(totalDurationMs)}</Num>
             </div>
           </div>
         )}
         {totalTokens && (
           <div className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
             <div className="text-muted-foreground">{t("contentArray.totalTokens")}</div>
-            <div className="font-medium text-foreground">{totalTokens.toLocaleString()}</div>
+            <div className="font-medium text-foreground"><Num>{fmt.count(totalTokens)}</Num></div>
           </div>
         )}
         {totalToolUseCount && (
@@ -91,7 +203,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.input")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {usage.input_tokens.toLocaleString()}
+                    <Num>{fmt.count(usage.input_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -99,7 +211,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.output")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {usage.output_tokens.toLocaleString()}
+                    <Num>{fmt.count(usage.output_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -107,7 +219,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.cacheCreation")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {usage.cache_creation_input_tokens.toLocaleString()}
+                    <Num>{fmt.count(usage.cache_creation_input_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -115,7 +227,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("contentArray.cacheRead")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {usage.cache_read_input_tokens.toLocaleString()}
+                    <Num>{fmt.count(usage.cache_read_input_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -123,7 +235,7 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
                 <div>
                   <span className="text-muted-foreground">{t("analytics.reasoning", "Reasoning")}</span>
                   <span className="font-medium text-foreground ml-1">
-                    {usage.reasoning_tokens.toLocaleString()}
+                    <Num>{fmt.count(usage.reasoning_tokens)}</Num>
                   </span>
                 </div>
               )}
@@ -139,56 +251,11 @@ export const ContentArrayRenderer = ({ toolResult, searchQuery }: ContentArrayRe
             {t("contentArray.content")}
           </div>
           <div className={cn("space-y", layout.iconGap)}>
-            {content.map((item: unknown, index: number) => {
-              if (!item || typeof item !== "object") {
-                return (
-                  <div key={index} className={cn("bg-card border border-border", layout.containerPadding, layout.rounded)}>
-                    <div className={cn("text-muted-foreground mb-1", layout.smallText)}>
-                      {t("contentArray.typeUnknown")}
-                    </div>
-                    <pre className={cn("text-foreground/80 whitespace-pre-wrap", layout.smallText)}>
-                      {safeStringify(item)}
-                    </pre>
-                  </div>
-                );
-              }
-
-              const itemObj = item as Record<string, unknown>;
-
-              return (
-                <div
-                  key={index}
-                  className={cn("bg-card border border-border overflow-y-auto", layout.containerPadding, layout.rounded, layout.contentMaxHeight)}
-                >
-                  {itemObj.type === "text" && typeof itemObj.text === "string" && (
-                    <div className={layout.prose}>
-                      {itemObj.text.includes("<thinking>") &&
-                      itemObj.text.includes("</thinking>") ? (
-                        <ThinkingRenderer thinking={itemObj.text} searchQuery={searchQuery} />
-                      ) : (
-                        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} rehypePlugins={REHYPE_PLUGINS} skipHtml>
-                          {itemObj.text}
-                        </ReactMarkdown>
-                      )}
-                    </div>
-                  )}
-                  {itemObj.type === "tool_use" && <ToolUseRenderer toolUse={itemObj} />}
-                  {itemObj.type === "tool_result" && (
-                    <ClaudeToolResultItem toolResult={itemObj} index={index} />
-                  )}
-                  {!["text", "tool_use", "tool_result"].includes(itemObj.type as string) && (
-                    <div>
-                      <div className={cn("text-muted-foreground mb-1", layout.smallText)}>
-                        {t("contentArray.type")} {String(itemObj.type || "unknown")}
-                      </div>
-                      <pre className={cn("text-foreground/80 whitespace-pre-wrap", layout.smallText)}>
-                        {safeStringify(item)}
-                      </pre>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {entries.map((entry) => (
+              <ExpandKeyProvider key={entry.key} value={`${expandPrefix}:nested-${entry.key}`}>
+                {renderEntry(entry)}
+              </ExpandKeyProvider>
+            ))}
           </div>
         </div>
       )}

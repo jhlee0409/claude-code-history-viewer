@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+/// `Option<Value>` normally collapses JSON null into absence. Raw metadata must not.
+fn deserialize_present_json<'de, D>(deserializer: D) -> Result<Option<serde_json::Value>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    serde_json::Value::deserialize(deserializer).map(Some)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TokenUsage {
     #[serde(alias = "inputTokens", alias = "input")]
@@ -80,7 +88,11 @@ pub struct RawLogEntry {
     pub message: Option<MessageContent>,
     #[serde(rename = "toolUse")]
     pub tool_use: Option<serde_json::Value>,
-    #[serde(rename = "toolUseResult")]
+    #[serde(
+        rename = "toolUseResult",
+        default,
+        deserialize_with = "deserialize_present_json"
+    )]
     pub tool_use_result: Option<serde_json::Value>,
     #[serde(rename = "isSidechain")]
     pub is_sidechain: Option<bool>,
@@ -133,9 +145,24 @@ pub struct RawLogEntry {
     pub is_meta: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ClaudeMessage {
     pub uuid: String,
+    /// Standalone local execution source, NOT an assistant tool result.
+    #[serde(
+        rename = "sourceExecution",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub source_execution: Option<serde_json::Value>,
+    /// Codex source identity/kinds/events, never a synthesized display message.
+    #[serde(
+        rename = "codexEvidence",
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_json"
+    )]
+    pub codex_evidence: Option<serde_json::Value>,
     #[serde(rename = "parentUuid")]
     pub parent_uuid: Option<String>,
     #[serde(rename = "sessionId")]
@@ -147,6 +174,9 @@ pub struct ClaudeMessage {
     /// Project name (extracted from file path during search)
     #[serde(rename = "projectName", skip_serializing_if = "Option::is_none")]
     pub project_name: Option<String>,
+    /// Opaque project path/URI, qualified by provider (search results).
+    #[serde(rename = "projectPath", skip_serializing_if = "Option::is_none")]
+    pub project_path: Option<String>,
     #[serde(rename = "toolUse")]
     pub tool_use: Option<serde_json::Value>,
     #[serde(rename = "toolUseResult")]
@@ -216,6 +246,31 @@ pub struct ClaudeMessage {
     pub provider: Option<String>,
 }
 
+/// Provenance of a user message's raw tool metadata, not a call-status verdict.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolUseResultSource {
+    pub message_uuid: String,
+    pub session_id: String,
+    pub content_index: usize,
+    pub association: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_content_indices: Option<Vec<usize>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unassigned_tool_use_result: Option<serde_json::Value>,
+}
+
+/// A chat-style page of messages (offset 0 = newest).
+///
+/// `total_count`, `next_offset` and the request `offset` share one index
+/// space. For Claude it is classified lines: lines the fast classifier marks
+/// viewer-visible, before tool-result merging. A classified line that fails
+/// the full parse is consumed without producing a message, so a page may
+/// return fewer messages than it consumed (even none) and `total_count` is an
+/// upper bound on loadable messages. `next_offset` always advances past every
+/// consumed line, and `has_more` is `next_offset < total_count`, so walking
+/// pages until `has_more` is false terminates and visits each line once
+/// (#771). Other providers use the post-merge message index space.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MessagePage {
     pub messages: Vec<ClaudeMessage>,
@@ -413,32 +468,9 @@ mod tests {
             timestamp: "2025-06-26T12:00:00Z".to_string(),
             message_type: "user".to_string(),
             content: Some(json!("Hello, Claude!")),
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
             is_sidechain: Some(false),
-            usage: None,
             role: Some("user".to_string()),
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let serialized = serde_json::to_string(&message).unwrap();
@@ -453,37 +485,10 @@ mod tests {
     fn test_claude_message_with_optional_fields_skipped() {
         let message = ClaudeMessage {
             uuid: "uuid".to_string(),
-            parent_uuid: None,
             session_id: "session".to_string(),
             timestamp: "2025-01-01T00:00:00Z".to_string(),
             message_type: "user".to_string(),
-            content: None,
-            project_name: None,
-            tool_use: None,
-            tool_use_result: None,
-            is_sidechain: None,
-            usage: None,
-            role: None,
-            model: None,
-            stop_reason: None,
-            cost_usd: None,
-            duration_ms: None,
-            message_id: None,
-            snapshot: None,
-            is_snapshot_update: None,
-            data: None,
-            tool_use_id: None,
-            parent_tool_use_id: None,
-            operation: None,
-            subtype: None,
-            level: None,
-            hook_count: None,
-            hook_infos: None,
-            stop_reason_system: None,
-            prevented_continuation: None,
-            compact_metadata: None,
-            microcompact_metadata: None,
-            provider: None,
+            ..Default::default()
         };
 
         let serialized = serde_json::to_string(&message).unwrap();

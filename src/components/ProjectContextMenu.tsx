@@ -1,7 +1,7 @@
 // src/components/ProjectContextMenu.tsx
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { EyeOff, Eye, Copy, ArrowRightLeft } from "lucide-react";
+import { EyeOff, Eye, Copy, ArrowRightLeft, AppWindow, Trash } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,13 @@ interface ProjectContextMenuProps {
   /** Same folder as seen by other providers; keyboard-reachable switch. */
   providerSiblings?: ClaudeProject[];
   onSelectProject?: (project: ClaudeProject) => void;
+  /**
+   * Opens the clear dialog for this project's unavailable location (#780).
+   * Absent when the location is available or nothing there can be cleared.
+   */
+  onClearUnavailable?: () => void;
+  /** Open the project in a new window (desktop). Omitted: no such item. */
+  onOpenInNewWindow?: (project: ClaudeProject) => void;
 }
 
 export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
@@ -31,6 +38,8 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   isHidden,
   providerSiblings = [],
   onSelectProject,
+  onClearUnavailable,
+  onOpenInNewWindow,
 }) => {
   const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -128,7 +137,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
   };
 
   const menuItemClass = cn(
-    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm",
+    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-body",
     "hover:bg-accent hover:text-accent-foreground",
     "transition-colors cursor-pointer"
   );
@@ -148,7 +157,7 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
     >
       <div className="p-1">
         {/* Project name header */}
-        <div className="px-2 py-1.5 text-xs text-muted-foreground truncate border-b border-border mb-1">
+        <div className="px-2 py-1.5 text-list text-muted-foreground truncate border-b border-border mb-1">
           {project.name}
         </div>
 
@@ -180,6 +189,19 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
           );
         })}
 
+        {onOpenInNewWindow && (
+          <button
+            onClick={() => {
+              onOpenInNewWindow(project);
+              onClose();
+            }}
+            className={menuItemClass}
+          >
+            <AppWindow className="w-4 h-4" />
+            <span>{t("project.openInNewWindow")}</span>
+          </button>
+        )}
+
         {/* Copy path option */}
         <button
           onClick={handleCopyPath}
@@ -206,6 +228,19 @@ export const ProjectContextMenu: React.FC<ProjectContextMenuProps> = ({
             </>
           )}
         </button>
+
+        {onClearUnavailable && (
+          <button
+            onClick={() => {
+              onClearUnavailable();
+              onClose();
+            }}
+            className={cn(menuItemClass, "text-destructive hover:text-destructive")}
+          >
+            <Trash className="w-4 h-4" />
+            <span>{t("project.clearUnavailable.menu")}</span>
+          </button>
+        )}
       </div>
     </div>,
     document.body

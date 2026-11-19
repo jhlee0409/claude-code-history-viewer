@@ -24,6 +24,11 @@ Closes #
 - [ ] `pnpm exec tsc --build .` and `pnpm lint` pass
 - [ ] **i18n**: any new user-facing string is `t()`-wrapped and the key exists in **all 5 languages** (`en, ko, ja, zh-CN, zh-TW`) — verified with `pnpm run i18n:validate`
 
+## Producer format ground truth
+
+- [ ] Any code that parses or judges an external record format cites producer `URL@SHA:lines` (tags peeled to a commit; name the producer version/fork covered) or real-record structural counts (keys/counts only, no private content) in the PR and code/contract documentation. N/A only when the PR does not parse or judge any external record. A rule without producer evidence ships only as an honest fallback (raw/unknown).
+- [ ] Reviewer format demands were **verified against the producer before acceptance**; repo-authored fixtures and reviewer claims alone are not ground truth.
+
 ## If this adds a frontend-callable backend command
 
 - [ ] Registered in **both** the Tauri `generate_handler!` (`src-tauri/src/lib.rs`) **and** the Axum WebUI router (`src-tauri/src/server/mod.rs`) — otherwise `--serve` mode 404s

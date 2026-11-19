@@ -1,6 +1,8 @@
 "use client";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
-import { useEffect } from "react";
+import { useEffect, useId } from "react";
 import { FileText } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { REMARK_PLUGINS, REHYPE_PLUGINS } from "@/lib/markdownPlugins";
@@ -8,7 +10,7 @@ import { Highlight, themes } from "prism-react-renderer";
 import { useCopyButton } from "../hooks/useCopyButton";
 import { useTheme } from "@/contexts/theme";
 import { useTranslation } from "react-i18next";
-import { Renderer } from "../shared/RendererHeader";
+import { RecordedResult } from "@/components/transcript/RecordedResult";
 import { layout } from "@/components/renderers";
 import { useCaptureExpandState } from "@/contexts/CaptureExpandContext";
 import { TruncatedPre } from "@/components/common/TruncatedPre";
@@ -20,6 +22,7 @@ import {
   getLineNumberStyles,
   getTokenContainerStyles,
 } from "@/utils/prismStyles";
+import { Num } from "@/lib/format/Num";
 
 export const FileContent = ({
   fileData,
@@ -31,6 +34,7 @@ export const FileContent = ({
   searchQuery?: string;
 }) => {
   const { t } = useTranslation();
+  const fileContentId = useId();
   const { renderCopyButton } = useCopyButton();
   const { isDarkMode } = useTheme();
   const content = typeof fileData.content === "string" ? fileData.content : "";
@@ -173,12 +177,9 @@ export const FileContent = ({
       : content;
 
   return (
-    <Renderer className="bg-tool-file/10 border-tool-file/30" expandKey={`file-renderer:${filePath}:${startLine}`}>
-      <Renderer.Header
-        title={title}
-        icon={<FileText className="w-4 h-4 text-tool-file" />}
-        titleClassName="text-tool-file"
-        rightContent={
+    <RecordedResult title={title}
+        icon={<FileText className="w-4 h-4" />}
+        meta={
           <div className="flex items-center gap-2">
             <span className={`${layout.smallText} text-tool-file truncate max-w-[150px] md:max-w-[250px]`} title={filePath}>
               {filePath && formatShortPath(filePath)}
@@ -194,10 +195,7 @@ export const FileContent = ({
                 true
               )}
           </div>
-        }
-      />
-
-      <Renderer.Content>
+        } record={fileData} expandKey={`file-renderer:${filePath}:${startLine}`} searchQuery={searchQuery}>
         {filePath && (
           <div className="mb-2">
             <div className={`${layout.smallText} font-medium text-tool-file`}>
@@ -216,9 +214,9 @@ export const FileContent = ({
                 {t("fileContent.content")}
               </div>
               {shouldCollapse && (
-                <button
+                <Button variant="ghost" size="sm" aria-expanded={isExpanded} aria-controls={fileContentId} type="button"
                   onClick={() => setIsExpanded(prev => !prev)}
-                  className={`${layout.smallText} px-2 py-1 rounded transition-colors bg-tool-file/10 text-tool-file hover:bg-tool-file/20`}
+                  className={cn("h-auto whitespace-normal justify-start font-normal", `${layout.smallText} px-2 py-1 rounded transition-colors bg-tool-file/10 text-tool-file hover:bg-tool-file/20`)}
                 >
                   {isExpanded ? (
                     <>
@@ -233,10 +231,10 @@ export const FileContent = ({
                       </span>
                     </>
                   )}
-                </button>
+                </Button>
               )}
             </div>
-            <div className="rounded-lg overflow-hidden">
+            <div id={fileContentId} className="rounded-lg overflow-hidden">
               <div className={`px-3 py-1 ${layout.smallText} flex items-center justify-between bg-tool-file/10 text-tool-file`}>
                 <span>{language}</span>
                 <div className="flex items-center space-x-2">
@@ -272,12 +270,12 @@ export const FileContent = ({
                 // nodes; fall back to a plain, truncation-guarded block
                 // (line numbers are dropped in this fallback).
                 <div className="bg-tool-file/5">
-                  <div className="px-4 pt-2 text-xs text-muted-foreground">
-                    {t("sizeGuard.highlightDisabled", {
+                  <div className="px-4 pt-2 text-list text-muted-foreground">
+                    <Num>{t("sizeGuard.highlightDisabled", {
                       size: formatCharSize(displayContent.length),
                       defaultValue:
                         "Syntax highlighting disabled for large content ({{size}})",
-                    })}
+                    })}</Num>
                   </div>
                   <TruncatedPre
                     content={displayContent}
@@ -307,8 +305,8 @@ export const FileContent = ({
                     <pre
                       className={className}
                       style={getPreStyles(isDarkMode, style, {
-                        fontSize: "calc(0.6875rem * var(--app-font-scale))",
-                        lineHeight: "1.2rem",
+                        fontSize: "var(--text-code)",
+                        lineHeight: "var(--text-code--line-height)",
                         maxHeight: "24rem",
                         overflow: "auto",
                         padding: "0.75rem",
@@ -348,15 +346,15 @@ export const FileContent = ({
                 !isExpanded &&
                 (language === "markdown" || language === "text") && (
                   <div className="px-4 py-3 border-t bg-tool-file/5 border-tool-file/30">
-                    <button
+                    <Button variant="ghost" size="sm" aria-expanded={isExpanded} aria-controls={fileContentId} type="button"
                       onClick={() => setIsExpanded(true)}
-                      className={`${layout.smallText} font-medium transition-colors text-tool-file hover:text-tool-file/80`}
+                      className={cn("h-auto whitespace-normal justify-start font-normal", `${layout.smallText} font-medium transition-colors text-tool-file hover:text-tool-file/80`)}
                     >
-                      <FileText className="w-3 h-3 inline mr-1" />
+                      <FileText className="w-3.5 h-3.5 inline mr-1" />
                       {t("fileContent.showMoreLines", {
                         count: contentLines.length - MAX_LINES,
                       })}
-                    </button>
+                    </Button>
                   </div>
                 )}
               {shouldCollapse &&
@@ -364,21 +362,20 @@ export const FileContent = ({
                 language !== "markdown" &&
                 language !== "text" && (
                   <div className="px-3 py-2 border-t bg-tool-file/5 border-tool-file/30">
-                    <button
+                    <Button variant="ghost" size="sm" aria-expanded={isExpanded} aria-controls={fileContentId} type="button"
                       onClick={() => setIsExpanded(true)}
-                      className={`${layout.smallText} transition-colors text-tool-file hover:text-tool-file/80`}
+                      className={cn("h-auto whitespace-normal justify-start font-normal", `${layout.smallText} transition-colors text-tool-file hover:text-tool-file/80`)}
                     >
-                      <FileText className="w-3 h-3 inline mr-1" />
+                      <FileText className="w-3.5 h-3.5 inline mr-1" />
                       {t("fileContent.showMoreLines", {
                         count: contentLines.length - MAX_LINES,
                       })}
-                    </button>
+                    </Button>
                   </div>
                 )}
             </div>
           </div>
         )}
-      </Renderer.Content>
-    </Renderer>
+      </RecordedResult>
   );
 };

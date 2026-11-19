@@ -23,6 +23,7 @@
 //! provider (`copilot-cli://<cwd>`).
 
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
+use crate::providers::scan_report::ScanReport;
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
@@ -244,6 +245,15 @@ pub fn project_name_for_path(project_path: &str) -> Option<String> {
         .or_else(|| (!cwd.is_empty()).then_some(cwd))
 }
 
+/// Display name for a session `cwd` (its folder leaf, else the cwd itself) —
+/// shared by scan and search.
+fn project_name_for_cwd(cwd: &str) -> String {
+    Path::new(cwd)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| cwd.to_string())
+}
+
 #[derive(Debug, Clone)]
 struct SessionInfo {
     session_id: String,
@@ -335,63 +345,79 @@ fn classify_client(meta: &WorkspaceMetadata) -> ClientKind {
 
 /// Group sessions by `cwd` to expose virtual `copilot-cli://<cwd>` projects.
 pub fn scan_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_projects_reporting(report: &ScanReport) -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_filtered(&base, None, ClientKind::Cli)
+    scan_projects_filtered(&base, None, ClientKind::Cli, report)
 }
 
 /// Group sessions by `cwd` to expose virtual `copilot-desktop://<cwd>` projects.
 pub fn scan_desktop_projects() -> Result<Vec<ClaudeProject>, String> {
+    scan_desktop_projects_reporting(&ScanReport::default())
+}
+
+/// [`scan_desktop_projects`], recording in `report` what it could not read.
+pub(crate) fn scan_desktop_projects_reporting(
+    report: &ScanReport,
+) -> Result<Vec<ClaudeProject>, String> {
     let base = match get_base_path() {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    scan_projects_filtered(&base, None, ClientKind::Desktop)
+    scan_projects_filtered(&base, None, ClientKind::Desktop, report)
 }
 
 pub fn scan_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
 ) -> Result<Vec<ClaudeProject>, String> {
-    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Cli)
+    scan_projects_filtered(
+        base_path,
+        custom_directory_label,
+        ClientKind::Cli,
+        &ScanReport::default(),
+    )
 }
 
 pub fn scan_desktop_projects_from_path(
     base_path: &str,
     custom_directory_label: Option<&str>,
 ) -> Result<Vec<ClaudeProject>, String> {
-    scan_projects_filtered(base_path, custom_directory_label, ClientKind::Desktop)
+    scan_projects_filtered(
+        base_path,
+        custom_directory_label,
+        ClientKind::Desktop,
+        &ScanReport::default(),
+    )
 }
 
+/// The projects of one client's sessions; the session directories and
+/// event logs it could not read are recorded in `report`.
 #[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
 fn scan_projects_filtered(
     base_path: &str,
     custom_directory_label: Option<&str>,
     client: ClientKind,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeProject>, String> {
     let root = get_session_root_from_base(base_path);
-    if !root.is_dir() {
+    if !report.is_dir(&root) {
         return Ok(Vec::new());
     }
 
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_events_jsonl(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
+    let entries: Vec<PathBuf> = session_event_logs(&root, report);
 
     // Parse files in parallel; cache hits are essentially free, misses dominate
     // on first scan where there's a big multi-MB events.jsonl in the mix.
     let infos: Vec<SessionInfo> = entries
         .par_iter()
-        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter_map(|path| report.read(path, extract_session_info_cached(path)))
         .filter(|info| info.message_count > 0 && info.client_kind == client)
         .collect();
 
@@ -405,10 +431,7 @@ fn scan_projects_filtered(
         .into_iter()
         .filter(|(_, sessions)| !sessions.is_empty())
         .map(|(cwd, sessions)| {
-            let name = Path::new(&cwd)
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_else(|| cwd.clone());
+            let name = project_name_for_cwd(&cwd);
             let session_count = sessions.len();
             let message_count: usize = sessions.iter().map(|s| s.message_count).sum();
             let last_modified = sessions
@@ -436,10 +459,35 @@ fn scan_projects_filtered(
     Ok(projects)
 }
 
+/// Every `<session>/events.jsonl` under the session root; what the walk
+/// cannot read is recorded in `report`.
+fn session_event_logs(root: &Path, report: &ScanReport) -> Vec<PathBuf> {
+    report
+        .walk(
+            WalkDir::new(root)
+                .follow_links(false)
+                .min_depth(2)
+                .max_depth(2),
+        )
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| is_events_jsonl(e.path()))
+        .map(walkdir::DirEntry::into_path)
+        .collect()
+}
+
 /// Load every session whose recorded `cwd` matches `project_path`.
 pub fn load_sessions(
     project_path: &str,
     _exclude_sidechain: bool,
+) -> Result<Vec<ClaudeSession>, String> {
+    load_sessions_reporting(project_path, &ScanReport::default())
+}
+
+/// [`load_sessions`], recording in `report` what it could not read: an
+/// event log that cannot be read may belong to the project.
+pub(crate) fn load_sessions_reporting(
+    project_path: &str,
+    report: &ScanReport,
 ) -> Result<Vec<ClaudeSession>, String> {
     let (base_path, target_cwd, client) = parse_project_path(project_path)?;
     let root = match base_path {
@@ -455,26 +503,17 @@ pub fn load_sessions(
             Err(_) => return Ok(Vec::new()),
         },
     };
-    if !root.is_dir() {
+    if !report.is_dir(&root) {
         return Ok(Vec::new());
     }
 
-    let entries: Vec<PathBuf> = WalkDir::new(&root)
-        .follow_links(false)
-        .min_depth(2)
-        .max_depth(2)
-        .into_iter()
-        .filter_map(Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| is_events_jsonl(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
+    let entries: Vec<PathBuf> = session_event_logs(&root, report);
 
     // Parallel cached extraction. After the first scan most calls hit the
     // mtime cache and return instantly.
     let mut sessions: Vec<ClaudeSession> = entries
         .par_iter()
-        .filter_map(|path| extract_session_info_cached(path).ok())
+        .filter_map(|path| report.read(path, extract_session_info_cached(path)))
         .filter(|info| info.message_count > 0 && info.client_kind == client)
         .filter(|info| info.cwd.as_deref().unwrap_or("unknown") == target_cwd)
         .map(|info| ClaudeSession {
@@ -609,7 +648,7 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    search_from_path(&base, query, limit)
+    search_filtered(&base, None, query, limit, ClientKind::Cli)
 }
 
 /// Same as `search`, but only matches sessions whose workspace.yaml
@@ -619,28 +658,43 @@ pub fn search_desktop(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, S
         Some(base) => base,
         None => return Ok(Vec::new()),
     };
-    search_desktop_from_path(&base, query, limit)
+    search_filtered(&base, None, query, limit, ClientKind::Desktop)
 }
 
+/// WSL/custom-path search. Hits carry the base-qualified project path that
+/// [`scan_projects_from_path`] emits when given a directory label, which the
+/// WSL scan always passes.
 pub fn search_from_path(
     base_path: &str,
     query: &str,
     limit: usize,
 ) -> Result<Vec<ClaudeMessage>, String> {
-    search_filtered(base_path, query, limit, ClientKind::Cli)
+    search_filtered(base_path, Some(base_path), query, limit, ClientKind::Cli)
 }
 
+/// Desktop counterpart of [`search_from_path`].
 pub fn search_desktop_from_path(
     base_path: &str,
     query: &str,
     limit: usize,
 ) -> Result<Vec<ClaudeMessage>, String> {
-    search_filtered(base_path, query, limit, ClientKind::Desktop)
+    search_filtered(
+        base_path,
+        Some(base_path),
+        query,
+        limit,
+        ClientKind::Desktop,
+    )
 }
 
+/// Search one client's sessions under `base_path`. Each hit carries the
+/// sub-project `path` the scan builds for its session (`project_base` as in
+/// [`build_project_path`]), so the unified Copilot search can map it onto the
+/// merged project (#672).
 #[allow(clippy::unnecessary_wraps)] // Result kept to match public API shape.
 fn search_filtered(
     base_path: &str,
+    project_base: Option<&str>,
     query: &str,
     limit: usize,
     client: ClientKind,
@@ -668,12 +722,27 @@ fn search_filtered(
             continue;
         }
         if let Ok(messages) = load_messages(&entry.path().to_string_lossy()) {
-            for msg in messages {
+            // Resolved on the first hit only: same cached session info and
+            // "unknown" fallback the scan groups by.
+            let mut project: Option<(String, String)> = None;
+            for mut msg in messages {
                 if results.len() >= limit {
                     return Ok(results);
                 }
                 if let Some(content) = &msg.content {
                     if search_json_value_case_insensitive(content, &query_lower) {
+                        let (name, path) = project.get_or_insert_with(|| {
+                            let cwd = extract_session_info_cached(entry.path())
+                                .ok()
+                                .and_then(|info| info.cwd)
+                                .unwrap_or_else(|| "unknown".to_string());
+                            (
+                                project_name_for_cwd(&cwd),
+                                build_project_path(&cwd, project_base, client),
+                            )
+                        });
+                        msg.project_name = Some(name.clone());
+                        msg.project_path = Some(path.clone());
                         results.push(msg);
                     }
                 }
@@ -1043,7 +1112,7 @@ fn build_tool_result_block(data: &Value) -> Option<(String, Value)> {
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())?
         .to_string();
-    let success = data.get("success").and_then(Value::as_bool).unwrap_or(true);
+    let success = data.get("success").and_then(Value::as_bool);
     let content = data
         .get("result")
         .and_then(|r| r.get("content"))
@@ -1056,10 +1125,10 @@ fn build_tool_result_block(data: &Value) -> Option<(String, Value)> {
         "tool_use_id": tool_use_id,
         "content": content,
     });
-    if !success {
-        if let Some(obj) = block.as_object_mut() {
-            obj.insert("is_error".to_string(), Value::Bool(true));
-        }
+    // Copilot SDK pinned schema: success is a boolean, not an absent-field default.
+    // https://github.com/github/copilot-sdk/blob/68de1a7afe4bc9e7435d185825043bd9dc9c47cf/nodejs/src/generated/session-events.ts#L9938-L9951
+    if let Some(success) = success {
+        block["is_error"] = Value::Bool(!success);
     }
     Some((tool_use_id, block))
 }
@@ -1233,6 +1302,58 @@ mod tests {
         assert_eq!(project_a.session_count, 2);
         assert!(project_a.path.starts_with("copilot-cli://"));
         assert_eq!(project_a.provider.as_deref(), Some("copilot"));
+    }
+
+    #[test]
+    #[serial]
+    fn search_hits_carry_scanned_project_path_for_same_named_cwds() {
+        let tmp = TempDir::new().unwrap();
+        let _env_guard = EnvVarGuard::set("COPILOT_CLI_HOME", tmp.path());
+        for (id, cwd) in [("sa", "/work/client-a/app"), ("sb", "/work/client-b/app")] {
+            write_session(
+                tmp.path(),
+                id,
+                &[
+                    json!({
+                        "type": "session.start",
+                        "data": {"sessionId": id, "context": {"cwd": cwd}},
+                        "timestamp": "2026-01-01T00:00:00.000Z"
+                    }),
+                    json!({
+                        "type": "user.message",
+                        "data": {"content": format!("needle {id}")},
+                        "timestamp": "2026-01-01T00:00:01.000Z"
+                    }),
+                ],
+            );
+        }
+        let base = tmp.path().to_string_lossy().to_string();
+
+        // Native form, then the base-qualified WSL form.
+        for (projects, hits) in [
+            (scan_projects().unwrap(), search("needle", 10).unwrap()),
+            (
+                scan_projects_from_path(&base, Some("WSL")).unwrap(),
+                search_from_path(&base, "needle", 10).unwrap(),
+            ),
+        ] {
+            let path_of = |cwd: &str| {
+                projects
+                    .iter()
+                    .find(|p| p.actual_path == cwd)
+                    .map(|p| p.path.clone())
+                    .unwrap()
+            };
+            let a = path_of("/work/client-a/app");
+            let b = path_of("/work/client-b/app");
+            assert_ne!(a, b);
+            assert_eq!(hits.len(), 2);
+            for hit in &hits {
+                let expected = if hit.session_id == "sa" { &a } else { &b };
+                assert_eq!(hit.project_path.as_ref(), Some(expected));
+                assert_eq!(hit.project_name.as_deref(), Some("app"));
+            }
+        }
     }
 
     #[test]
@@ -1571,5 +1692,24 @@ mod tests {
         let after = extract_session_info_cached(&events).unwrap();
         assert_eq!(after.client_kind, ClientKind::Desktop);
         assert_eq!(after.summary.as_deref(), Some("Delayed Workspace Name"));
+    }
+}
+
+#[cfg(test)]
+mod outcome_preservation_tests {
+    use super::*;
+    #[test]
+    fn producer_outcome_evidence_is_not_fabricated_or_dropped() {
+        for flag in [None, Some(true), Some(false)] {
+            let mut record = serde_json::json!({"toolCallId":"c","result":{"content":"synthetic"}});
+            if let Some(v) = flag {
+                record["success"] = serde_json::json!(v);
+            }
+            let (_, block) = build_tool_result_block(&record).unwrap();
+            assert_eq!(
+                block.get("is_error").and_then(serde_json::Value::as_bool),
+                flag.map(|v| !v)
+            );
+        }
     }
 }
