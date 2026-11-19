@@ -1089,9 +1089,9 @@ struct SessionPageCandidate {
 /// within one app run; entries are ignored (and replaced) once the file's
 /// mtime or size changes.
 #[allow(clippy::type_complexity)]
-static PAGE_DROPPED_CANDIDATES: once_cell::sync::Lazy<
+static PAGE_DROPPED_CANDIDATES: std::sync::LazyLock<
     std::sync::Mutex<HashMap<String, HashMap<String, (u64, u64)>>>,
-> = once_cell::sync::Lazy::new(|| std::sync::Mutex::new(HashMap::new()));
+> = std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
 
 fn is_recorded_dropped_candidate(
     project_path: &str,

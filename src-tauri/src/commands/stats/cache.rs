@@ -390,11 +390,11 @@ impl DayBucket {
         if let Some((ts, raw)) = timestamp {
             // Strict comparisons: on ties the first row in file order wins,
             // matching the scan paths.
-            if self.first_ts.map_or(true, |current| ts < current) {
+            if self.first_ts.is_none_or(|current| ts < current) {
                 self.first_ts = Some(ts);
                 self.first_ts_raw = Some(raw.to_string());
             }
-            if self.last_ts.map_or(true, |current| ts > current) {
+            if self.last_ts.is_none_or(|current| ts > current) {
                 self.last_ts = Some(ts);
                 self.last_ts_raw = Some(raw.to_string());
             }
@@ -701,8 +701,8 @@ fn included_buckets<'a>(
             // as non-composable rather than guessing.
             return None;
         };
-        let starts_in = s_limit.map_or(true, |s| first >= *s);
-        let ends_in = e_limit.map_or(true, |e| last <= *e);
+        let starts_in = s_limit.is_none_or(|s| first >= *s);
+        let ends_in = e_limit.is_none_or(|e| last <= *e);
         if starts_in && ends_in {
             days.push((date, bucket));
             continue;
@@ -763,7 +763,7 @@ fn first_included_session_id<'a>(
         .chain(undated_iter)
     {
         if let Some(session_id) = &bucket.first_session_id {
-            if best.map_or(true, |(seq, _)| bucket.first_row_seq < seq) {
+            if best.is_none_or(|(seq, _)| bucket.first_row_seq < seq) {
                 best = Some((bucket.first_row_seq, session_id));
             }
         }
@@ -837,12 +837,12 @@ pub(super) fn compose_global(
         }
 
         if let Some(first) = bucket.first_ts {
-            if stats.first_message.map_or(true, |current| first < current) {
+            if stats.first_message.is_none_or(|current| first < current) {
                 stats.first_message = Some(first);
             }
         }
         if let Some(last) = bucket.last_ts {
-            if stats.last_message.map_or(true, |current| last > current) {
+            if stats.last_message.is_none_or(|current| last > current) {
                 stats.last_message = Some(last);
             }
         }
@@ -1060,12 +1060,12 @@ pub(super) fn compose_comparison(
         message_count += bucket.message_count as usize;
         total_tokens += bucket.token_total();
         if let Some(ts) = bucket.first_ts {
-            if first.map_or(true, |current| ts < current) {
+            if first.is_none_or(|current| ts < current) {
                 first = Some(ts);
             }
         }
         if let Some(ts) = bucket.last_ts {
-            if last.map_or(true, |current| ts > current) {
+            if last.is_none_or(|current| ts > current) {
                 last = Some(ts);
             }
         }

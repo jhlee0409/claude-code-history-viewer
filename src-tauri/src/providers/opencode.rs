@@ -598,9 +598,9 @@ pub fn load_child_sessions_from_db(
         Ok(ChildSession {
             id: row.get(0)?,
             title: row.get::<_, Option<String>>(1)?.unwrap_or_default(),
-            created_at: epoch_ms_to_rfc3339(row.get::<_, u64>(2)?),
-            updated_at: epoch_ms_to_rfc3339(row.get::<_, u64>(3)?),
-            message_count: row.get(4)?,
+            created_at: epoch_ms_to_rfc3339(crate::providers::sql_unsigned(row, 2)?),
+            updated_at: epoch_ms_to_rfc3339(crate::providers::sql_unsigned(row, 3)?),
+            message_count: crate::providers::sql_unsigned(row, 4)?,
         })
     }) else {
         return Vec::new();
@@ -1310,10 +1310,10 @@ fn scan_projects_from_db(
                     id: row.get(0)?,
                     worktree: row.get(1)?,
                     name: row.get(2)?,
-                    time_created: row.get(3)?,
-                    time_updated: row.get(4)?,
-                    session_count: row.get(5)?,
-                    last_session_update: row.get(6)?,
+                    time_created: crate::providers::sql_unsigned(row, 3)?,
+                    time_updated: crate::providers::sql_unsigned(row, 4)?,
+                    session_count: crate::providers::sql_unsigned(row, 5)?,
+                    last_session_update: crate::providers::optional_sql_unsigned(row, 6)?,
                 })
             }),
         )?
@@ -1381,9 +1381,9 @@ fn scan_global_directory_projects(
 
     let rows = match stmt.query_map(rusqlite::params![&project.id], |row| {
         let directory: String = row.get(0)?;
-        let session_count: usize = row.get(1)?;
-        let first_created: Option<u64> = row.get(2)?;
-        let last_updated: Option<u64> = row.get(3)?;
+        let session_count: usize = crate::providers::sql_unsigned(row, 1)?;
+        let first_created: Option<u64> = crate::providers::optional_sql_unsigned(row, 2)?;
+        let last_updated: Option<u64> = crate::providers::optional_sql_unsigned(row, 3)?;
         Ok((directory, session_count, first_created, last_updated))
     }) {
         Ok(rows) => rows,
@@ -1445,10 +1445,10 @@ fn load_sessions_from_db(
     let rows = stmt.query_map([project_ref.storage_id()], |row| {
         let session_id: String = row.get(0)?;
         let title: String = row.get::<_, Option<String>>(1)?.unwrap_or_default();
-        let time_created: u64 = row.get(2)?;
-        let time_updated: u64 = row.get(3)?;
+        let time_created: u64 = crate::providers::sql_unsigned(row, 2)?;
+        let time_updated: u64 = crate::providers::sql_unsigned(row, 3)?;
         let directory: String = row.get(4)?;
-        let message_count: usize = row.get(5)?;
+        let message_count: usize = crate::providers::sql_unsigned(row, 5)?;
 
         let created_at = epoch_ms_to_rfc3339(time_created);
         let updated_at = epoch_ms_to_rfc3339(time_updated);
@@ -1591,7 +1591,7 @@ fn load_v2_messages(
             Ok((
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
-                row.get::<_, u64>(2)?,
+                crate::providers::sql_unsigned(row, 2)?,
                 row.get::<_, String>(3)?,
             ))
         })

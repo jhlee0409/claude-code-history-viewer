@@ -1,5 +1,22 @@
 use serde::{Deserialize, Serialize};
 
+// SQLite INTEGER is signed; preserve the prior rusqlite overflow errors.
+fn sql_unsigned<T: TryFrom<i64>>(row: &rusqlite::Row<'_>, column: usize) -> rusqlite::Result<T> {
+    let value: i64 = row.get(column)?;
+    T::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(column, value))
+}
+
+fn optional_sql_unsigned<T: TryFrom<i64>>(
+    row: &rusqlite::Row<'_>,
+    column: usize,
+) -> rusqlite::Result<Option<T>> {
+    row.get::<_, Option<i64>>(column)?
+        .map(|value| {
+            T::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(column, value))
+        })
+        .transpose()
+}
+
 pub mod aider;
 pub mod amazon_q;
 pub mod antigravity;

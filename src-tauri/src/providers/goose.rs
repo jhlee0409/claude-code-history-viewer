@@ -109,8 +109,8 @@ fn scan_in_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     let projects = stmt
         .query_map([], |row| {
             let working_dir: Option<String> = row.get(0)?;
-            let sess_cnt: usize = row.get(1)?;
-            let msg_cnt: usize = row.get(2)?;
+            let sess_cnt: usize = crate::providers::sql_unsigned(row, 1)?;
+            let msg_cnt: usize = crate::providers::sql_unsigned(row, 2)?;
             let last_upd: Option<String> = row.get(3)?;
             Ok((working_dir, sess_cnt, msg_cnt, last_upd))
         })
@@ -168,7 +168,7 @@ fn load_sessions_conn(conn: &Connection, working_dir: &str) -> Result<Vec<Claude
             let description: Option<String> = row.get(2)?;
             let created: Option<String> = row.get(3)?;
             let updated: Option<String> = row.get(4)?;
-            let msg_cnt: usize = row.get(5)?;
+            let msg_cnt: usize = crate::providers::sql_unsigned(row, 5)?;
             Ok((id, name, description, created, updated, msg_cnt))
         })
         .map_err(|e| e.to_string())?

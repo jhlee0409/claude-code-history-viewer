@@ -1645,7 +1645,7 @@ fn choose_best_cwd(cwd_votes: &BTreeMap<String, usize>) -> Option<String> {
         .filter(|(path, _)| {
             // Exclude bare home directories — they don't represent a real project
             let p = Path::new(path.as_str());
-            !home_dir.as_deref().is_some_and(|home| p == home)
+            home_dir.as_deref().is_none_or(|home| p != home)
         })
         .max_by(|(left_path, left_votes), (right_path, right_votes)| {
             left_votes

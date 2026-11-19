@@ -163,7 +163,7 @@ fn project_stats(
             conn.query_row(
                 "SELECT COUNT(DISTINCT conversation_id) FROM responses WHERE conversation_id IS NOT NULL",
                 [],
-                |r| r.get(0),
+                |r| crate::providers::sql_unsigned(r, 0),
             ),
         )
         .unwrap_or(0);
@@ -173,13 +173,15 @@ fn project_stats(
             conn.query_row(
                 "SELECT COUNT(*) FROM responses WHERE conversation_id IS NULL",
                 [],
-                |r| r.get(0),
+                |r| crate::providers::sql_unsigned(r, 0),
             ),
         )
         .unwrap_or(0);
     // Each response yields a user + assistant message.
     let responses: usize = conn
-        .query_row("SELECT COUNT(*) FROM responses", [], |r| r.get(0))
+        .query_row("SELECT COUNT(*) FROM responses", [], |r| {
+            crate::providers::sql_unsigned(r, 0)
+        })
         .map_err(|e| e.to_string())?;
     let last: Option<String> = report
         .db(
@@ -241,7 +243,7 @@ fn load_sessions_conn_reporting(
             let name: Option<String> = row.get(1)?;
             let first: Option<String> = row.get(2)?;
             let last: Option<String> = row.get(3)?;
-            let cnt: usize = row.get(4)?;
+            let cnt: usize = crate::providers::sql_unsigned(row, 4)?;
             Ok((conv_id, name, first, last, cnt))
         })
         .map_err(|e| e.to_string())?

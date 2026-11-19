@@ -359,7 +359,7 @@ fn read_project_dir(
         session_count += prompts.session_count();
         message_count += prompts.prompt_count();
         let prompted = prompts.last_prompt_at();
-        if last_modified.map_or(true, |modified| prompted > modified) {
+        if last_modified.is_none_or(|modified| prompted > modified) {
             last_modified = Some(prompted);
         }
     }

@@ -28,13 +28,12 @@ use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, find_line_ranges, search_json_value_case_insensitive};
 use chrono::{DateTime, Utc};
 use memmap2::Mmap;
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 use walkdir::WalkDir;
 
@@ -765,8 +764,9 @@ fn search_filtered(
 /// project click and on every stats recalculation. Cache entries are
 /// O(`num_sessions`); a single `SessionInfo` is ~200 bytes, so even 10k sessions
 /// stays well under 5 MB.
-static SESSION_INFO_CACHE: Lazy<Mutex<HashMap<PathBuf, (SessionInfoCacheFreshness, SessionInfo)>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static SESSION_INFO_CACHE: LazyLock<
+    Mutex<HashMap<PathBuf, (SessionInfoCacheFreshness, SessionInfo)>>,
+> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Cached version of [`extract_session_info`]. Looks up `events_path` in the
 /// process-wide cache; on miss or stale mtime, parses and stores. The lock is

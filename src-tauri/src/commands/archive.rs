@@ -7,24 +7,24 @@ use crate::commands::session::is_viewer_visible_jsonl_line;
 use crate::commands::stats::session_files;
 use crate::models::ClaudeSession;
 use chrono::Utc;
-use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::time::SystemTime;
 use uuid::Uuid;
 
-lazy_static! {
-    /// Regex used only to detect legacy UUID-based archive IDs during migration.
-    static ref ARCHIVE_ID_REGEX: Regex =
-        Regex::new(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$").unwrap();
-    /// Allowed characters for archive IDs used as directory names.
-    /// Supports ASCII letters/numbers plus `_` and `-`.
-    static ref ARCHIVE_ID_SAFE_CHARS_REGEX: Regex =
-        Regex::new(r"^[A-Za-z0-9_-]+$").unwrap();
-}
+/// Regex used only to detect legacy UUID-based archive IDs during migration.
+static ARCHIVE_ID_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$").unwrap()
+});
+
+/// Allowed characters for archive IDs used as directory names.
+/// Supports ASCII letters/numbers plus `_` and `-`.
+static ARCHIVE_ID_SAFE_CHARS_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]+$").unwrap());
 
 // ---------------------------------------------------------------------------
 // Data structures

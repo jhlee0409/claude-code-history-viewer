@@ -3,14 +3,14 @@ use crate::models::{
     SessionLifecycle, SessionLifecycleStatus, SessionTotals,
 };
 use crate::providers::scan_report::ScanReport;
-use once_cell::sync::Lazy;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 const ESTIMATED_PROMPT_RATIO: f64 = 0.62;
 
-static MODEL_ALIAS_MAP: Lazy<HashMap<&'static str, &'static str>> = Lazy::new(|| {
+static MODEL_ALIAS_MAP: LazyLock<HashMap<&'static str, &'static str>> = LazyLock::new(|| {
     HashMap::from([
         ("MODEL_PLACEHOLDER_M37", "gemini-3.1-pro-high"),
         ("MODEL_PLACEHOLDER_M36", "gemini-3.1-pro-low"),

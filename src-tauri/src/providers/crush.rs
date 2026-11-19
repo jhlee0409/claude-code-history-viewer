@@ -119,7 +119,7 @@ fn load_sessions_conn(conn: &Connection, project_dir: &str) -> Result<Vec<Claude
             let title: Option<String> = row.get(1)?;
             let created: Option<i64> = row.get(2)?;
             let updated: Option<i64> = row.get(3)?;
-            let msg_cnt: usize = row.get(4)?;
+            let msg_cnt: usize = crate::providers::sql_unsigned(row, 4)?;
             Ok((id, title, created, updated, msg_cnt))
         })
         .map_err(|e| e.to_string())?
@@ -440,7 +440,11 @@ fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
         [],
         |row| {
             let last: Option<i64> = row.get(2)?;
-            Ok((row.get(0)?, row.get(1)?, epoch_to_iso(last.unwrap_or(0))))
+            Ok((
+                crate::providers::sql_unsigned(row, 0)?,
+                crate::providers::sql_unsigned(row, 1)?,
+                epoch_to_iso(last.unwrap_or(0)),
+            ))
         },
     )
     .map_err(|e| e.to_string())

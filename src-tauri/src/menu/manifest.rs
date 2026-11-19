@@ -181,7 +181,7 @@ impl Entry {
     pub fn exists_on(&self, os: Os) -> bool {
         self.platforms
             .as_ref()
-            .map_or(true, |list| list.contains(&os))
+            .is_none_or(|list| list.contains(&os))
     }
 
     /// The menu this entry goes in on `os`, if any.

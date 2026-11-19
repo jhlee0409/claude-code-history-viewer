@@ -675,7 +675,7 @@ fn content_is_empty(content: &Value) -> bool {
                 || items.iter().all(|item| {
                     item.get("text")
                         .and_then(Value::as_str)
-                        .map_or(true, |text| text.trim().is_empty())
+                        .is_none_or(|text| text.trim().is_empty())
                 })
         }
         Value::String(text) => text.trim().is_empty(),
