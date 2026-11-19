@@ -367,7 +367,7 @@ fn opened_inside(file: &File, opened: &Metadata, root: &Path) -> bool {
     if link_count(opened) > 1 {
         return true;
     }
-    opened_path(file).map_or(true, |path| path.starts_with(root))
+    opened_path(file).is_none_or(|path| path.starts_with(root))
 }
 
 #[cfg(unix)]

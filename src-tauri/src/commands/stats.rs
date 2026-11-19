@@ -684,9 +684,9 @@ fn path_under_root(path: &str, root: Option<String>) -> bool {
 }
 
 fn is_copilot_cli_session_path(session_path: &str) -> bool {
-    if !Path::new(session_path)
+    if Path::new(session_path)
         .file_name()
-        .is_some_and(|name| name == "events.jsonl")
+        .is_none_or(|name| name != "events.jsonl")
     {
         return false;
     }
@@ -1395,14 +1395,11 @@ fn scan_session_file_for_global_stats(
         // Track first/last message
         if stats
             .first_message
-            .map_or(true, |current| timestamp < current)
+            .is_none_or(|current| timestamp < current)
         {
             stats.first_message = Some(timestamp);
         }
-        if stats
-            .last_message
-            .map_or(true, |current| timestamp > current)
-        {
+        if stats.last_message.is_none_or(|current| timestamp > current) {
             stats.last_message = Some(timestamp);
         }
 
@@ -1962,13 +1959,13 @@ fn collect_provider_global_file_stats(
                 timestamps.push(record.timestamp);
                 if stats
                     .first_message
-                    .map_or(true, |current| record.timestamp < current)
+                    .is_none_or(|current| record.timestamp < current)
                 {
                     stats.first_message = Some(record.timestamp);
                 }
                 if stats
                     .last_message
-                    .map_or(true, |current| record.timestamp > current)
+                    .is_none_or(|current| record.timestamp > current)
                 {
                     stats.last_message = Some(record.timestamp);
                 }
@@ -3694,11 +3691,11 @@ fn build_session_token_stats_from_messages(
         total_reasoning_tokens += reasoning_tokens;
 
         if let Some(ts) = parsed_timestamp {
-            if first_time.map_or(true, |current| ts < current) {
+            if first_time.is_none_or(|current| ts < current) {
                 first_time = Some(ts);
                 first_time_raw = Some(message.timestamp.clone());
             }
-            if last_time.map_or(true, |current| ts > current) {
+            if last_time.is_none_or(|current| ts > current) {
                 last_time = Some(ts);
                 last_time_raw = Some(message.timestamp.clone());
             }
@@ -4347,10 +4344,10 @@ fn get_provider_session_comparison(
             total_tokens += tokens;
 
             if let Some(ts) = parsed_ts {
-                if first_time.map_or(true, |current| ts < current) {
+                if first_time.is_none_or(|current| ts < current) {
                     first_time = Some(ts);
                 }
-                if last_time.map_or(true, |current| ts > current) {
+                if last_time.is_none_or(|current| ts > current) {
                     last_time = Some(ts);
                 }
             }
@@ -4651,21 +4648,13 @@ pub(super) struct SessionTokenAccum {
 
 impl SessionTokenAccum {
     pub(super) fn observe_first(&mut self, ts: DateTime<Utc>, raw: &str) {
-        if self
-            .first
-            .as_ref()
-            .map_or(true, |(current, _)| ts < *current)
-        {
+        if self.first.as_ref().is_none_or(|(current, _)| ts < *current) {
             self.first = Some((ts, raw.to_string()));
         }
     }
 
     pub(super) fn observe_last(&mut self, ts: DateTime<Utc>, raw: &str) {
-        if self
-            .last
-            .as_ref()
-            .map_or(true, |(current, _)| ts > *current)
-        {
+        if self.last.as_ref().is_none_or(|(current, _)| ts > *current) {
             self.last = Some((ts, raw.to_string()));
         }
     }
@@ -5489,13 +5478,13 @@ fn scan_session_file_for_comparison(
         if let Some(timestamp) = parsed_ts {
             if first_time
                 .as_ref()
-                .map_or(true, |current| timestamp < *current)
+                .is_none_or(|current| timestamp < *current)
             {
                 first_time = Some(timestamp);
             }
             if last_time
                 .as_ref()
-                .map_or(true, |current| timestamp > *current)
+                .is_none_or(|current| timestamp > *current)
             {
                 last_time = Some(timestamp);
             }

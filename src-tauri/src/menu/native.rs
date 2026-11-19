@@ -105,7 +105,7 @@ fn build_menu<R: Runtime>(
                     toggle,
                 } => {
                     let state = states.get(id);
-                    let enabled = state.map_or(true, |s| s.enabled);
+                    let enabled = state.is_none_or(|s| s.enabled);
                     if *toggle {
                         let checked = state.and_then(|s| s.checked).unwrap_or(false);
                         submenu.append(&CheckMenuItem::with_id(

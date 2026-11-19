@@ -37,7 +37,7 @@ fn rows_per_session() -> usize {
     std::env::var("CCHV_PERF_ROWS_PER_SESSION")
         .ok()
         .and_then(|v| v.parse().ok())
-        .filter(|n: &usize| *n >= 2 && n % 2 == 0)
+        .filter(|n: &usize| *n >= 2 && n.is_multiple_of(2))
         .unwrap_or(DEFAULT_ROWS_PER_SESSION)
 }
 

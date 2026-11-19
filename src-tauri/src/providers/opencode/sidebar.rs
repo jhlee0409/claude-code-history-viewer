@@ -174,7 +174,7 @@ pub(super) fn load_groups(
             row.get::<_, String>(1)?,
             row.get(2)?,
             row.get(3)?,
-            row.get(4)?,
+            crate::providers::sql_unsigned(row, 4)?,
         ))
     }) else {
         return HashMap::new();

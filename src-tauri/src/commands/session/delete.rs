@@ -221,9 +221,9 @@ pub(super) fn resolve_transcript_targets(path: &Path) -> Result<TranscriptTarget
 /// - `forgecode://…` / `cursor://…` ids are rows in that provider's database
 ///   and are deleted there.
 /// - A path under the Cursor Agent CLI's `~/.cursor/projects` is resolved by
-///   [`delete_cursor_agent_session`].
+///   `delete_cursor_agent_session`.
 /// - Anything else is a Claude Code / Codex `<uuid>.jsonl` resolved by
-///   [`resolve_transcript_targets`]: the file and its `<dir>/<uuid>/` folder
+///   `resolve_transcript_targets`: the file and its `<dir>/<uuid>/` folder
 ///   (subagents, tool-results) are moved to the trash. If the system trash is
 ///   unavailable (e.g. a disabled Recycle Bin on Windows), it falls back to
 ///   permanent deletion so the operation does not fail outright (#256).

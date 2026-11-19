@@ -422,11 +422,11 @@ fn linux_ime_environment_updates(
 
     let mut updates = Vec::new();
 
-    if gtk_im_module.map_or(true, str::is_empty) {
+    if gtk_im_module.is_none_or(str::is_empty) {
         updates.push(("GTK_IM_MODULE", "ibus"));
     }
 
-    if xmodifiers.map_or(true, str::is_empty) {
+    if xmodifiers.is_none_or(str::is_empty) {
         updates.push(("XMODIFIERS", "@im=ibus"));
     }
 

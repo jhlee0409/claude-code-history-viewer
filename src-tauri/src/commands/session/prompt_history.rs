@@ -28,13 +28,13 @@
 use crate::commands::stats::session_files;
 use crate::models::{ClaudeMessage, ClaudeSession, MessagePage, SessionTokenStats};
 use chrono::{DateTime, SecondsFormat};
-use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// `storage_type` of a prompt-history session; the frontend keys its
@@ -69,7 +69,7 @@ const SUMMARY_CHARS: usize = 100;
 
 /// A paste reference in a prompt, as Claude Code writes and parses it
 /// (`parseReferences` in its `history.ts`).
-static PASTE_REFERENCE: Lazy<Regex> = Lazy::new(|| {
+static PASTE_REFERENCE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\[(?:Pasted text|Image|\.\.\.Truncated text) #(\d+)(?: \+\d+ lines)?\.*\]")
         .expect("valid paste reference pattern")
 });
@@ -236,7 +236,7 @@ fn project_dir_name(cwd: &str, dir_names: &[String]) -> String {
         if c.is_ascii_alphanumeric() {
             sanitized.push(c);
         } else {
-            sanitized.extend(std::iter::repeat('-').take(c.len_utf16()));
+            sanitized.extend(std::iter::repeat_n('-', c.len_utf16()));
         }
     }
     if sanitized.len() <= MAX_SANITIZED_LEN || dir_names.contains(&sanitized) {
@@ -283,7 +283,7 @@ struct Span {
 impl Span {
     fn covers(&self, ms: i64) -> bool {
         self.start_ms
-            .map_or(true, |start| ms >= start - SPAN_SLACK_MS)
+            .is_none_or(|start| ms >= start - SPAN_SLACK_MS)
             && ms <= self.end_ms + SPAN_SLACK_MS
     }
 }

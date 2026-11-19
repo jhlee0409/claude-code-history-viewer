@@ -419,17 +419,22 @@ fn zip_entry<R: Read + io::Seek>(
         if !entry.is_file() {
             continue;
         }
-        let Some(enclosed) = entry.enclosed_name() else {
+        let Ok(entry_name) = entry.name() else {
             continue;
         };
-        let parts: Vec<_> = enclosed.components().collect();
-        let depth = match parts.as_slice() {
-            [Component::Normal(file)] if *file == name => 0,
-            [Component::Normal(_), Component::Normal(file)] if *file == name => 1,
+        // The ZIP library normalizes absolute paths in `enclosed_name`.
+        // Match the original entry path so normalization cannot make it eligible.
+        if entry.enclosed_name().is_none() {
+            continue;
+        }
+        let mut parts = Path::new(entry_name.as_ref()).components();
+        let depth = match (parts.next(), parts.next(), parts.next()) {
+            (Some(Component::Normal(file)), None, None) if file == name => 0,
+            (Some(Component::Normal(_)), Some(Component::Normal(file)), None) if file == name => 1,
             _ => continue,
         };
-        if best.as_ref().map_or(true, |(d, _, _)| depth < *d) {
-            best = Some((depth, index, entry.name().to_string()));
+        if best.as_ref().is_none_or(|(d, _, _)| depth < *d) {
+            best = Some((depth, index, entry_name.into_owned()));
         }
     }
     best.map(|(_, index, entry_name)| (index, entry_name))
@@ -1090,7 +1095,7 @@ fn content_blocks(message_uuid: &str, items: Vec<Value>) -> Vec<Value> {
 fn take_open_call(open_calls: &mut Vec<(String, String)>, name: Option<&str>) -> Option<String> {
     let position = open_calls
         .iter()
-        .rposition(|(_, open)| name.map_or(true, |name| open == name))?;
+        .rposition(|(_, open)| name.is_none_or(|name| open == name))?;
     Some(open_calls.remove(position).0)
 }
 

@@ -5,13 +5,13 @@
 //! `/rename` command.
 
 use chrono::{SecondsFormat, Utc};
-use lazy_static::lazy_static;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use uuid::Uuid;
@@ -19,10 +19,8 @@ use uuid::Uuid;
 use crate::commands::stats::session_files;
 use crate::utils::{is_safe_storage_id, strip_windows_extended_prefix};
 
-lazy_static! {
-    /// Regex for validating JSONL filename pattern (alphanumeric, underscore, hyphen only)
-    static ref FILENAME_REGEX: Regex = Regex::new(r"^[A-Za-z0-9_-]+$").unwrap();
-}
+/// Regex for validating JSONL filename pattern (alphanumeric, underscore, hyphen only)
+static FILENAME_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]+$").unwrap());
 
 /// Result structure for rename operations
 #[derive(Debug, Serialize, Deserialize)]

@@ -218,7 +218,7 @@ pub async fn load_presets() -> Result<Vec<PresetData>, String> {
             let path = entry.path();
 
             // Skip non-JSON files and temp files
-            if !path.extension().is_some_and(|ext| ext == "json") {
+            if path.extension().is_none_or(|ext| ext != "json") {
                 continue;
             }
 

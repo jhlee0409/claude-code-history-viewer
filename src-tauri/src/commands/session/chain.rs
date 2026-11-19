@@ -16,10 +16,9 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::SystemTime;
 
-use once_cell::sync::Lazy;
 use rayon::prelude::*;
 
 use crate::commands::stats::session_files;
@@ -60,8 +59,8 @@ struct CachedChain {
 /// re-resolved on every pagination page as the user scrolls. Cache for the
 /// life of the process, keyed by the leaf (most recent) session file path, but
 /// invalidate it whenever any candidate file changes.
-static SESSION_CHAIN_CACHE: Lazy<Mutex<HashMap<String, CachedChain>>> =
-    Lazy::new(|| Mutex::new(HashMap::new()));
+static SESSION_CHAIN_CACHE: LazyLock<Mutex<HashMap<String, CachedChain>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 fn file_signature(path: &Path) -> Option<FileSignature> {
     let metadata = fs::metadata(path).ok()?;

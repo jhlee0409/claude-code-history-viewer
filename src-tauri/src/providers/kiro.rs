@@ -70,8 +70,8 @@ fn scan_conn(conn: &Connection) -> Result<Vec<ClaudeProject>, String> {
     let projects = stmt
         .query_map([], |row| {
             let key: String = row.get(0)?;
-            let count: usize = row.get(1)?;
-            let updated: u64 = row.get(2)?;
+            let count: usize = crate::providers::sql_unsigned(row, 1)?;
+            let updated: u64 = crate::providers::sql_unsigned(row, 2)?;
             Ok((key, count, updated))
         })
         .map_err(|e| e.to_string())?
@@ -117,8 +117,8 @@ pub fn load_sessions(
         .query_map([key], |row| {
             let conv_id: String = row.get(0)?;
             let value: String = row.get(1)?;
-            let created: u64 = row.get(2)?;
-            let updated: u64 = row.get(3)?;
+            let created: u64 = crate::providers::sql_unsigned(row, 2)?;
+            let updated: u64 = crate::providers::sql_unsigned(row, 3)?;
             Ok((conv_id, value, created, updated))
         })
         .map_err(|e| e.to_string())?

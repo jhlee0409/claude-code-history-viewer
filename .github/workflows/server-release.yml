@@ -40,10 +40,10 @@ jobs:
             target: aarch64-unknown-linux-gnu
             artifact: cchv-server-linux-arm64
             cross: true
-          - platform: macos-14
+          - platform: macos-15
             target: aarch64-apple-darwin
             artifact: cchv-server-macos-arm64
-          - platform: macos-14
+          - platform: macos-15
             target: x86_64-apple-darwin
             artifact: cchv-server-macos-x64
 

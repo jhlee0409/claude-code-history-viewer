@@ -15,7 +15,7 @@ use std::fs;
 use std::hash::{Hash, Hasher};
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::SystemTime;
 use uuid::Uuid;
 
@@ -33,11 +33,12 @@ const SEARCH_CACHE_CAPACITY: usize = 64;
 /// memory bounded.
 const MAX_CACHED_MATCHES_PER_QUERY: usize = 10_000;
 
-lazy_static::lazy_static! {
-    static ref ERROR_MATCHER: AhoCorasick = build_matcher("error");
-    static ref SEARCH_CACHE: Mutex<LruCache<u64, CachedQuerySearch>> =
-        Mutex::new(LruCache::new(NonZeroUsize::new(SEARCH_CACHE_CAPACITY).expect("non-zero")));
-}
+static ERROR_MATCHER: LazyLock<AhoCorasick> = LazyLock::new(|| build_matcher("error"));
+static SEARCH_CACHE: LazyLock<Mutex<LruCache<u64, CachedQuerySearch>>> = LazyLock::new(|| {
+    Mutex::new(LruCache::new(
+        NonZeroUsize::new(SEARCH_CACHE_CAPACITY).expect("non-zero"),
+    ))
+});
 
 /// (size, mtime) identity of a session file, captured BEFORE scanning so a
 /// concurrent append can never be cached under a newer signature (worst
@@ -662,7 +663,7 @@ fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> Walk
                 .filter_map(std::result::Result::ok)
                 .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
                 .filter(|entry| {
-                    names.as_ref().map_or(true, |names| {
+                    names.as_ref().is_none_or(|names| {
                         entry
                             .file_name()
                             .to_str()
@@ -671,7 +672,7 @@ fn resolve_walk_scope(projects_path: &Path, filters: &serde_json::Value) -> Walk
                 })
                 .map(|entry| entry.path())
                 .filter(|path| {
-                    paths.as_ref().map_or(true, |paths| {
+                    paths.as_ref().is_none_or(|paths| {
                         paths.contains(project_path_key(&path.to_string_lossy()).as_ref())
                     })
                 })

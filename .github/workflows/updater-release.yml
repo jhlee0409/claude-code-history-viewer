@@ -96,7 +96,7 @@ jobs:
       matrix:
         include:
           # macOS - Universal Binary (supports both Intel and Apple Silicon)
-          - platform: macos-14
+          - platform: macos-15
             args: '--target universal-apple-darwin'
             target: 'aarch64-apple-darwin,x86_64-apple-darwin'
           # Linux - x64

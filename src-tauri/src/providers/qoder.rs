@@ -3,7 +3,7 @@
 //! Qoder writes every agent session as a Claude Code-format JSONL transcript:
 //! `type: "user" | "assistant" | "system"` lines carrying Anthropic `message`
 //! objects with Claude's tool names. Its lines therefore go through the
-//! shared Claude line parser ([`parse_viewer_line`]) and render with the
+//! shared Claude line parser (`parse_viewer_line`) and render with the
 //! existing tool renderers.
 //!
 //! Stores, each a `projects/` folder; every one present is read:
