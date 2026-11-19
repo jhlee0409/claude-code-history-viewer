@@ -502,9 +502,9 @@ export function createActions({ session, scenario, manifest, t }) {
         .filter({ visible: true })
         .first();
       await click(opener, "open palette");
-      // The search field (a base build before T10 also has a project picker,
-      // a Radix select that is a combobox too).
-      const field = page.getByRole("dialog").locator("input[role=combobox]");
+      // In 1.32.x the search was a textbox; newer builds give the same text
+      // input a combobox role. The old project picker is a button, not an input.
+      const field = page.getByRole("dialog").locator('input[type="text"]');
       await field.waitFor();
       if (query) {
         await field.fill(query);
