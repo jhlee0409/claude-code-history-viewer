@@ -73,9 +73,9 @@ fn file_name(path: &str) -> String {
 }
 
 /// `file: summary` for each listed session, sorted.
-fn listed(sessions: &[ClaudeSession]) -> Vec<String> {
+fn listed<'a>(sessions: impl IntoIterator<Item = &'a ClaudeSession>) -> Vec<String> {
     let mut listed: Vec<String> = sessions
-        .iter()
+        .into_iter()
         .map(|session| {
             format!(
                 "{}: {}",
@@ -252,7 +252,7 @@ async fn the_session_lists_never_read_a_session_file_through_a_symlink() {
             .map(|sessions| listed(&sessions)),
         multi_provider::load_provider_sessions("claude".to_string(), text(&project), None)
             .await
-            .map(|sessions| listed(&sessions)),
+            .map(|sessions| listed(sessions.iter().map(|row| &row.session))),
         expiring_files(&project).await,
         project_sessions(&planted.claude(), "p").await,
         found(&planted.claude(), "file").await,

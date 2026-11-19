@@ -12,6 +12,7 @@
  */
 
 import type { ClaudeProject, ClaudeSession } from "@/types";
+import { ancestorIds } from "./sessionBranches";
 import {
   compileFuzzyTitleQuery,
   fuzzyTitleMatches,
@@ -34,6 +35,8 @@ export interface SidebarFilterMatches {
    * its sessions stay visible.
    */
   sessionMatchesByProject: Map<string, ClaudeSession[]>;
+  /** Nonmatching ancestors shown as context, not included in search scope. */
+  sessionContextByProject: Map<string, ClaudeSession[]>;
 }
 
 export const normalizeSidebarQuery = (query: string): string =>
@@ -94,6 +97,7 @@ export const computeSidebarMatches = (
 ): SidebarFilterMatches => {
   const projectPaths = new Set<string>();
   const sessionMatchesByProject = new Map<string, ClaudeSession[]>();
+  const sessionContextByProject = new Map<string, ClaudeSession[]>();
   const compiled = compileSidebarQuery(query);
 
   for (const project of projects) {
@@ -103,16 +107,24 @@ export const computeSidebarMatches = (
     }
     if (!scope.matchSessions) continue;
 
-    const matching = (sessionsByProject.get(project.path) ?? []).filter((session) =>
+    const sessions = sessionsByProject.get(project.path) ?? [];
+    const matching = sessions.filter((session) =>
       sessionMatchesQuery(session, compiled, customNames)
     );
     if (matching.length > 0) {
       projectPaths.add(project.path);
       sessionMatchesByProject.set(project.path, matching);
+      if (matching.some((session) => session.parent_session_id)) {
+        const byId = new Map(sessions.map((session) => [session.session_id, session]));
+        const matches = new Set(matching.map((session) => session.session_id));
+        const ancestors = new Set(matching.flatMap((session) => ancestorIds(byId, session.session_id)));
+        const context = [...ancestors].filter((id) => !matches.has(id)).map((id) => byId.get(id)!);
+        if (context.length) sessionContextByProject.set(project.path, context);
+      }
     }
   }
 
-  return { projectPaths, sessionMatchesByProject };
+  return { projectPaths, sessionMatchesByProject, sessionContextByProject };
 };
 
 /**

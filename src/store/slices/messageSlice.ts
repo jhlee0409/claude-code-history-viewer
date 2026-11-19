@@ -29,6 +29,7 @@ import {
 } from "../../utils/conversationBranches";
 import type { FullAppStore } from "./types";
 import { ownWork } from "@/navigation/ownership";
+import { usesSessionBranches } from "@/utils/sessionBranches";
 import {
   fetchSessionTokenStats,
   fetchProjectTokenStats,
@@ -1392,33 +1393,35 @@ export const createMessageSlice: StateCreator<
 
     subagentNavInFlight = true;
     try {
-    // Push current session onto the navigation stack
-    set((state) => ({
-      parentSessionStack: [...state.parentSessionStack, currentSession],
-    }));
+      set((state) => ({
+        parentSessionStack: [...state.parentSessionStack, currentSession],
+      }));
 
-    // Create a synthetic ClaudeSession for the subagent
-    const syntheticSession: ClaudeSession = {
-      session_id: subagent.file_path,
-      actual_session_id: subagent.agent_id,
-      file_path: subagent.file_path,
-      project_name: currentSession.project_name,
-      message_count: subagent.message_count,
-      first_message_time: subagent.first_message_time ?? "",
-      last_message_time: subagent.last_message_time ?? "",
-      last_modified: subagent.last_message_time ?? "",
-      has_tool_use: false,
-      has_errors: false,
-      summary: subagent.summary ?? subagent.agent_id,
-      // Subagent files live under the parent session's provider storage, so
-      // they inherit its provider; leaving this unset would make selectSession
-      // fall back to "claude" and load an empty message list for other
-      // providers (codex, opencode, gemini, ...).
-      provider: currentSession.provider ?? "claude",
-    };
+      // Database runs are real sidebar rows. File-backed subagents still
+      // need a synthetic session for the transcript viewer.
+      const provider = currentSession.provider ?? "claude";
+      const grouped = usesSessionBranches(provider);
+      const listed = grouped
+        ? get().sessions.find((session) => session.file_path === subagent.file_path)
+        : undefined;
+      const child: ClaudeSession = listed ?? {
+        session_id: grouped ? `${provider}://${subagent.agent_id}` : subagent.file_path,
+        actual_session_id: subagent.agent_id,
+        file_path: subagent.file_path,
+        project_name: currentSession.project_name,
+        message_count: subagent.message_count,
+        first_message_time: subagent.first_message_time ?? "",
+        last_message_time: subagent.last_message_time ?? "",
+        last_modified: subagent.last_message_time ?? "",
+        has_tool_use: false,
+        has_errors: false,
+        summary: subagent.summary ?? subagent.agent_id,
+        provider,
+      };
 
-    isSubagentNav = true;
-    await get().selectSession(syntheticSession);
+      isSubagentNav = true;
+      await get().selectSession(child);
+      if (grouped && !listed) await get().ensureSessionBranch(child);
     } finally {
       subagentNavInFlight = false;
     }

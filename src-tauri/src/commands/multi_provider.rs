@@ -1,6 +1,12 @@
 use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage};
-use crate::providers;
+use crate::providers::{
+    self,
+    opencode::{
+        sidebar::{self, ListedProject, ListedSession},
+        OPENCODE_DB_FILE,
+    },
+};
 use crate::utils::{parse_rfc3339_utc, search_result_priority};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -77,7 +83,7 @@ pub async fn scan_all_projects(
     custom_claude_paths: Option<Vec<CustomClaudePathParam>>,
     wsl_enabled: Option<bool>,
     wsl_excluded_distros: Option<Vec<String>>,
-) -> Result<Vec<ClaudeProject>, String> {
+) -> Result<Vec<ListedProject>, String> {
     let providers_to_scan = active_providers.unwrap_or_else(|| {
         vec![
             "claude".to_string(),
@@ -131,7 +137,7 @@ pub async fn scan_all_projects(
                             p.provider = Some("claude".to_string());
                         }
                     }
-                    all_projects.extend(projects);
+                    all_projects.extend(projects.into_iter().map(ListedProject::from));
                 }
                 Err(e) => {
                     log::warn!("Claude scan failed: {e}");
@@ -155,7 +161,7 @@ pub async fn scan_all_projects(
                             }
                             p.custom_directory_label.clone_from(&custom.label);
                         }
-                        all_projects.extend(projects);
+                        all_projects.extend(projects.into_iter().map(ListedProject::from));
                     }
                     Err(e) => {
                         log::warn!("Custom Claude path scan failed ({}): {e}", custom.path);
@@ -221,7 +227,23 @@ pub async fn scan_all_projects(
         .map(|(name, scan)| {
             let name = *name;
             let scan = *scan;
-            tauri::async_runtime::spawn_blocking(move || (name, scan()))
+            tauri::async_runtime::spawn_blocking(move || {
+                let projects = scan().map(|projects| {
+                    let store = match name {
+                        "opencode" => providers::opencode::get_base_path()
+                            .map(|base| (base, OPENCODE_DB_FILE)),
+                        "kilo" => providers::kilo::get_base_path()
+                            .map(|base| (base, providers::kilo::DB_FILE)),
+                        _ => None,
+                    };
+                    if let Some((base, db)) = store {
+                        sidebar::group_projects(&base, db, projects)
+                    } else {
+                        projects.into_iter().map(ListedProject::from).collect()
+                    }
+                });
+                (name, projects)
+            })
         })
         .collect();
 
@@ -258,7 +280,7 @@ pub async fn scan_all_projects(
                                 }
                                 p.custom_directory_label = Some(wsl_label.clone());
                             }
-                            all_projects.extend(projects);
+                            all_projects.extend(projects.into_iter().map(ListedProject::from));
                         }
                         Err(e) => {
                             log::warn!("WSL: Claude scan failed for '{}': {e}", distro.name);
@@ -306,7 +328,9 @@ pub async fn scan_all_projects(
                         canonical_vscode.as_deref(),
                         Some(&canonical_label),
                     ) {
-                        Ok(projects) => all_projects.extend(projects),
+                        Ok(projects) => {
+                            all_projects.extend(projects.into_iter().map(ListedProject::from));
+                        }
                         Err(e) => {
                             log::warn!("WSL: Copilot scan failed for '{}': {e}", distro.name);
                         }
@@ -325,7 +349,9 @@ pub async fn scan_all_projects(
                         Some(unc_path.as_path()),
                         Some(&label),
                     ) {
-                        Ok(projects) => all_projects.extend(projects),
+                        Ok(projects) => {
+                            all_projects.extend(projects.into_iter().map(ListedProject::from));
+                        }
                         Err(e) => {
                             log::warn!(
                                 "WSL: Copilot ({editor_label}) scan failed for '{}': {e}",
@@ -339,9 +365,10 @@ pub async fn scan_all_projects(
     }
 
     // Hide empty containers that have no session files regardless of provider.
-    all_projects.retain(|project| project.session_count > 0);
+    all_projects.retain(|row| row.project.session_count > 0);
 
     all_projects.sort_by(|a, b| {
+        let (a, b) = (&a.project, &b.project);
         match (
             parse_rfc3339_utc(&a.last_modified),
             parse_rfc3339_utc(&b.last_modified),
@@ -358,6 +385,27 @@ pub async fn scan_all_projects(
 /// Load sessions for a specific provider's project
 #[tauri::command]
 pub async fn load_provider_sessions(
+    provider: String,
+    project_path: String,
+    exclude_sidechain: Option<bool>,
+) -> Result<Vec<ListedSession>, String> {
+    if matches!(provider.as_str(), "opencode" | "kilo") {
+        return tauri::async_runtime::spawn_blocking(move || {
+            if provider == "kilo" {
+                return providers::kilo::load_listed_sessions(&project_path);
+            }
+            let base = providers::opencode::get_base_path().ok_or("OpenCode not found")?;
+            sidebar::load_listed_sessions_at(&base, OPENCODE_DB_FILE, &project_path)
+        })
+        .await
+        .map_err(|e| format!("Task join error: {e}"))?;
+    }
+    load_plain_provider_sessions(provider, project_path, exclude_sidechain)
+        .await
+        .map(|sessions| sessions.into_iter().map(ListedSession::from).collect())
+}
+
+async fn load_plain_provider_sessions(
     provider: String,
     project_path: String,
     exclude_sidechain: Option<bool>,
@@ -385,10 +433,8 @@ pub async fn load_provider_sessions(
         "goose" => providers::goose::load_sessions(&project_path, exclude),
         "grok" => providers::grok::load_sessions(&project_path, exclude),
         "hermes" => providers::hermes::load_sessions(&project_path, exclude),
-        "kilo" => providers::kilo::load_sessions(&project_path, exclude),
         "kimi" => providers::kimi::load_sessions(&project_path, exclude),
         "forgecode" => providers::forgecode::load_sessions(&project_path, exclude),
-        "opencode" => providers::opencode::load_sessions(&project_path, exclude),
         "openinterpreter" => providers::openinterpreter::load_sessions(&project_path, exclude),
         "pi" => providers::pi::load_sessions(&project_path, exclude),
         "ompi" => providers::ompi::load_sessions(&project_path, exclude),
@@ -440,8 +486,10 @@ pub async fn load_provider_sessions_page(
     exclude_sidechain: Option<bool>,
     offset: Option<usize>,
     limit: Option<usize>,
-) -> Result<crate::commands::session::SessionPage, String> {
+    anchor_session_path: Option<String>,
+) -> Result<crate::commands::session::SessionPage<ListedSession>, String> {
     let offset = offset.unwrap_or(0);
+    let limit_requested = limit;
     let limit = limit.unwrap_or(250).clamp(1, 500);
 
     if provider == "claude" {
@@ -457,11 +505,35 @@ pub async fn load_provider_sessions_page(
                 session.provider = Some("claude".to_string());
             }
         }
-        return Ok(page);
+        return Ok(crate::commands::session::SessionPage {
+            sessions: page.sessions.into_iter().map(ListedSession::from).collect(),
+            total: page.total,
+            subagent_count: None,
+            offset: page.offset,
+            limit: page.limit,
+            next_offset: page.next_offset,
+            has_more: page.has_more,
+        });
+    }
+
+    if matches!(provider.as_str(), "opencode" | "kilo") {
+        let sessions = load_provider_sessions(provider, project_path, exclude_sidechain).await?;
+        // A zero limit with an anchor asks only for the selected branch.
+        let limit = if limit_requested == Some(0) && anchor_session_path.is_some() {
+            0
+        } else {
+            limit
+        };
+        return Ok(sidebar::page(
+            sessions,
+            offset,
+            limit,
+            anchor_session_path.as_deref(),
+        ));
     }
 
     let mut sessions =
-        load_provider_sessions(provider.clone(), project_path, exclude_sidechain).await?;
+        load_plain_provider_sessions(provider.clone(), project_path, exclude_sidechain).await?;
     for session in &mut sessions {
         if session.provider.is_none() {
             session.provider = Some(provider.clone());
@@ -470,12 +542,18 @@ pub async fn load_provider_sessions_page(
     sort_sessions_by_recency(&mut sessions);
 
     let total = sessions.len();
-    let page_sessions: Vec<ClaudeSession> = sessions.into_iter().skip(offset).take(limit).collect();
+    let page_sessions: Vec<_> = sessions
+        .into_iter()
+        .skip(offset)
+        .take(limit)
+        .map(ListedSession::from)
+        .collect();
     let next_offset = offset.saturating_add(page_sessions.len());
 
     Ok(crate::commands::session::SessionPage {
         sessions: page_sessions,
         total,
+        subagent_count: None,
         offset,
         limit,
         next_offset,
@@ -1488,6 +1566,9 @@ mod tests {
         )
         .await
         .unwrap()
+        .into_iter()
+        .map(|listed| listed.project)
+        .collect()
     }
 
     async fn listed_sessions(project: &ClaudeProject) -> Vec<ClaudeSession> {
@@ -1497,11 +1578,15 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .await
         .unwrap();
         assert_eq!(page.total, project.session_count);
         page.sessions
+            .into_iter()
+            .map(|listed| listed.session)
+            .collect()
     }
 
     async fn assert_search_opens_session(

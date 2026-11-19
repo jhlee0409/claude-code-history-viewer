@@ -594,6 +594,8 @@ pub struct ProviderSessionsPageParams {
     pub offset: Option<usize>,
     #[serde(default)]
     pub limit: Option<usize>,
+    #[serde(default)]
+    pub anchor_session_path: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -1310,6 +1312,7 @@ handler_json!(
             p.exclude_sidechain,
             p.offset,
             p.limit,
+            p.anchor_session_path,
         )
         .await
     }
@@ -1818,6 +1821,7 @@ mod tests {
             exclude_sidechain: None,
             offset: None,
             limit: None,
+            anchor_session_path: None,
         }))
         .await;
 
@@ -2181,6 +2185,7 @@ mod tests {
             exclude_sidechain: None,
             offset: None,
             limit: None,
+            anchor_session_path: None,
         }))
         .await;
 

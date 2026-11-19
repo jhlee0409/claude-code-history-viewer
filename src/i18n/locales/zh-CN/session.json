@@ -142,6 +142,7 @@
   "session.deleteTargetForgeCode": "ForgeCode 对话",
   "session.deleteTitle": "删除会话",
   "session.subagentMessagesLoadError": "加载子代理消息失败：{{error}}",
+  "session.subagentRunCount_other": "{{count}} 次子代理运行",
   "session.subagentsLoadError": "加载子代理会话失败：{{error}}",
   "session.selection.enter": "选择会话",
   "session.selection.exit": "退出选择",

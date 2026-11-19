@@ -148,8 +148,14 @@ export const ProjectItem: React.FC<ProjectItemProps> = ({
         </span>
       )}
 
-      <span className="shrink-0 min-w-4 text-right text-caption tabular-nums text-muted-foreground">
+      <span
+        className="shrink-0 min-w-4 text-right text-caption tabular-nums text-muted-foreground"
+        title={project.subagent_count ? `+${t("session.subagentRunCount", { count: project.subagent_count })}` : undefined}
+      >
         {project.session_count}
+        {!!project.subagent_count && (
+          <span className="sr-only"> +{t("session.subagentRunCount", { count: project.subagent_count })}</span>
+        )}
       </span>
     </button>
   );

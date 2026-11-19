@@ -31,6 +31,10 @@ export interface SessionItemProps {
   variant?: "default" | "compact";
   /** Tree level of a compact row (its project is one above). */
   ariaLevel?: number;
+  branchDepth?: number;
+  subagentCount?: number;
+  isBranchExpanded?: boolean;
+  onToggleBranch?: () => void;
 }
 
 export interface SessionHeaderProps {

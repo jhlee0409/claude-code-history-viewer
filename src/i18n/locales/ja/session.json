@@ -142,6 +142,7 @@
   "session.deleteTargetForgeCode": "ForgeCode会話",
   "session.deleteTitle": "セッションを削除",
   "session.subagentMessagesLoadError": "サブエージェントメッセージの読み込みに失敗しました: {{error}}",
+  "session.subagentRunCount_other": "サブエージェント実行 {{count}} 件",
   "session.subagentsLoadError": "サブエージェントセッションの読み込みに失敗しました: {{error}}",
   "session.selection.enter": "セッションを選択",
   "session.selection.exit": "選択を終了",

@@ -194,6 +194,7 @@ export const GroupedProjectList: React.FC<GroupedProjectListProps> = ({
         {showSessions && (
           <ProjectSessions
             project={project}
+            ariaLevel={project.provider === "opencode" || project.provider === "kilo" ? ariaLevel + 1 : undefined}
             isOpen={isOpen}
             sessions={sessions}
             sessionsTotal={sessionsTotal}

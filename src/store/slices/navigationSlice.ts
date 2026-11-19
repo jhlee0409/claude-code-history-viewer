@@ -51,6 +51,7 @@ import {
 } from "@/navigation/place";
 import { INITIAL_PAGINATION, selectDisplayedMessages } from "./messageSlice";
 import { selectionsShowing } from "@/utils/conversationBranches";
+import { usesSessionBranches } from "@/utils/sessionBranches";
 import type { PendingAnchor } from "./documentSlice";
 import {
   loadRecent,
@@ -324,11 +325,16 @@ export const createNavigationSlice: StateCreator<
     }
 
     if (target.session) {
-      await get().selectSession(target.session, {
+      const load = get().selectSession(target.session, {
         history: historyMode(),
         cachedMessages: target.sessionMessages,
         parentStack: target.subagentStack,
       });
+      if (usesSessionBranches(get().selectedProject?.provider)) {
+        await Promise.all([load, get().ensureSessionBranch(target.session)]);
+      } else {
+        await load;
+      }
     } else if (target.session === null && get().selectedSession) {
       set({
         selectedSession: null,

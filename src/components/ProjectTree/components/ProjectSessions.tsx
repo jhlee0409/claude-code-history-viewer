@@ -1,10 +1,11 @@
 // src/components/ProjectTree/components/ProjectSessions.tsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { LoadingRows } from "@/components/ui/loading-rows";
 import { api } from "@/services/api";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
+import { ancestorIds, indexSessionBranches, newestSessionFirst, sessionBranchRows, usesSessionBranches } from "@/utils/sessionBranches";
 import { SessionItem } from "../../SessionItem";
 import { SESSION_CONTROLS_MIN, SessionList } from "./SessionList";
 import type { ClaudeProject, ClaudeSession } from "../../../types";
@@ -13,8 +14,7 @@ import type { SessionSelectHandler } from "../types";
 /** Sessions an expanded project shows before "Show all" (plan T7). */
 export const SESSION_PREVIEW_COUNT = 5;
 
-const byNewest = (a: ClaudeSession, b: ClaudeSession) =>
-  new Date(b.last_modified).getTime() - new Date(a.last_modified).getTime();
+const EMPTY_SESSIONS: ClaudeSession[] = [];
 
 interface SessionPage {
   sessions: ClaudeSession[];
@@ -66,6 +66,7 @@ function useSessionPreview(project: ClaudeProject, enabled: boolean): {
 
 interface ProjectSessionsProps {
   project: ClaudeProject;
+  ariaLevel?: number;
   /** This is the open project: its sessions are the store's list. */
   isOpen: boolean;
   /** The store's list (the open project's). */
@@ -100,6 +101,7 @@ interface ProjectSessionsProps {
  */
 export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   project,
+  ariaLevel = 2,
   isOpen,
   sessions,
   sessionsTotal,
@@ -121,6 +123,9 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   const filterMatches = useAppStore(
     (s) => s.sidebarFilterResult?.sessionMatchesByProject[project.path]
   );
+  const filterContext = useAppStore(
+    (s) => s.sidebarFilterResult?.sessionContextByProject?.[project.path]
+  );
   // The matches come from a full session list, so paging is moot. The open
   // project's own copy of a session is preferred: the file watcher keeps it
   // fresh.
@@ -129,21 +134,52 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
     const loadedById = new Map(
       (isOpen ? sessions : []).map((session) => [session.session_id, session])
     );
-    return filterMatches
-      .map((session) => loadedById.get(session.session_id) ?? session)
-      .sort(byNewest);
-  }, [filterMatches, isOpen, sessions]);
+    return [...filterMatches, ...(filterContext ?? [])]
+      .map((session) => loadedById.get(session.session_id) ?? session);
+  }, [filterContext, filterMatches, isOpen, sessions]);
   const preview = useSessionPreview(project, !isOpen && !matched);
 
-  const listed = matched ?? sessions;
-  const newest = useMemo(
-    () => [...listed].sort(byNewest).slice(0, SESSION_PREVIEW_COUNT),
-    [listed]
+  const listed = matched ?? (isOpen ? sessions : preview.page?.sessions ?? EMPTY_SESSIONS);
+  const filteredIds = useMemo(
+    () => filterMatches?.some((session) => session.parent_session_id)
+      ? new Set(filterMatches.map((session) => session.session_id))
+      : undefined,
+    [filterMatches]
   );
+  const grouped = usesSessionBranches(project.provider);
+  const tree = useMemo(
+    () => indexSessionBranches(isOpen || matched || grouped ? [...listed].sort(newestSessionFirst) : listed),
+    [grouped, isOpen, listed, matched]
+  );
+  const [expandedBranches, setExpandedBranches] = useState<ReadonlySet<string>>(() => new Set());
+  const selectedId = isOpen ? selectedSession?.session_id : undefined;
+  const selectedAncestors = useMemo(() => selectedId ? ancestorIds(tree.byId, selectedId) : [], [tree.byId, selectedId]);
+  useEffect(() => {
+    if (selectedAncestors.length) {
+      setExpandedBranches((previous) => selectedAncestors.every((id) => previous.has(id))
+        ? previous
+        : new Set([...previous, ...selectedAncestors]));
+    }
+  }, [selectedAncestors]);
+  const toggleBranch = useCallback((sessionId: string) => {
+    setExpandedBranches((previous) => {
+      const next = new Set(previous);
+      if (next.has(sessionId)) next.delete(sessionId);
+      else next.add(sessionId);
+      return next;
+    });
+  }, []);
+  const roots = tree.roots.slice(0, SESSION_PREVIEW_COUNT);
+  const selectedRoot = selectedAncestors.at(-1) ?? (grouped ? selectedId : undefined);
+  if (selectedRoot && !roots.some((root) => root.session_id === selectedRoot)) {
+    const root = tree.byId.get(selectedRoot);
+    if (root) roots.splice(SESSION_PREVIEW_COUNT - 1, 1, root);
+  }
+  const rows = sessionBranchRows(tree, roots, expandedBranches, filteredIds);
 
   const matchesHint = matched ? (
     <div role="status" className="h-6 flex items-center pl-8 pr-2 text-caption text-muted-foreground">
-      <span className="truncate">{t("project.sessions.filterMatches", { count: matched.length })}</span>
+      <span className="truncate">{t("project.sessions.filterMatches", { count: filterMatches?.length ?? 0 })}</span>
     </div>
   ) : null;
 
@@ -153,7 +189,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
         {matchesHint}
         <SessionList
           sessions={listed}
-          sessionsTotal={matched ? matched.length : sessionsTotal}
+          sessionsTotal={matched ? tree.roots.length : sessionsTotal}
           hasMoreSessions={matched ? false : hasMoreSessions}
           selectedSession={selectedSession}
           isLoading={matched ? false : isLoading}
@@ -163,17 +199,20 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
           onLoadMoreSessions={onLoadMoreSessions}
           formatTimeAgo={formatTimeAgo}
           density="compact"
+          ariaLevel={ariaLevel}
+          expandedBranches={expandedBranches}
+          onToggleBranch={grouped ? toggleBranch : undefined}
+          matchingIds={filteredIds}
         />
         {showAll && !isSelectionMode && (
-          <ShowMoreRow label={t("project.sessions.showFewer")} onClick={() => onShowAll(project, false)} />
+          <ShowMoreRow ariaLevel={ariaLevel} label={t("project.sessions.showFewer")} onClick={() => onShowAll(project, false)} />
         )}
       </div>
     );
   }
 
-  const rows = isOpen || matched ? newest : (preview.page?.sessions ?? []);
   const total = matched
-    ? matched.length
+    ? tree.roots.length
     : isOpen
       ? sessionsTotal
       : (preview.page?.total ?? project.session_count);
@@ -197,7 +236,7 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
 
   // A Shift+click in the open project's preview starts a selection over its
   // full list (the preview is part of it). Elsewhere it opens the session.
-  const orderedIds = listed.map((s) => s.session_id);
+  const orderedIds = (tree.children.size ? rows.map((row) => row.session) : listed).map((s) => s.session_id);
   const startSelection = (session: ClaudeSession) => {
     enterSessionSelectionMode();
     if (selectedSession && selectedSession.session_id !== session.session_id && orderedIds.includes(selectedSession.session_id)) {
@@ -209,12 +248,17 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
   return (
     <div role="group">
       {matchesHint}
-      {rows.map((session) => (
+      {rows.map(({ session, depth, runCount, expanded }) => (
         <SessionItem
           key={session.file_path}
           session={session}
           project={project}
           variant="compact"
+          ariaLevel={ariaLevel + depth}
+          branchDepth={depth}
+          subagentCount={runCount}
+          isBranchExpanded={expanded}
+          onToggleBranch={() => toggleBranch(session.session_id)}
           isSelected={selectedSession?.file_path === session.file_path}
           onSelect={() => onSessionSelect(session, project)}
           onHover={() => onSessionHover?.(session)}
@@ -222,8 +266,9 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
           onModifierSelect={() => (isOpen ? startSelection(session) : onSessionSelect(session, project))}
         />
       ))}
-      {(total > rows.length || (isOpen && total >= SESSION_CONTROLS_MIN)) && (
+      {(total > roots.length || (isOpen && total >= SESSION_CONTROLS_MIN)) && (
         <ShowMoreRow
+          ariaLevel={ariaLevel}
           label={t("project.sessions.showAll", { count: total })}
           onClick={() => onShowAll(project, true)}
         />
@@ -233,11 +278,11 @@ export const ProjectSessions: React.FC<ProjectSessionsProps> = ({
 };
 
 /** "Show all · N" / "Show fewer": a tree item, so arrow keys reach it. */
-const ShowMoreRow = ({ label, onClick }: { label: string; onClick: () => void }) => (
+const ShowMoreRow = ({ ariaLevel, label, onClick }: { ariaLevel: number; label: string; onClick: () => void }) => (
   <button
     type="button"
     role="treeitem"
-    aria-level={2}
+    aria-level={ariaLevel}
     aria-selected={false}
     data-tree-node="show-all"
     tabIndex={-1}

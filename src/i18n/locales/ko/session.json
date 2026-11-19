@@ -142,6 +142,7 @@
   "session.deleteTargetForgeCode": "ForgeCode 대화",
   "session.deleteTitle": "세션 삭제",
   "session.subagentMessagesLoadError": "서브에이전트 메시지 로드 실패: {{error}}",
+  "session.subagentRunCount_other": "서브에이전트 실행 {{count}}개",
   "session.subagentsLoadError": "서브에이전트 세션 로드 실패: {{error}}",
   "session.selection.enter": "세션 선택",
   "session.selection.exit": "선택 종료",

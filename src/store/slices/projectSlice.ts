@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import i18n from "../../i18n";
 import type { FullAppStore } from "./types";
 import { ownPlace, ownWork } from "@/navigation/ownership";
+import { usesSessionBranches } from "@/utils/sessionBranches";
 import {
   loadProjectAnalytics,
   loadRecentEditsScreen,
@@ -87,6 +88,7 @@ export interface ProjectSliceActions {
   refreshAllConversations: () => Promise<void>;
   selectProject: (project: ClaudeProject) => Promise<void>;
   reloadProjectSessions: (project: ClaudeProject) => Promise<void>;
+  ensureSessionBranch: (session: ClaudeSession) => Promise<void>;
   loadMoreSessions: () => Promise<void>;
   clearProjectSelection: (options?: WebUINavigationOptions) => void;
   setClaudePath: (path: string) => Promise<void>;
@@ -808,27 +810,30 @@ export const createProjectSlice: StateCreator<
     }));
     try {
       const provider = project.provider ?? "claude";
+      const grouped = usesSessionBranches(provider);
+      const anchorPath = get().selectedSession?.file_path;
       const page = await api<SessionPage>("load_provider_sessions_page", {
         provider,
         projectPath: project.path,
         excludeSidechain: get().excludeSidechain,
         offset: 0,
         limit: SESSION_PAGE_LIMIT,
+        ...(grouped && anchorPath ? { anchorSessionPath: anchorPath } : {}),
       });
 
       if (!owner.ownsData()) return;
 
       const held = get().selectedSession;
-      // A subagent view selects the subagent's own file, which is never a list
-      // row; leave it as before rather than appending it to the sidebar.
-      const isSubagentView = get().parentSessionStack.length > 0;
+      // File-backed subagent transcripts are synthetic rows. DB-backed runs
+      // are real list entries and must stay with their branch on refresh.
+      const isUnlistedSubagent = !grouped && get().parentSessionStack.length > 0;
       const refreshed =
         held == null
           ? null
-          : isSubagentView
+          : isUnlistedSubagent
           ? null
           : page.sessions.find((session) => session.file_path === held.file_path) ??
-            (await lookUpSessionBeyondPage(provider, project, held, get().excludeSidechain));
+            (!grouped ? await lookUpSessionBeyondPage(provider, project, held, get().excludeSidechain) : null);
 
       if (!owner.ownsData()) return;
       listFailureReported.delete(project.path);
@@ -836,9 +841,9 @@ export const createProjectSlice: StateCreator<
       // A session found beyond page 1 is appended so the open session stays
       // visible; `loadMoreSessions` dedupes it when its own page arrives.
       set({
-        sessions: dedupeSessionsById(
-          refreshed ? [...page.sessions, refreshed] : page.sessions
-        ),
+        sessions: refreshed && !grouped
+          ? dedupeSessionsById([...page.sessions, refreshed])
+          : page.sessions,
         sessionsTotal: page.total,
         sessionsOffset: page.nextOffset,
         hasMoreSessions: page.hasMore,
@@ -849,13 +854,21 @@ export const createProjectSlice: StateCreator<
 
       // Update project's session_count to match actual loaded sessions
       // (scan_projects counts files, but load_sessions filters invalid ones)
-      if (page.total !== project.session_count) {
-        const projects = get().projects.map((p) =>
-          p.path === project.path
-            ? { ...p, session_count: page.total }
-            : p
-        );
-        set({ projects });
+      if (page.total !== project.session_count ||
+          (page.subagentCount ?? 0) !== (project.subagent_count ?? 0)) {
+        const counts = {
+          session_count: page.total,
+          ...(page.subagentCount === undefined ? {} : { subagent_count: page.subagentCount }),
+        };
+        set((state) => ({
+          projects: state.projects.map((p) => isSameProject(p, project) ? { ...p, ...counts } : p),
+          ...(grouped && state.selectedProject
+            ? { selectedProject: { ...state.selectedProject, ...counts } }
+            : {}),
+        }));
+      }
+      if (grouped && held && held.file_path !== anchorPath && !refreshed) {
+        await get().ensureSessionBranch(held);
       }
     } catch (error) {
       console.error("Failed to load project sessions:", error);
@@ -879,6 +892,34 @@ export const createProjectSlice: StateCreator<
       if (owner.ownsSpinner()) {
         set({ isLoadingSessions: false });
       }
+    }
+  },
+
+  // Deep links and search resolve a child in the full list. If its branch
+  // is outside the loaded pages, pin just that branch without consuming a
+  // page or resetting the current list.
+  ensureSessionBranch: async (session) => {
+    const { selectedProject: project, sessions, excludeSidechain } = get();
+    const provider = project?.provider;
+    if (!project || !usesSessionBranches(provider) || sessions.some((row) => row.file_path === session.file_path)) {
+      return;
+    }
+    const owns = ownPlace(get);
+    try {
+      const page = await api<SessionPage>("load_provider_sessions_page", {
+        provider,
+        projectPath: project.path,
+        excludeSidechain,
+        offset: 0,
+        limit: 0,
+        anchorSessionPath: session.file_path,
+      });
+      const current = get();
+      if (!owns() || !current.selectedProject || !isSameProject(current.selectedProject, project) ||
+          current.selectedSession?.file_path !== session.file_path) return;
+      set((state) => ({ sessions: dedupeSessionsById([...page.sessions, ...state.sessions]) }));
+    } catch (error) {
+      console.warn("Failed to reveal the selected session branch:", error);
     }
   },
 
