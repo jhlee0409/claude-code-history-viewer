@@ -119,7 +119,7 @@ impl Labels {
 
     pub fn app_name(&self) -> String {
         self.raw("common.appName")
-            .unwrap_or("Claude Code History Viewer")
+            .unwrap_or("Omnilogue")
             .to_string()
     }
 }

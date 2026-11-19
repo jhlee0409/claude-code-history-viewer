@@ -15,7 +15,7 @@ import { SCREEN_ICONS } from "@/components/icon/screenIcons";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { isActionModifier, isMacOS, isTauri } from "@/utils/platform";
+import { getAssetPath, isActionModifier, isMacOS, isTauri } from "@/utils/platform";
 import { openInNewTab } from "@/navigation/tabs";
 import { MobileTabsButton } from "@/layouts/shell/MobileTabsButton";
 import { SettingDropdown } from "./SettingDropdown";
@@ -181,7 +181,7 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
     if (libraryItem || isAppView(view)) {
       return [t("project.library.title"), t(VIEW_REGISTRY[view].titleKey)];
     }
-    if (!selectedProject) return [t("common.appName")];
+    if (!selectedProject) return [];
     const projectName = getProjectDisplayName(selectedProject);
     if (computed.isMessagesView || computed.isEmptyView) {
       return selectedSession
@@ -218,6 +218,12 @@ export const Header = ({ analyticsActions, analyticsComputed, updater }: HeaderP
 
       {/* Left: history + location. flex-1 on both sides keeps the tabs centred. */}
       <div className="relative z-10 flex min-w-0 flex-1 basis-0 items-center gap-1">
+        <div className="pointer-events-none flex shrink-0 items-center gap-1">
+          <img src={getAssetPath("app-icon.png")} alt="" width={24} height={24} />
+          <span className={cn("text-list font-semibold text-foreground", location.length > 0 && "hidden md:inline")}>
+            {t("common.appName")}
+          </span>
+        </div>
         <ToolbarIconButton
           icon={ChevronLeft}
           label={t("common.command.back")}
