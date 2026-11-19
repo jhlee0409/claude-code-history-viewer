@@ -132,7 +132,7 @@ fn run_tauri() {
     // (Protocol error) dispatching to Wayland display" (seen with WebKitGTK
     // 2.52 + NVIDIA 610 + GNOME Wayland), so this is not gated on AppImage.
     //
-    // See: https://github.com/jhlee0409/claude-code-history-viewer/issues/186
+    // See: https://github.com/jhlee0409/omnilogue/issues/186
     // See: https://github.com/tauri-apps/tauri/issues/11988
     // Note: std::env::set_var becomes unsafe in Rust edition 2024.
     // This is safe here because no threads exist yet at this point in startup.

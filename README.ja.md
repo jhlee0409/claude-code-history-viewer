@@ -6,18 +6,16 @@
 
 **AIコーディングアシスタントのための統合履歴ビューア。**
 
-*（旧称: Claude Code History Viewer）*
-
 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code**、**Grok CLI**の会話履歴を閲覧・検索・分析 — デスクトップアプリまたはヘッドレスサーバーとして。100%オフライン。
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[ウェブサイト](https://jhlee0409.github.io/claude-code-history-viewer/) · [ダウンロード](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [バグ報告](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[ウェブサイト](https://jhlee0409.github.io/omnilogue/) · [ダウンロード](https://github.com/jhlee0409/omnilogue/releases) · [バグ報告](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -40,20 +38,20 @@
 
 | プラットフォーム | ダウンロード |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (ポータブル)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.deb`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.rpm`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.flatpak`](#flatpak-linux) |
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (ポータブル)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS)：
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **ヘッドレスサーバー** — 任意のブラウザからアクセス：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -170,7 +168,7 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 | 機能 | 説明 |
 |------|------|
-| **WebUI のセキュリティ強化** | `--serve` モードでは、セッション・プロジェクトのパスは履歴フォルダ内に、プロジェクト設定は既知のプロジェクトに限定されます — WebUI をお使いの場合はアップグレードしてください（[アドバイザリ](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **WebUI のセキュリティ強化** | `--serve` モードでは、セッション・プロジェクトのパスは履歴フォルダ内に、プロジェクト設定は既知のプロジェクトに限定されます — WebUI をお使いの場合はアップグレードしてください（[アドバイザリ](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)） |
 | **Claude Code の自動タイトル** | セッション一覧、統計、エクスポート、アーカイブに Claude Code が生成したタイトルを表示します（手動で付けた名前が優先） |
 | **自分のプロンプトとエージェント更新の区別** | Messages パネルが入力したプロンプト、エージェントの更新、コマンド、注入されたコンテキストを区別し、「自分のプロンプトのみ表示」フィルターを提供します |
 
@@ -279,13 +277,13 @@ Antigravityに関する注記：ビューアはAntigravityルートを`~/.gemini
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 または、完全なCaskパスで直接インストール:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 `No Cask with this name exists` と表示される場合は、上記の完全パスコマンドを実行してください。
@@ -293,13 +291,13 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 アップグレード:
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 アンインストール:
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **手動インストール(.dmg)から移行しますか？**
@@ -308,12 +306,12 @@ brew uninstall --cask claude-code-history-viewer
 > 次に以下を実行します:
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
 
 ### Flatpak (Linux)
 
-各リリースには `.flatpak` バンドルが含まれています。[リリースページ](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest)からダウンロードして、次を実行してください。
+各リリースには `.flatpak` バンドルが含まれています。[リリースページ](https://github.com/jhlee0409/omnilogue/releases/latest)からダウンロードして、次を実行してください。
 
 ```bash
 flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
@@ -325,7 +323,7 @@ flatpak run io.github.jhlee0409.Omnilogue
 ## ソースからビルド
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -355,7 +353,7 @@ pnpm tauri:build     # Production build
 brew install jhlee0409/tap/cchv-server
 
 # Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 どちらの方法でも`cchv-server`がPATHにインストールされます。
@@ -386,7 +384,7 @@ cchv-server --serve
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)からダウンロード。
+[Releases](https://github.com/jhlee0409/omnilogue/releases)からダウンロード。
 
 **CLIオプション:**
 
@@ -540,7 +538,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | WebUIに接続できない | `cchv-server`のデフォルトポートは`3727`です。起動時のURLを使い、リモート接続ではポート競合とファイアウォール/プロキシの設定を確認してください。 |
 | 「Unauthorized」/ HTTP 401 | 起動時に表示されたトークン付きURLを使うか、`Authorization: Bearer <token>`を送信してください。固定トークンは`--token`または`CCHV_TOKEN`で設定できます。 |
 | パフォーマンスの問題 | 大量の履歴は初期読み込みが遅い場合あり — アプリは仮想スクロールを使用 |
-| 更新の問題 | 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)から手動ダウンロード |
+| 更新の問題 | 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/omnilogue/releases)から手動ダウンロード |
 
 ## コントリビュート
 
@@ -574,6 +572,6 @@ Omnilogueは独立したオープンソースプロジェクトであり、セ�
 
 このプロジェクトが役に立ったら、スターをお願いします！
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

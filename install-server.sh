@@ -2,7 +2,7 @@
 # install-server.sh — One-line installer for cchv-server (Omnilogue)
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 #
 # Environment variables:
 #   INSTALL_DIR  — Installation directory (default: /usr/local/bin)
@@ -10,7 +10,7 @@
 
 set -e
 
-REPO="jhlee0409/claude-code-history-viewer"
+REPO="jhlee0409/omnilogue"
 BINARY_NAME="cchv-server"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 

@@ -6,18 +6,16 @@
 
 **The unified history viewer for AI coding assistants.**
 
-*(formerly Claude Code History Viewer)*
-
 Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, **Antigravity**, **Codex CLI**, **Cline**, **Cursor**, **Aider**, **OpenCode**, **ForgeCode**, **CodeBuddy Code**, and **Grok CLI** — as a desktop app or headless server. 100% offline.
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[Website](https://jhlee0409.github.io/claude-code-history-viewer/) · [Download](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [Report Bug](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[Website](https://jhlee0409.github.io/omnilogue/) · [Download](https://github.com/jhlee0409/omnilogue/releases) · [Report Bug](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -40,20 +38,20 @@ Browse, search, and analyze conversations from **Claude Code**, **Gemini CLI**, 
 
 | Platform | Download |
 |----------|----------|
-| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.deb`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.rpm`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.flatpak`](#flatpak-linux) |
+| macOS (Universal) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (portable)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS):
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **Headless server** — access from any browser:
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -170,7 +168,7 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 | Feature | Description |
 |---------|-------------|
-| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)) |
+| **WebUI security hardening** | In `--serve` mode, session and project paths are limited to your history folders, and project settings to known projects — upgrade if you run the WebUI ([advisory](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)) |
 | **Claude Code auto titles** | Sessions show the title Claude Code generated, in the session list, stats, export and archives (your own rename still wins) |
 | **Prompts vs. agent updates** | The Messages panel marks your typed prompts, agent updates, commands and injected context, with a "Show my prompts only" filter |
 
@@ -279,13 +277,13 @@ Antigravity note: the viewer resolves the Antigravity root as `~/.gemini/antigra
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 Or install directly with the full cask path:
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 If you see `No Cask with this name exists`, run the full cask path command above.
@@ -293,13 +291,13 @@ If you see `No Cask with this name exists`, run the full cask path command above
 To upgrade:
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 To uninstall:
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **Migrating from manual (.dmg) installation?**
@@ -308,12 +306,12 @@ brew uninstall --cask claude-code-history-viewer
 > Then run:
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
 
 ### Flatpak (Linux)
 
-Each release includes a `.flatpak` bundle. Download it from the [releases page](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest), then:
+Each release includes a `.flatpak` bundle. Download it from the [releases page](https://github.com/jhlee0409/omnilogue/releases/latest), then:
 
 ```bash
 flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
@@ -325,7 +323,7 @@ The GNOME runtime it needs is installed from Flathub. The bundle does not update
 ## Build from Source
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -355,7 +353,7 @@ Run the viewer as a headless HTTP server — no desktop environment required. Id
 brew install jhlee0409/tap/cchv-server
 
 # Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 Both methods install `cchv-server` to your PATH.
@@ -386,7 +384,7 @@ Open the URL in your browser — the token is saved automatically.
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-Download from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases).
+Download from [Releases](https://github.com/jhlee0409/omnilogue/releases).
 
 **CLI options:**
 
@@ -540,7 +538,7 @@ The app includes accessibility features for keyboard-only, low-vision, and scree
 | Cannot connect to the WebUI | `cchv-server` defaults to port `3727`. Use the startup URL, check for port conflicts, and verify firewall or proxy rules when connecting remotely. |
 | "Unauthorized" / HTTP 401 | Use the token URL printed at startup or send `Authorization: Bearer <token>`. For a fixed token, use `--token` or `CCHV_TOKEN`. |
 | Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
-| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) |
+| Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/omnilogue/releases) |
 
 ## Contributing
 
@@ -574,6 +572,6 @@ Omnilogue is an independent open-source project, not affiliated with, endorsed b
 
 If this project helps you, consider giving it a star!
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

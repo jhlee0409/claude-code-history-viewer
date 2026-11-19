@@ -634,7 +634,7 @@ describe('useUpdater', () => {
       });
 
       expect(mockOpenUrl).toHaveBeenCalledWith(
-        'https://github.com/jhlee0409/claude-code-history-viewer/releases/tag/v2.0.0'
+        'https://github.com/jhlee0409/omnilogue/releases/tag/v2.0.0'
       );
       expect(mockDownloadAndInstall).not.toHaveBeenCalled();
       expect(mockRelaunch).not.toHaveBeenCalled();

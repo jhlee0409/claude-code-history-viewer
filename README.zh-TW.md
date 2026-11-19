@@ -6,18 +6,16 @@
 
 **AI 程式設計助手的統一歷史檢視器。**
 
-*（原名：Claude Code History Viewer）*
-
 瀏覽、搜尋和分析 **Claude Code**、**Gemini CLI**、**Antigravity**、**Codex CLI**、**Cline**、**Cursor**、**Aider**、**OpenCode**、**ForgeCode**、**CodeBuddy Code** 和 **Grok CLI** 的對話記錄 — 桌面應用程式或無頭伺服器。100% 離線。
 
-[![Version](https://img.shields.io/github/v/release/jhlee0409/claude-code-history-viewer?label=Version&color=blue)](https://github.com/jhlee0409/claude-code-history-viewer/releases)
-[![Stars](https://img.shields.io/github/stars/jhlee0409/claude-code-history-viewer?style=flat&color=yellow)](https://github.com/jhlee0409/claude-code-history-viewer/stargazers)
-[![License](https://img.shields.io/github/license/jhlee0409/claude-code-history-viewer)](LICENSE)
-[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/claude-code-history-viewer/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/claude-code-history-viewer/actions/workflows/rust-tests.yml)
-[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/claude-code-history-viewer)](https://github.com/jhlee0409/claude-code-history-viewer/commits/main)
+[![Version](https://img.shields.io/github/v/release/jhlee0409/omnilogue?label=Version&color=blue)](https://github.com/jhlee0409/omnilogue/releases)
+[![Stars](https://img.shields.io/github/stars/jhlee0409/omnilogue?style=flat&color=yellow)](https://github.com/jhlee0409/omnilogue/stargazers)
+[![License](https://img.shields.io/github/license/jhlee0409/omnilogue)](LICENSE)
+[![Rust Tests](https://img.shields.io/github/actions/workflow/status/jhlee0409/omnilogue/rust-tests.yml?label=Rust%20Tests)](https://github.com/jhlee0409/omnilogue/actions/workflows/rust-tests.yml)
+[![Last Commit](https://img.shields.io/github/last-commit/jhlee0409/omnilogue)](https://github.com/jhlee0409/omnilogue/commits/main)
 ![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)
 
-[網站](https://jhlee0409.github.io/claude-code-history-viewer/) · [下載](https://github.com/jhlee0409/claude-code-history-viewer/releases) · [回報問題](https://github.com/jhlee0409/claude-code-history-viewer/issues)
+[網站](https://jhlee0409.github.io/omnilogue/) · [下載](https://github.com/jhlee0409/omnilogue/releases) · [回報問題](https://github.com/jhlee0409/omnilogue/issues)
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文 (简体)](README.zh-CN.md) | [中文 (繁體)](README.zh-TW.md)
 
@@ -40,20 +38,20 @@
 
 | 平台 | 下載 |
 |----------|----------|
-| macOS (通用版) | [`.dmg`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Windows (x64) | [`.exe`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.zip` (可攜版)](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) |
-| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.deb`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.rpm`](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest) / [`.flatpak`](#flatpak-linux) |
+| macOS (通用版) | [`.dmg`](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Windows (x64) | [`.exe`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.zip` (可攜版)](https://github.com/jhlee0409/omnilogue/releases/latest) |
+| Linux (x64) | [`.AppImage`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.deb`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.rpm`](https://github.com/jhlee0409/omnilogue/releases/latest) / [`.flatpak`](#flatpak-linux) |
 
 **Homebrew** (macOS)：
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 **無頭伺服器** — 從任何瀏覽器存取：
 
 ```bash
-brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+brew install jhlee0409/tap/cchv-server   # or: curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 cchv-server --serve                       # → http://localhost:3727
 ```
 
@@ -170,7 +168,7 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 | 功能 | 說明 |
 |------|------|
-| **WebUI 安全強化** | `--serve` 模式下，工作階段與專案路徑僅限歷史記錄資料夾，專案設定僅限已知專案 — 若你使用 WebUI，請升級（[安全公告](https://github.com/jhlee0409/claude-code-history-viewer/security/advisories/GHSA-j5r9-j75x-wprj)） |
+| **WebUI 安全強化** | `--serve` 模式下，工作階段與專案路徑僅限歷史記錄資料夾，專案設定僅限已知專案 — 若你使用 WebUI，請升級（[安全公告](https://github.com/jhlee0409/omnilogue/security/advisories/GHSA-j5r9-j75x-wprj)） |
 | **Claude Code 自動標題** | 工作階段清單、統計、匯出與封存中顯示 Claude Code 產生的標題（你手動設定的名稱優先） |
 | **區分你的提示與代理更新** | Messages 面板會區分你輸入的提示、代理更新、指令與注入的情境，並提供「僅顯示我的提示」篩選 |
 
@@ -279,13 +277,13 @@ Antigravity 說明：檢視器將 Antigravity 根目錄解析為 `~/.gemini/anti
 
 ```bash
 brew tap jhlee0409/tap
-brew install --cask claude-code-history-viewer
+brew install --cask omnilogue
 ```
 
 或使用完整 Cask 路徑直接安裝：
 
 ```bash
-brew install --cask jhlee0409/tap/claude-code-history-viewer
+brew install --cask jhlee0409/tap/omnilogue
 ```
 
 如果出現 `No Cask with this name exists`，請使用上面的完整路徑命令。
@@ -293,13 +291,13 @@ brew install --cask jhlee0409/tap/claude-code-history-viewer
 升級：
 
 ```bash
-brew upgrade --cask claude-code-history-viewer
+brew upgrade --cask omnilogue
 ```
 
 解除安裝：
 
 ```bash
-brew uninstall --cask claude-code-history-viewer
+brew uninstall --cask omnilogue
 ```
 
 > **從手動安裝 (.dmg) 遷移？**
@@ -308,12 +306,12 @@ brew uninstall --cask claude-code-history-viewer
 > 接著執行：
 > ```bash
 > brew tap jhlee0409/tap
-> brew install --cask claude-code-history-viewer
+> brew install --cask omnilogue
 > ```
 
 ### Flatpak (Linux)
 
-每個版本都附帶 `.flatpak` 套件。從[發行頁面](https://github.com/jhlee0409/claude-code-history-viewer/releases/latest)下載後執行：
+每個版本都附帶 `.flatpak` 套件。從[發行頁面](https://github.com/jhlee0409/omnilogue/releases/latest)下載後執行：
 
 ```bash
 flatpak install --user Claude.Code.History.Viewer_<version>_x86_64.flatpak
@@ -325,7 +323,7 @@ flatpak run io.github.jhlee0409.Omnilogue
 ## 從原始碼建置
 
 ```bash
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Option 1: Using just (recommended)
@@ -355,7 +353,7 @@ pnpm tauri:build     # Production build
 brew install jhlee0409/tap/cchv-server
 
 # Or one-line script
-curl -fsSL https://raw.githubusercontent.com/jhlee0409/claude-code-history-viewer/main/install-server.sh | sh
+curl -fsSL https://raw.githubusercontent.com/jhlee0409/omnilogue/main/install-server.sh | sh
 ```
 
 兩種方式都會將 `cchv-server` 安裝至您的 PATH。
@@ -386,7 +384,7 @@ cchv-server --serve
 | macOS ARM | `cchv-server-macos-arm64.tar.gz` |
 | macOS x64 | `cchv-server-macos-x64.tar.gz` |
 
-從 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 下載。
+從 [Releases](https://github.com/jhlee0409/omnilogue/releases) 下載。
 
 **CLI 選項：**
 
@@ -540,7 +538,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | 無法連線至 WebUI | `cchv-server` 預設使用 `3727` 連接埠。使用啟動時輸出的 URL；遠端連線時檢查連接埠衝突以及防火牆/代理規則。 |
 | 「Unauthorized」/ HTTP 401 | 使用啟動時輸出的權杖 URL，或傳送 `Authorization: Bearer <token>`。固定權杖可透過 `--token` 或 `CCHV_TOKEN` 設定。 |
 | 效能問題 | 大量歷史記錄可能導致初始載入較慢 — 應用程式使用虛擬捲動技術 |
-| 更新問題 | 如果自動更新失敗，請從 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手動下載 |
+| 更新問題 | 如果自動更新失敗，請從 [Releases](https://github.com/jhlee0409/omnilogue/releases) 手動下載 |
 
 ## 貢獻
 
@@ -574,6 +572,6 @@ Omnilogue 是獨立的開源專案，與其讀取工作階段紀錄的 Anthropic
 
 如果這個專案對您有幫助，請考慮給它一顆星星！
 
-[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/claude-code-history-viewer&type=Date)](https://star-history.dera.page/#jhlee0409/claude-code-history-viewer&Date)
+[![Star History Chart](https://star-history.dera.page/svg?repos=jhlee0409/omnilogue&type=Date)](https://star-history.dera.page/#jhlee0409/omnilogue&Date)
 
 </div>

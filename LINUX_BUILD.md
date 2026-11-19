@@ -1,6 +1,6 @@
 # Building Omnilogue on Linux
 
-This guide explains how to build the Omnilogue application (formerly Claude Code History Viewer) on Linux systems.
+This guide explains how to build the Omnilogue application on Linux systems.
 
 ## Prerequisites
 
@@ -61,7 +61,7 @@ sudo apt install -y \
 
 ```bash
 # Clone the repository
-git clone https://github.com/jhlee0409/claude-code-history-viewer.git
+git clone https://github.com/jhlee0409/omnilogue.git
 cd claude-code-history-viewer
 
 # Install Node.js dependencies

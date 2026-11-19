@@ -225,7 +225,7 @@ jobs:
       # EGL_BAD_ALLOC. Removing these GPU-driver-dependent libs forces the system's
       # native EGL stack to be used, which is compatible with the system's WebKitGPUProcess.
       #
-      # See: https://github.com/jhlee0409/claude-code-history-viewer/issues/186
+      # See: https://github.com/jhlee0409/omnilogue/issues/186
       # See: https://github.com/tauri-apps/tauri/issues/11988
       - name: Post-process AppImage (fix EGL crash on Arch Linux)
         if: matrix.platform == 'ubuntu-22.04'
@@ -440,6 +440,7 @@ jobs:
       # cask can be re-synced by re-running the job; the release should not
       # be held hostage to it.
       - name: Sync Homebrew tap cask
+        if: needs.create-release.outputs.tag != 'v2.0.0'
         continue-on-error: true
         uses: actions/github-script@v7
         env:
@@ -449,7 +450,7 @@ jobs:
             const releaseId = ${{ needs.create-release.outputs.release_id }};
             const tapOwner = 'jhlee0409';
             const tapRepo = 'homebrew-tap';
-            const caskPath = 'Casks/claude-code-history-viewer.rb';
+            const caskPath = 'Casks/omnilogue.rb';
 
             if (!process.env.HOMEBREW_TAP_TOKEN) {
               throw new Error('HOMEBREW_TAP_TOKEN is required to publish releases safely.');
@@ -599,6 +600,9 @@ jobs:
             console.log(`✅ Verified Homebrew cask v${version}`);
 
       - name: Publish release
+        # The rebrand is a staged release: verify the draft assets and upgrades
+        # from 1.32.2 before making it visible to existing updater clients.
+        if: needs.create-release.outputs.tag != 'v2.0.0'
         uses: actions/github-script@v7
         with:
           script: |

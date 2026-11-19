@@ -145,7 +145,7 @@ const READ_SEARCH_TOOLS = new Set([
 // Kilo independently defines grep and propagates failures via the processor:
 // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/grep.ts#L22-L76
 // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/session/processor.ts#L271-L310
-// https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691
+// https://github.com/jhlee0409/omnilogue/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/opencode.rs#L1675-L1691
 // Kilo @0a9faeff registry.ts:274-335 has no list built-in (nor tool/ls.ts).
 // https://github.com/Kilo-Org/kilocode/blob/0a9faeff69fff8712da184ee5188bb7985c6f057/packages/opencode/src/tool/registry.ts#L274-L335
 // Historical Kilo MCP/list is unverified; no completion exception for either.
@@ -239,7 +239,7 @@ export function normalizeResult(
 
   // OpenHands has no producer is_error field: the backend sets it from
   // observation == "error". Its false default is NOT recorded no-error evidence.
-  // https://github.com/jhlee0409/claude-code-history-viewer/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/openhands.rs#L331-L334
+  // https://github.com/jhlee0409/omnilogue/blob/f0e8317ab05ba6dc1a3cd54efa5610a0dbca0f40/src-tauri/src/providers/openhands.rs#L331-L334
   // Derived false is an application comparison/default, not a producer assertion.
   // Keep positive derived error mappings; older OpenHands payloads need the legacy guard.
   if (typeof result.is_error === "boolean" &&

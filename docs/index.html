@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Omnilogue — unified history viewer for AI coding assistants (formerly Claude Code History Viewer)</title>
-  <meta name="description" content="Omnilogue (formerly Claude Code History Viewer) is an offline desktop app and headless server to browse, search, and analyze conversation history from Claude Code, Codex CLI, GitHub Copilot, Gemini CLI, Cursor, and more.">
+  <title>Omnilogue — unified history viewer for AI coding assistants</title>
+  <meta name="description" content="Omnilogue is an offline desktop app and headless server to browse, search, and analyze conversation history from Claude Code, Codex CLI, GitHub Copilot, Gemini CLI, Cursor, and more.">
   <meta name="keywords" content="Omnilogue, Claude Code history viewer, Codex CLI history, GitHub Copilot chat history, Gemini CLI history, AI coding assistant, conversation history, desktop app">
-  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "Omnilogue", "alternateName": ["Claude Code History Viewer"], "url": "https://jhlee0409.github.io/claude-code-history-viewer/"}</script>
+  <script type="application/ld+json">{"@context": "https://schema.org", "@type": "WebSite", "name": "Omnilogue", "alternateName": ["Claude Code History Viewer"], "url": "https://jhlee0409.github.io/omnilogue/"}</script>
 
   <!-- Open Graph -->
-  <meta property="og:title" content="Omnilogue (formerly Claude Code History Viewer)">
+  <meta property="og:title" content="Omnilogue">
   <meta property="og:description" content="Browse, search, and analyze conversation history from every AI coding assistant on your machine. 100% offline.">
   <meta property="og:site_name" content="Omnilogue">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://jhlee0409.github.io/claude-code-history-viewer/">
+  <meta property="og:url" content="https://jhlee0409.github.io/omnilogue/">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="assets/app-icon.png">
@@ -569,7 +569,7 @@
           <option value="zh-CN">ZH</option>
           <option value="zh-TW">TW</option>
         </select>
-        <a href="https://github.com/jhlee0409/claude-code-history-viewer" target="_blank" class="nav-link">
+        <a href="https://github.com/jhlee0409/omnilogue" target="_blank" class="nav-link">
           <i data-lucide="github" style="width:20px;height:20px"></i>
         </a>
       </div>
@@ -712,7 +712,7 @@
     <div class="download-footer">
       <span data-i18n="download.version">Latest</span>: <span id="latest-version">—</span>
       &nbsp;·&nbsp;
-      <a href="https://github.com/jhlee0409/claude-code-history-viewer/releases" target="_blank" data-i18n="download.allReleases">All releases</a>
+      <a href="https://github.com/jhlee0409/omnilogue/releases" target="_blank" data-i18n="download.allReleases">All releases</a>
     </div>
   </section>
 
@@ -720,10 +720,10 @@
   <footer>
     <div class="footer-inner">
       <div class="footer-links">
-        <a href="https://github.com/jhlee0409/claude-code-history-viewer" target="_blank">
+        <a href="https://github.com/jhlee0409/omnilogue" target="_blank">
           <i data-lucide="github" style="width:18px;height:18px"></i>
         </a>
-        <a href="https://github.com/jhlee0409/claude-code-history-viewer/issues" target="_blank">
+        <a href="https://github.com/jhlee0409/omnilogue/issues" target="_blank">
           <i data-lucide="message-circle" style="width:18px;height:18px"></i>
         </a>
       </div>
@@ -875,7 +875,7 @@
 
     async function fetchLatestRelease() {
       try {
-        const response = await fetch('https://api.github.com/repos/jhlee0409/claude-code-history-viewer/releases/latest');
+        const response = await fetch('https://api.github.com/repos/jhlee0409/omnilogue/releases/latest');
         const data = await response.json();
 
         document.getElementById('latest-version').textContent = data.tag_name || 'v1.0.0';
@@ -903,7 +903,7 @@
           btn.textContent = btn.textContent.replace('macOS', 'Linux');
         }
       } catch (error) {
-        const releasesUrl = 'https://github.com/jhlee0409/claude-code-history-viewer/releases';
+        const releasesUrl = 'https://github.com/jhlee0409/omnilogue/releases';
         document.getElementById('download-macos').href = releasesUrl;
         document.getElementById('download-windows').href = releasesUrl;
         document.getElementById('download-linux').href = releasesUrl;

@@ -6,7 +6,7 @@ import {
 
 const CHECK_TIMEOUT_MS = 20_000; // 20 seconds
 
-const RELEASES_URL = 'https://github.com/jhlee0409/claude-code-history-viewer/releases';
+const RELEASES_URL = 'https://github.com/jhlee0409/omnilogue/releases';
 
 /** The release page that carries `version`'s `.flatpak` bundle. */
 export function releasePageUrl(version: string): string {

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-19
+
+**Omnilogue 2.0** is the first major release under the new name, formerly Claude Code History Viewer. The app retains its installation identifiers and existing user-data locations for in-place updates.
+
+### Highlights
+- Work across independent desktop windows, with shared preferences and live transcript updates.
+- Browse conversation branches, jump between steps, and inspect API requests recorded in Claude Code sessions.
+- Read Claude.ai exports, deleted-session prompt history, Hermes, Qoder and Cursor ACP sessions.
+- Inspect usage coverage and billed subagent runs; install the desktop app as a Flatpak on Linux.
+
 ### Added
 - **View a claude.ai account export** (desktop and WebUI). Settings → Claude.ai Exports → "Add claude.ai export…" takes the zip you get from claude.ai (Settings → Privacy → Export data) or the folder it was extracted to, and shows its conversations under a read-only Claude.ai provider: grouped by claude.ai Project (from `projects.json`), the rest under one "Claude.ai" project, with titles, timestamps, text, thinking, tool calls and results, and attachments as name/type/size cards; for an edited conversation, the branch claude.ai shows. They are searchable with ⌘K next to your coding-assistant history. The export is read in place (a zip is never extracted to disk; entries are looked up by name only, and reads are capped at 1 GiB) and never written; removing it from Settings only forgets it. Exports record no token usage, so their conversations are not counted in the usage statistics. In the WebUI the path must be in the server's Downloads, Documents or Desktop folder. (#674)
 - **Qoder provider** (desktop and WebUI). Browse Qoder (Alibaba) sessions from the CLI and desktop app (`~/.qoder/projects`, or `QODER_CONFIG_DIR`), Qoder CN (`~/.qoder-cn/projects`, or `QODERCN_CONFIG_DIR`) and the Qoder IDE's agent store (`Qoder/SharedClientCache/cli/projects` in the app data folder), grouped by working folder, with tool calls, thinking and subagent runs. A message recorded with the `auto` model shows the model slot Qoder selected; usage Qoder writes as all zeros (managed models without `QODER_EXPOSE_TOKEN_USAGE`) counts as not recorded, never as zero tokens. — 33 assistants in total (#339)

@@ -1,7 +1,7 @@
 {
   "name": "claude-code-history-viewer",
   "private": true,
-  "version": "1.32.2",
+  "version": "2.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

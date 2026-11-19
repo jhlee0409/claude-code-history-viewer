@@ -1,10 +1,10 @@
 [package]
 name = "claude-code-history-viewer"
-version = "1.32.2"
+version = "2.0.0"
 description = "Claude Code 대화 기록을 탐색하고 분석하는 데스크톱 애플리케이션"
 authors = ["JaeHyeok Lee"]
 license = "MIT"
-repository = "https://github.com/jhlee0409/claude-code-history-viewer"
+repository = "https://github.com/jhlee0409/omnilogue"
 edition = "2021"
 rust-version = "1.77.2"
 

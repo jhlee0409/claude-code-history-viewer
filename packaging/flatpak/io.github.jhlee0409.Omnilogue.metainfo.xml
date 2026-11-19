@@ -53,9 +53,9 @@
     <keyword>transcript</keyword>
   </keywords>
 
-  <url type="homepage">https://jhlee0409.github.io/claude-code-history-viewer/</url>
-  <url type="bugtracker">https://github.com/jhlee0409/claude-code-history-viewer/issues</url>
-  <url type="vcs-browser">https://github.com/jhlee0409/claude-code-history-viewer</url>
+  <url type="homepage">https://jhlee0409.github.io/omnilogue/</url>
+  <url type="bugtracker">https://github.com/jhlee0409/omnilogue/issues</url>
+  <url type="vcs-browser">https://github.com/jhlee0409/omnilogue</url>
 
   <branding>
     <color type="primary" scheme_preference="light">#9AA0F0</color>
@@ -97,7 +97,7 @@
 
   <releases>
     <release version="1.32.2" date="2026-10-20">
-      <url type="details">https://github.com/jhlee0409/claude-code-history-viewer/releases/tag/v1.32.2</url>
+      <url type="details">https://github.com/jhlee0409/omnilogue/releases/tag/v1.32.2</url>
     </release>
   </releases>
 </component>
