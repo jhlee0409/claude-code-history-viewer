@@ -23,6 +23,7 @@
 //! time rather than carried in the path, so Windows drive colons never have to
 //! be parsed back out of it.
 
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, TokenUsage};
 use crate::providers::scan_report::ScanReport;
 use crate::utils::{build_provider_message, is_symlink, search_json_value_case_insensitive};
@@ -393,11 +394,17 @@ pub(super) fn search_in(
     root: &Path,
     query_lower: &str,
     limit: usize,
+    filters: &SearchFilters<'_>,
     results: &mut Vec<ClaudeMessage>,
 ) {
     for manifest in read_manifests(root, &ScanReport::default()) {
         if results.len() >= limit {
             return;
+        }
+        let name = project_name(&manifest.cwd);
+        let path = project_path(&manifest.cwd);
+        if !filters.matches_project(Some(&path), Some(&name)) {
+            continue;
         }
         let Ok(transcript) = read_transcript(root, &manifest.id) else {
             continue;
@@ -408,9 +415,9 @@ pub(super) fn search_in(
                 .content
                 .as_ref()
                 .is_some_and(|content| search_json_value_case_insensitive(content, query_lower));
-            if matched {
-                message.project_name = Some(project_name(&manifest.cwd));
-                message.project_path = Some(project_path(&manifest.cwd));
+            if matched && filters.matches_message(&message) {
+                message.project_name = Some(name.clone());
+                message.project_path = Some(path.clone());
                 results.push(message);
                 if results.len() >= limit {
                     return;
@@ -664,8 +671,9 @@ mod tests {
     #[test]
     fn search_finds_matches_with_their_project() {
         let tmp = store();
+        let filters = SearchFilters::parse(&Value::Null);
         let mut results = Vec::new();
-        search_in(tmp.path(), "small test fixture", 10, &mut results);
+        search_in(tmp.path(), "small test fixture", 10, &filters, &mut results);
         assert_eq!(results.len(), 2, "tool result and final answer");
         assert!(results
             .iter()
@@ -673,7 +681,7 @@ mod tests {
                 && m.project_path.as_deref() == Some(format!("{PREFIX}{CWD}").as_str())));
 
         let mut limited = Vec::new();
-        search_in(tmp.path(), "small test fixture", 1, &mut limited);
+        search_in(tmp.path(), "small test fixture", 1, &filters, &mut limited);
         assert_eq!(limited.len(), 1);
     }
 

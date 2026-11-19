@@ -1,3 +1,4 @@
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession, MessagePage};
 use crate::providers::{
     self,
@@ -818,6 +819,7 @@ pub async fn search_all_providers(
     let search_filters =
         filters.unwrap_or_else(|| serde_json::Value::Object(serde_json::Map::default()));
     crate::commands::session::validate_search_filters(&search_filters)?;
+    let parsed_filters = SearchFilters::parse(&search_filters);
 
     let providers_to_search = active_providers.unwrap_or_else(|| {
         vec![
@@ -1106,22 +1108,20 @@ pub async fn search_all_providers(
 
     // Cline
     if providers_to_search.iter().any(|p| p == "cline") {
-        match providers::cline::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Cline search failed: {e}");
-            }
-        }
+        all_results.extend(providers::cline::search_with_filters(
+            &query,
+            max_results,
+            &parsed_filters,
+        ));
     }
 
     // Crush
     if providers_to_search.iter().any(|p| p == "crush") {
-        match providers::crush::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Crush search failed: {e}");
-            }
-        }
+        all_results.extend(providers::crush::search_with_filters(
+            &query,
+            max_results,
+            &parsed_filters,
+        ));
     }
 
     // Cursor
@@ -1156,12 +1156,11 @@ pub async fn search_all_providers(
 
     // Aider
     if providers_to_search.iter().any(|p| p == "aider") {
-        match providers::aider::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Aider search failed: {e}");
-            }
-        }
+        all_results.extend(providers::aider::search_with_filters(
+            &query,
+            max_results,
+            &parsed_filters,
+        ));
     }
 
     // Amazon Q Developer CLI
@@ -1351,12 +1350,10 @@ pub async fn search_all_providers(
         }
     }
 
-    // Central pass over every provider's results (e.g. `projectPaths` and
-    // `sessionIds`, which every provider's hits carry). Claude and Codex
-    // already filtered before their own limit; providers that ignore filters
-    // truncated first, so a narrow scope can return fewer than `max_results`
-    // from them.
-    all_results = crate::commands::session::apply_search_filters(all_results, &search_filters);
+    // Claude, Codex, Aider, Cline and Crush already filter before their cap.
+    // Keep filtering hits from adapters that only expose capped, unfiltered
+    // search; for those adapters an out-of-scope hit can still use up a slot.
+    all_results.retain(|message| parsed_filters.matches(message));
 
     // Prefer the user's matching prompts, then displayable assistant text,
     // while preserving tool-only matches after conversational results.
@@ -1533,6 +1530,247 @@ fn append_content_block(msg: &mut ClaudeMessage, block: Value) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::SandboxHome;
+    use serde_json::json;
+    use std::fs;
+
+    async fn search_at_limit_one(
+        provider: &str,
+        query: &str,
+        filters: Option<Value>,
+    ) -> ClaudeMessage {
+        let mut hits = search_all_providers(
+            None,
+            query.to_owned(),
+            Some(vec![provider.to_owned()]),
+            None,
+            filters,
+            Some(1),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(hits.len(), 1, "{provider} search returned {hits:?}");
+        hits.pop().unwrap()
+    }
+
+    async fn scan_only(provider: &str) -> Vec<ClaudeProject> {
+        scan_all_projects(
+            None,
+            Some(vec![provider.to_owned()]),
+            None,
+            Some(false),
+            None,
+        )
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|listed| listed.project)
+        .collect()
+    }
+
+    async fn listed_sessions(project: &ClaudeProject) -> Vec<ClaudeSession> {
+        let page = load_provider_sessions_page(
+            project.provider.clone().unwrap(),
+            project.path.clone(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(page.total, project.session_count);
+        page.sessions
+            .into_iter()
+            .map(|listed| listed.session)
+            .collect()
+    }
+
+    async fn assert_search_opens_session(
+        project: &ClaudeProject,
+        session: &ClaudeSession,
+        query: &str,
+    ) {
+        let provider = project.provider.as_deref().unwrap();
+        let unscoped = search_at_limit_one(provider, query, None).await;
+        assert_ne!(
+            unscoped.project_path.as_deref(),
+            Some(project.path.as_str()),
+            "fixture must place the desired hit beyond the unfiltered limit"
+        );
+
+        let by_project = search_at_limit_one(
+            provider,
+            query,
+            Some(json!({"projectPaths": [project.path]})),
+        )
+        .await;
+        assert_eq!(
+            by_project.project_path.as_deref(),
+            Some(project.path.as_str())
+        );
+        assert_eq!(
+            by_project.project_name.as_deref(),
+            Some(project.name.as_str())
+        );
+        assert!(
+            by_project.session_id == session.session_id
+                || by_project.session_id == session.actual_session_id,
+            "the palette must resolve the hit to the listed session"
+        );
+        let by_session = search_at_limit_one(
+            provider,
+            query,
+            Some(json!({"sessionIds": [session.session_id, session.actual_session_id]})),
+        )
+        .await;
+        assert_eq!(by_session.project_path, by_project.project_path);
+        assert_eq!(by_session.uuid, by_project.uuid);
+
+        // The frontend opens the listed file_path, not the search message's id.
+        let page = load_provider_messages_paginated(
+            provider.to_owned(),
+            session.file_path.clone(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let loaded = page
+            .messages
+            .iter()
+            .find(|m| m.uuid == by_project.uuid)
+            .unwrap();
+        assert_eq!(loaded.session_id, by_project.session_id);
+        assert_eq!(loaded.content, by_project.content);
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn aider_search_opens_the_listed_chat_at_its_index() {
+        let home = SandboxHome::new();
+        for (dir, history) in [
+            ("client/app", "# aider chat started at 2025-01-01 10:00:00\n#### find me"),
+            ("work/app#archive", "# aider chat started at 2025-01-01 10:00:00\n#### other chat\n# aider chat started at 2025-01-02 10:00:00\n#### find me in target\n"),
+        ] {
+            let root = home.path().join(dir);
+            fs::create_dir_all(&root).unwrap();
+            fs::write(root.join(".aider.chat.history.md"), history).unwrap();
+        }
+        let projects = scan_only("aider").await;
+        assert_eq!(projects.len(), 2);
+        let target = projects.iter().find(|p| p.name == "app#archive").unwrap();
+        let sessions = listed_sessions(target).await;
+        assert_eq!(sessions.len(), 2);
+        let target_session = &sessions[0];
+        assert!(target_session.session_id.ends_with("#1"));
+        assert_ne!(target_session.file_path, sessions[1].file_path);
+        assert_search_opens_session(target, target_session, "find me").await;
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn cline_search_opens_tasks_without_a_working_directory_and_sdk_sessions() {
+        use providers::cline::fixtures;
+
+        let home = SandboxHome::new();
+        let known = fixtures::write_extension_task(home.path(), "/work/known");
+        let tasks = known.parent().unwrap().parent().unwrap();
+        let unknown = tasks.join("task-2");
+        fs::create_dir_all(&unknown).unwrap();
+        fs::copy(&known, unknown.join("ui_messages.json")).unwrap();
+        fs::write(
+            tasks.parent().unwrap().join("state/taskHistory.json"),
+            json!([
+                {"id": "task-1", "cwdOnTaskInitialization": "/work/known"},
+                {"id": "task-2"}
+            ])
+            .to_string(),
+        )
+        .unwrap();
+        fixtures::write_sdk_session(home.path(), "/work/sdk");
+
+        let projects = scan_only("cline").await;
+        assert_eq!(projects.len(), 3);
+        for name in ["unknown", "sdk"] {
+            let target = projects.iter().find(|p| p.name == name).unwrap();
+            let sessions = listed_sessions(target).await;
+            assert_eq!(sessions.len(), 1);
+            assert_eq!(sessions[0].project_name, name);
+            assert_search_opens_session(target, &sessions[0], "hi").await;
+        }
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn crush_search_opens_sessions_recovered_from_messages() {
+        let home = SandboxHome::new();
+        for (name, has_sessions_table, has_message) in [
+            ("a-other", true, true),
+            ("b-empty-db", true, false),
+            ("c-no-session-rows", true, true),
+            ("d-no-sessions-table", false, true),
+        ] {
+            let root = home.path().join(name).join(".crush");
+            fs::create_dir_all(&root).unwrap();
+            let conn = rusqlite::Connection::open(root.join("crush.db")).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE messages (id TEXT PRIMARY KEY, session_id TEXT NOT NULL,
+                                        role TEXT NOT NULL, parts TEXT NOT NULL, created_at INTEGER);",
+            )
+            .unwrap();
+            if has_sessions_table {
+                conn.execute_batch(
+                    "CREATE TABLE sessions (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER, updated_at INTEGER);",
+                )
+                .unwrap();
+            }
+            if name == "a-other" {
+                conn.execute(
+                    "INSERT INTO sessions VALUES (?1,'Decoy',1750000000,1750000100)",
+                    [name],
+                )
+                .unwrap();
+            }
+            if has_message {
+                conn.execute(
+                    "INSERT INTO messages VALUES ('m1',?1,'user',?2,1750000000),
+                                                 ('m2',?1,'assistant','[]',1750000001)",
+                    [name, r#"[{"type":"text","data":{"text":"find me"}}]"#],
+                )
+                .unwrap();
+            }
+        }
+
+        let projects = scan_only("crush").await;
+        assert_eq!(projects.len(), 3);
+        for name in ["c-no-session-rows", "d-no-sessions-table"] {
+            let target = projects.iter().find(|p| p.name == name).unwrap();
+            assert_eq!(target.message_count, 2);
+            let sessions = listed_sessions(target).await;
+            assert_eq!(sessions.len(), 1);
+            assert_eq!(sessions[0].actual_session_id, name);
+            assert_eq!(sessions[0].message_count, 2);
+            assert_eq!(
+                parse_rfc3339_utc(&sessions[0].first_message_time)
+                    .unwrap()
+                    .timestamp(),
+                1_750_000_000,
+            );
+            assert_eq!(
+                parse_rfc3339_utc(&sessions[0].last_message_time)
+                    .unwrap()
+                    .timestamp(),
+                1_750_000_001,
+            );
+            assert_eq!(target.last_modified, sessions[0].last_modified);
+            assert_search_opens_session(target, &sessions[0], "find me").await;
+        }
+    }
 
     #[tokio::test]
     async fn search_all_providers_honors_session_ids_for_claude() {

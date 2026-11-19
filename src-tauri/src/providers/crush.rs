@@ -14,6 +14,7 @@
 //! the `WebUI` session-path allowlist (the desktop IPC path works; the `WebUI`
 //! headless server cannot read arbitrary per-project DBs).
 
+use crate::commands::session::SearchFilters;
 use crate::models::{ClaudeMessage, ClaudeProject, ClaudeSession};
 use crate::providers::ProviderInfo;
 use crate::utils::{build_provider_message, ms_to_iso, search_json_value_case_insensitive};
@@ -104,17 +105,13 @@ pub fn load_sessions(
 
 fn load_sessions_conn(conn: &Connection, project_dir: &str) -> Result<Vec<ClaudeSession>, String> {
     let mut stmt = conn
-        .prepare(
-            "SELECT s.id, s.title, s.created_at, s.updated_at, \
-                    (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.id) AS msg_cnt \
-             FROM sessions s ORDER BY s.updated_at DESC",
-        )
+        .prepare(&format!(
+            "{} ORDER BY updated_at DESC, id",
+            session_rows_sql(conn)?
+        ))
         .map_err(|e| e.to_string())?;
 
-    let project_name = Path::new(project_dir)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let project_name = project_name_for(project_dir);
 
     let sessions = stmt
         .query_map([], |row| {
@@ -130,10 +127,11 @@ fn load_sessions_conn(conn: &Connection, project_dir: &str) -> Result<Vec<Claude
         .map(|(id, title, created, updated, msg_cnt)| {
             let created_iso = epoch_to_iso(created.unwrap_or(0));
             let updated_iso = epoch_to_iso(updated.unwrap_or(0));
+            let session_path = session_path_for(project_dir, &id);
             ClaudeSession {
-                session_id: format!("{SCHEME}{project_dir}{SESSION_SEP}{id}"),
+                session_id: session_path.clone(),
                 actual_session_id: id.clone(),
-                file_path: format!("{SCHEME}{project_dir}{SESSION_SEP}{id}"),
+                file_path: session_path,
                 project_name: project_name.clone(),
                 message_count: msg_cnt,
                 first_message_time: created_iso.clone(),
@@ -191,8 +189,20 @@ fn load_messages_conn(conn: &Connection, session_id: &str) -> Result<Vec<ClaudeM
 
 /// Search across every discovered Crush DB.
 pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
+    Ok(search_with_filters(
+        query,
+        limit,
+        &SearchFilters::parse(&Value::Null),
+    ))
+}
+
+pub(crate) fn search_with_filters(
+    query: &str,
+    limit: usize,
+    filters: &SearchFilters<'_>,
+) -> Vec<ClaudeMessage> {
     if query.is_empty() || limit == 0 {
-        return Ok(Vec::new());
+        return Vec::new();
     }
     let pattern = format!("%{query}%");
     let query_lower = query.to_lowercase();
@@ -207,6 +217,9 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
         };
         let project_name = project_name_for(&project_dir);
         let project_path = project_path_for(&project_dir);
+        if !filters.matches_project(Some(&project_path), Some(&project_name)) {
+            continue;
+        }
         let Ok(conn) = open_db(&db_path) else {
             continue;
         };
@@ -214,22 +227,22 @@ pub fn search(query: &str, limit: usize) -> Result<Vec<ClaudeMessage>, String> {
             &conn,
             &pattern,
             &query_lower,
-            &project_name,
-            &project_path,
+            (&project_path, &project_name),
             limit,
+            filters,
             &mut results,
         );
     }
-    Ok(results)
+    results
 }
 
 fn search_one_db(
     conn: &Connection,
     pattern: &str,
     query_lower: &str,
-    project_name: &str,
-    project_path: &str,
+    (project_path, project_name): (&str, &str),
     limit: usize,
+    filters: &SearchFilters<'_>,
     results: &mut Vec<ClaudeMessage>,
 ) {
     let Ok(mut stmt) = conn.prepare(
@@ -251,8 +264,7 @@ fn search_one_db(
         if results.len() >= limit {
             return;
         }
-        // Use the real session id (matching load_messages) so a search hit
-        // resolves back to its session; the project identity is set below.
+        // Match the listed actual_session_id and the loaded message's session id.
         let (id, session_id, role, parts, created) = row;
         let Some(mut msg) = build_message(&session_id, &id, &role, &parts, created.unwrap_or(0))
         else {
@@ -263,7 +275,7 @@ fn search_one_db(
             .as_ref()
             .map(|c| search_json_value_case_insensitive(c, query_lower))
             .unwrap_or(false);
-        if matched {
+        if matched && filters.matches_message(&msg) {
             msg.project_name = Some(project_name.to_string());
             msg.project_path = Some(project_path.to_string());
             results.push(msg);
@@ -362,6 +374,10 @@ fn project_path_for(project_dir: &str) -> String {
     format!("{SCHEME}{project_dir}")
 }
 
+fn session_path_for(project_dir: &str, session_id: &str) -> String {
+    format!("{SCHEME}{project_dir}{SESSION_SEP}{session_id}")
+}
+
 fn db_path_for(project_dir: &str) -> Result<PathBuf, String> {
     let db = Path::new(project_dir).join(".crush").join("crush.db");
     if db.is_file() && !is_symlink(&db) {
@@ -386,21 +402,48 @@ fn open_db(path: &Path) -> Result<Connection, String> {
     Ok(conn)
 }
 
-fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
-    let session_count: usize = conn
-        .query_row("SELECT COUNT(*) FROM sessions", [], |r| r.get(0))
+/// Session metadata is authoritative when present. Recover an otherwise
+/// unlisted session from its messages, using their time range and count.
+fn session_rows_sql(conn: &Connection) -> Result<&'static str, String> {
+    let has_sessions = conn
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sessions')",
+            [],
+            |row| row.get::<_, bool>(0),
+        )
         .map_err(|e| e.to_string())?;
-    let message_count: usize = conn
-        .query_row("SELECT COUNT(*) FROM messages", [], |r| r.get(0))
-        .unwrap_or(0);
-    let last: Option<i64> = conn
-        .query_row("SELECT MAX(updated_at) FROM sessions", [], |r| r.get(0))
-        .unwrap_or(None);
-    Ok((
-        session_count,
-        message_count,
-        epoch_to_iso(last.unwrap_or(0)),
-    ))
+    Ok(if has_sessions {
+        "WITH message_sessions AS (
+             SELECT session_id AS id, MIN(created_at) AS created_at,
+                    MAX(created_at) AS updated_at, COUNT(*) AS msg_count
+             FROM messages GROUP BY session_id
+         )
+         SELECT s.id AS id, s.title AS title, s.created_at AS created_at,
+                s.updated_at AS updated_at, COALESCE(m.msg_count, 0) AS msg_count
+         FROM sessions s LEFT JOIN message_sessions m ON m.id = s.id
+         UNION ALL
+         SELECT m.id, NULL, m.created_at, m.updated_at, m.msg_count
+         FROM message_sessions m WHERE NOT EXISTS (SELECT 1 FROM sessions s WHERE s.id = m.id)"
+    } else {
+        "SELECT session_id AS id, NULL AS title, MIN(created_at) AS created_at,
+                MAX(created_at) AS updated_at, COUNT(*) AS msg_count
+         FROM messages GROUP BY session_id"
+    })
+}
+
+fn project_stats(conn: &Connection) -> Result<(usize, usize, String), String> {
+    conn.query_row(
+        &format!(
+            "SELECT COUNT(*), COALESCE(SUM(msg_count), 0), MAX(updated_at) FROM ({})",
+            session_rows_sql(conn)?
+        ),
+        [],
+        |row| {
+            let last: Option<i64> = row.get(2)?;
+            Ok((row.get(0)?, row.get(1)?, epoch_to_iso(last.unwrap_or(0))))
+        },
+    )
+    .map_err(|e| e.to_string())
 }
 
 fn is_symlink(path: &Path) -> bool {
@@ -610,9 +653,9 @@ mod tests {
             &conn,
             "%LOGIN%",
             "login",
-            "proj",
-            "crush:///Users/jack/proj",
+            ("crush:///Users/jack/proj", "proj"),
             10,
+            &SearchFilters::parse(&Value::Null),
             &mut results,
         );
         assert_eq!(results.len(), 1);
