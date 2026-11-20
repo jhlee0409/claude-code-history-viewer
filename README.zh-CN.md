@@ -66,6 +66,8 @@ Docker、VPS、systemd 设置请参阅[服务器模式](#服务器模式-webui)�
 | 桌面应用 | 本地浏览 | 在原生应用中打开本地对话文件 |
 | 无头服务器 | 浏览器、VPS 或远程访问 | 通过 WebUI 提供本地对话文件；请保持启用身份验证 |
 
+**其他助手：** 启动时只扫描 Claude Code。要加载 Codex CLI、OpenCode 等其他受支持的助手，请打开侧边栏的 **排序和筛选** 菜单并选择 **查找其他提供商**（空白界面也提供同一按钮）。找到的提供商会在之后每次启动时自动加载。
+
 ---
 
 ## 为什么做这个
@@ -536,7 +538,8 @@ claude-code-history-viewer://session-title/auth%20bug
 | 问题 | 解决方案 |
 |---------|----------|
 | "未找到 Claude 数据" | 确保 `~/.claude` 目录存在且包含对话历史 |
-| 缺少某个提供商 | 检查提供商表中的数据路径。要添加其他 Claude 目录，请打开**设置 → 自定义 Claude 目录**。使用 Docker 时，将该提供商的数据目录作为只读卷挂载。 |
+| 缺少某个提供商 | 非 Claude 助手需要先在侧边栏执行 **排序和筛选 → 查找其他提供商** 才会显示。然后检查提供商表中的数据路径。**设置 → 自定义 Claude 目录**只接受 Claude Code 目录（包含 `projects/` 子文件夹的文件夹）。使用 Docker 时，将该提供商的数据目录作为只读卷挂载。 |
+| 缺少 WSL 中的会话 (Windows) | 打开 **设置 → WSL 历史扫描**。它会读取 WSL 发行版中的 Claude Code 和 GitHub Copilot 历史。对于 WSL 中的其他助手（如 Codex CLI），请在 WSL 中运行 `cchv-server --serve` 并使用 WebUI。 |
 | 无法连接 WebUI | `cchv-server` 默认使用 `3727` 端口。使用启动时输出的 URL；远程连接时检查端口冲突以及防火墙/代理规则。 |
 | "Unauthorized" / HTTP 401 | 使用启动时输出的令牌 URL，或发送 `Authorization: Bearer <token>`。固定令牌可通过 `--token` 或 `CCHV_TOKEN` 设置。 |
 | 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能 |

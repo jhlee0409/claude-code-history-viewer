@@ -66,6 +66,8 @@ Docker、VPS、systemd 設定請參閱[伺服器模式](#伺服器模式-webui)�
 | 桌面應用程式 | 本機瀏覽 | 在原生應用程式中開啟本機對話檔案 |
 | 無頭伺服器 | 瀏覽器、VPS 或遠端存取 | 透過 WebUI 提供本機對話檔案；請保持啟用驗證 |
 
+**其他助手：** 啟動時只掃描 Claude Code。若要載入 Codex CLI、OpenCode 等其他支援的助手，請開啟側邊欄的 **排序與篩選** 選單並選擇 **尋找其他提供者**（空白畫面也提供同一按鈕）。找到的提供者會在之後每次啟動時自動載入。
+
 ---
 
 ## 為什麼做這個
@@ -536,7 +538,8 @@ claude-code-history-viewer://session-title/auth%20bug
 | 問題 | 解決方案 |
 |---------|----------|
 | 「找不到 Claude 資料」 | 請確認 `~/.claude` 存在且包含對話記錄 |
-| 缺少某個提供者 | 檢查提供者表中的資料路徑。要新增其他 Claude 目錄，請開啟**設定 → 自訂 Claude 目錄**。使用 Docker 時，將該提供者的資料目錄作為唯讀磁碟區掛載。 |
+| 缺少某個提供者 | 非 Claude 助手需要先在側邊欄執行 **排序與篩選 → 尋找其他提供者** 才會顯示。接著檢查提供者表中的資料路徑。**設定 → 自訂 Claude 目錄**只接受 Claude Code 目錄（含有 `projects/` 子資料夾的資料夾）。使用 Docker 時，將該提供者的資料目錄作為唯讀磁碟區掛載。 |
+| 缺少 WSL 中的工作階段 (Windows) | 開啟 **設定 → WSL 歷史掃描**。它會讀取 WSL 發行版中的 Claude Code 與 GitHub Copilot 歷史。對於 WSL 中的其他助手（如 Codex CLI），請在 WSL 中執行 `cchv-server --serve` 並使用 WebUI。 |
 | 無法連線至 WebUI | `cchv-server` 預設使用 `3727` 連接埠。使用啟動時輸出的 URL；遠端連線時檢查連接埠衝突以及防火牆/代理規則。 |
 | 「Unauthorized」/ HTTP 401 | 使用啟動時輸出的權杖 URL，或傳送 `Authorization: Bearer <token>`。固定權杖可透過 `--token` 或 `CCHV_TOKEN` 設定。 |
 | 效能問題 | 大量歷史記錄可能導致初始載入較慢 — 應用程式使用虛擬捲動技術 |

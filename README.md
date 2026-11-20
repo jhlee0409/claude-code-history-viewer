@@ -66,6 +66,8 @@ See [Server Mode](#server-mode-webui) for Docker, VPS, and systemd setup.
 | Desktop app | Local browsing | Opens local conversation files in a native app |
 | Headless server | Browser, VPS, or remote access | Serves local conversation files through the WebUI; keep authentication enabled |
 
+**Other assistants:** startup scans Claude Code only. To load Codex CLI, OpenCode, and the other supported assistants, open the sidebar **Sort and filter** menu and choose **Find other providers** (the empty screen offers the same button). The providers it finds are loaded on every later start.
+
 ---
 
 ## Why This Exists
@@ -536,7 +538,8 @@ The app includes accessibility features for keyboard-only, low-vision, and scree
 | Problem | Solution |
 |---------|----------|
 | "No Claude data found" | Make sure `~/.claude` exists with conversation history |
-| A provider is missing | Check its data path in the provider table. For an additional Claude directory, open **Settings → Custom Claude Directories**. In Docker, add the provider's data directory as a read-only volume. |
+| A provider is missing | Non-Claude assistants appear only after **Sort and filter → Find other providers** in the sidebar. Then check the provider's data path in the provider table. **Settings → Custom Claude Directories** accepts Claude Code directories only (a folder with a `projects/` subfolder). In Docker, add the provider's data directory as a read-only volume. |
+| Sessions inside WSL are missing (Windows) | Turn on **Settings → WSL History Scanning**. It reads Claude Code and GitHub Copilot history inside WSL distributions. For other assistants inside WSL (such as Codex CLI), run `cchv-server --serve` inside WSL and use the WebUI. |
 | Cannot connect to the WebUI | `cchv-server` defaults to port `3727`. Use the startup URL, check for port conflicts, and verify firewall or proxy rules when connecting remotely. |
 | "Unauthorized" / HTTP 401 | Use the token URL printed at startup or send `Authorization: Bearer <token>`. For a fixed token, use `--token` or `CCHV_TOKEN`. |
 | Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
