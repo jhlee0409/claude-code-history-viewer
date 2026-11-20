@@ -154,6 +154,18 @@ impl RawLogEntry {
     /// `origin.kind: "human"`), not as a `user` line (#815). Turn such a line
     /// into the user message it is. Every other line is left unchanged,
     /// including queued commands that are not user input (`task-notification`).
+    ///
+    /// Producer evidence (Claude Code is closed source; its 2.1.285 bundle):
+    /// the attachment is built as `{type:"queued_command", prompt,
+    /// source_uuid, commandMode: w.mode, origin, timestamp, isMeta, …}`, and
+    /// its origin is `{kind:"human"}` only for a human sender (otherwise
+    /// absent, `task-notification`, `peer`, or `unclassified` for forwarded
+    /// intents). `prompt` is text, or content blocks when images were pasted.
+    /// Real records: 5 local `queued_command` lines (2.1.280 and 2.1.281) all
+    /// had `commandMode: "task-notification"`, attachment keys
+    /// `commandMode, prompt, source_uuid, timestamp, type`, and no `origin`;
+    /// the human-prompt shape is the one reported in #815. A line without
+    /// `origin.kind: "human"` is not promoted, so it shows as before.
     pub fn promote_queued_prompt(&mut self) {
         if self.message_type != "attachment" || self.message.is_some() {
             return;
