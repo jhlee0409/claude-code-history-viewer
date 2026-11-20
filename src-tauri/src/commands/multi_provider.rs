@@ -801,6 +801,198 @@ pub async fn get_conversation_branches(
     .map_err(|e| format!("Task join error: {e}"))?
 }
 
+type CappedSearch = fn(&str, usize) -> Result<Vec<ClaudeMessage>, String>;
+type ScopedSearch = fn(&str, usize, &SearchFilters<'_>) -> Vec<ClaudeMessage>;
+
+/// How a provider's message search takes the request's filters.
+enum SearchAdapter {
+    /// Filters before its cap.
+    Scoped(ScopedSearch),
+    /// Caps its hits without seeing the filters; see [`extend_in_scope`].
+    Capped(CappedSearch),
+}
+
+/// Search adapters other than Claude and Codex, in the order they are
+/// searched: provider id, name for logs, adapter.
+const SEARCH_ADAPTERS: [(&str, &str, SearchAdapter); 33] = [
+    (
+        "continue",
+        "Continue",
+        SearchAdapter::Capped(providers::continue_dev::search),
+    ),
+    (
+        "pearai",
+        "PearAI",
+        SearchAdapter::Capped(providers::pearai::search),
+    ),
+    (
+        "gemini",
+        "Gemini",
+        SearchAdapter::Capped(providers::gemini::search),
+    ),
+    (
+        "goose",
+        "Goose",
+        SearchAdapter::Capped(providers::goose::search),
+    ),
+    (
+        "grok",
+        "Grok",
+        SearchAdapter::Capped(providers::grok::search),
+    ),
+    (
+        "kimi",
+        "Kimi",
+        SearchAdapter::Capped(providers::kimi::search),
+    ),
+    (
+        "vibe",
+        "Vibe",
+        SearchAdapter::Capped(providers::vibe::search),
+    ),
+    (
+        "forgecode",
+        "ForgeCode",
+        SearchAdapter::Capped(providers::forgecode::search),
+    ),
+    (
+        "kilo",
+        "Kilo",
+        SearchAdapter::Capped(providers::kilo::search),
+    ),
+    (
+        "opencode",
+        "OpenCode",
+        SearchAdapter::Capped(providers::opencode::search),
+    ),
+    (
+        "openinterpreter",
+        "Open Interpreter",
+        SearchAdapter::Capped(providers::openinterpreter::search),
+    ),
+    ("pi", "Pi", SearchAdapter::Capped(providers::pi::search)),
+    (
+        "ompi",
+        "oh-my-pi",
+        SearchAdapter::Capped(providers::ompi::search),
+    ),
+    (
+        "hermes",
+        "Hermes Agent",
+        SearchAdapter::Capped(providers::hermes::search),
+    ),
+    (
+        "zcode",
+        "Z Code",
+        SearchAdapter::Capped(providers::zcode::search),
+    ),
+    (
+        "qoder",
+        "Qoder",
+        SearchAdapter::Capped(providers::qoder::search),
+    ),
+    (
+        "qwen",
+        "Qwen",
+        SearchAdapter::Capped(providers::qwen::search),
+    ),
+    (
+        "cline",
+        "Cline",
+        SearchAdapter::Scoped(providers::cline::search_with_filters),
+    ),
+    (
+        "crush",
+        "Crush",
+        SearchAdapter::Scoped(providers::crush::search_with_filters),
+    ),
+    (
+        "cursor",
+        "Cursor",
+        SearchAdapter::Capped(providers::cursor::search),
+    ),
+    (
+        "cursor-agent",
+        "Cursor Agent",
+        SearchAdapter::Capped(providers::cursor_agent::search),
+    ),
+    (
+        "cursor-acp",
+        "Cursor ACP",
+        SearchAdapter::Capped(providers::cursor_acp::search),
+    ),
+    (
+        "aider",
+        "Aider",
+        SearchAdapter::Scoped(providers::aider::search_with_filters),
+    ),
+    (
+        "amazonq",
+        "Amazon Q",
+        SearchAdapter::Capped(providers::amazon_q::search),
+    ),
+    (
+        "antigravity",
+        "Antigravity",
+        SearchAdapter::Capped(providers::antigravity::search),
+    ),
+    (
+        "codebuddy",
+        "CodeBuddy",
+        SearchAdapter::Capped(providers::codebuddy::search),
+    ),
+    (
+        "kiro",
+        "Kiro",
+        SearchAdapter::Capped(providers::kiro::search),
+    ),
+    ("llm", "llm", SearchAdapter::Capped(providers::llm::search)),
+    ("zed", "Zed", SearchAdapter::Capped(providers::zed::search)),
+    (
+        "openhands",
+        "OpenHands",
+        SearchAdapter::Capped(providers::openhands::search),
+    ),
+    (
+        "trae",
+        "Trae",
+        SearchAdapter::Capped(providers::trae::search),
+    ),
+    (
+        "claude-ai",
+        "claude.ai export",
+        SearchAdapter::Capped(providers::claude_ai::search),
+    ),
+    // Unified GitHub Copilot search (CLI + Desktop + VS Code Copilot Chat).
+    (
+        "copilot",
+        "Copilot",
+        SearchAdapter::Capped(providers::copilot::search),
+    ),
+];
+
+/// Run a search that caps its hits before any filter, keeping only in-scope
+/// hits up to `max_results`. With a filter set, the search is asked for every
+/// hit: capped first, out-of-scope hits would use up the slots and a narrow
+/// search (one project, one session) would miss matches that exist (#806).
+fn extend_in_scope(
+    out: &mut Vec<ClaudeMessage>,
+    filters: &SearchFilters<'_>,
+    max_results: usize,
+    search: impl FnOnce(usize) -> Result<Vec<ClaudeMessage>, String>,
+) -> Result<(), String> {
+    let limit = if filters.is_unrestricted() {
+        max_results
+    } else {
+        usize::MAX
+    };
+    let mut hits = search(limit)?;
+    hits.retain(|message| filters.matches(message));
+    hits.truncate(max_results);
+    out.extend(hits);
+    Ok(())
+}
+
 /// Search across all (or selected) providers
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
@@ -936,328 +1128,22 @@ pub async fn search_all_providers(
         }
     }
 
-    // Continue.dev
-    if providers_to_search.iter().any(|p| p == "continue") {
-        match providers::continue_dev::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Continue search failed: {e}");
-            }
+    for (id, label, adapter) in &SEARCH_ADAPTERS {
+        if !providers_to_search.iter().any(|p| p == id) {
+            continue;
         }
-    }
-
-    // PearAI
-    if providers_to_search.iter().any(|p| p == "pearai") {
-        match providers::pearai::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("PearAI search failed: {e}");
+        match adapter {
+            SearchAdapter::Scoped(search) => {
+                all_results.extend(search(&query, max_results, &parsed_filters));
             }
-        }
-    }
-
-    // Gemini
-    if providers_to_search.iter().any(|p| p == "gemini") {
-        match providers::gemini::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Gemini search failed: {e}");
-            }
-        }
-    }
-
-    // Goose
-    if providers_to_search.iter().any(|p| p == "goose") {
-        match providers::goose::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Goose search failed: {e}");
-            }
-        }
-    }
-
-    // Grok
-    if providers_to_search.iter().any(|p| p == "grok") {
-        match providers::grok::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Grok search failed: {e}");
-            }
-        }
-    }
-
-    // Kimi
-    if providers_to_search.iter().any(|p| p == "kimi") {
-        match providers::kimi::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Kimi search failed: {e}");
-            }
-        }
-    }
-
-    // Mistral Vibe
-    if providers_to_search.iter().any(|p| p == "vibe") {
-        match providers::vibe::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Vibe search failed: {e}");
-            }
-        }
-    }
-
-    // ForgeCode
-    if providers_to_search.iter().any(|p| p == "forgecode") {
-        match providers::forgecode::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("ForgeCode search failed: {e}");
-            }
-        }
-    }
-
-    // Kilo Code
-    if providers_to_search.iter().any(|p| p == "kilo") {
-        match providers::kilo::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Kilo search failed: {e}");
-            }
-        }
-    }
-
-    // OpenCode
-    if providers_to_search.iter().any(|p| p == "opencode") {
-        match providers::opencode::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("OpenCode search failed: {e}");
-            }
-        }
-    }
-
-    // Open Interpreter
-    if providers_to_search.iter().any(|p| p == "openinterpreter") {
-        match providers::openinterpreter::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Open Interpreter search failed: {e}");
-            }
-        }
-    }
-
-    // Pi
-    if providers_to_search.iter().any(|p| p == "pi") {
-        match providers::pi::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Pi search failed: {e}");
-            }
-        }
-    }
-
-    // oh-my-pi
-    if providers_to_search.iter().any(|p| p == "ompi") {
-        match providers::ompi::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("oh-my-pi search failed: {e}");
-            }
-        }
-    }
-
-    // Hermes Agent
-    if providers_to_search.iter().any(|p| p == "hermes") {
-        match providers::hermes::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Hermes Agent search failed: {e}");
-            }
-        }
-    }
-
-    // Z Code
-    if providers_to_search.iter().any(|p| p == "zcode") {
-        match providers::zcode::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Z Code search failed: {e}");
-            }
-        }
-    }
-
-    // Qoder
-    if providers_to_search.iter().any(|p| p == "qoder") {
-        match providers::qoder::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Qoder search failed: {e}");
-            }
-        }
-    }
-
-    // Qwen Code
-    if providers_to_search.iter().any(|p| p == "qwen") {
-        match providers::qwen::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Qwen search failed: {e}");
-            }
-        }
-    }
-
-    // Cline
-    if providers_to_search.iter().any(|p| p == "cline") {
-        all_results.extend(providers::cline::search_with_filters(
-            &query,
-            max_results,
-            &parsed_filters,
-        ));
-    }
-
-    // Crush
-    if providers_to_search.iter().any(|p| p == "crush") {
-        all_results.extend(providers::crush::search_with_filters(
-            &query,
-            max_results,
-            &parsed_filters,
-        ));
-    }
-
-    // Cursor
-    if providers_to_search.iter().any(|p| p == "cursor") {
-        match providers::cursor::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Cursor search failed: {e}");
-            }
-        }
-    }
-
-    // Cursor Agent
-    if providers_to_search.iter().any(|p| p == "cursor-agent") {
-        match providers::cursor_agent::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Cursor Agent search failed: {e}");
-            }
-        }
-    }
-
-    // Cursor ACP (JetBrains IDEs)
-    if providers_to_search.iter().any(|p| p == "cursor-acp") {
-        match providers::cursor_acp::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Cursor ACP search failed: {e}");
-            }
-        }
-    }
-
-    // Aider
-    if providers_to_search.iter().any(|p| p == "aider") {
-        all_results.extend(providers::aider::search_with_filters(
-            &query,
-            max_results,
-            &parsed_filters,
-        ));
-    }
-
-    // Amazon Q Developer CLI
-    if providers_to_search.iter().any(|p| p == "amazonq") {
-        match providers::amazon_q::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Amazon Q search failed: {e}");
-            }
-        }
-    }
-
-    // Antigravity
-    if providers_to_search.iter().any(|p| p == "antigravity") {
-        match providers::antigravity::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Antigravity search failed: {e}");
-            }
-        }
-    }
-
-    // CodeBuddy
-    if providers_to_search.iter().any(|p| p == "codebuddy") {
-        match providers::codebuddy::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("CodeBuddy search failed: {e}");
-            }
-        }
-    }
-    // Kiro
-    if providers_to_search.iter().any(|p| p == "kiro") {
-        match providers::kiro::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Kiro search failed: {e}");
-            }
-        }
-    }
-
-    // llm (Simon Willison)
-    if providers_to_search.iter().any(|p| p == "llm") {
-        match providers::llm::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("llm search failed: {e}");
-            }
-        }
-    }
-
-    // Zed
-    if providers_to_search.iter().any(|p| p == "zed") {
-        match providers::zed::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Zed search failed: {e}");
-            }
-        }
-    }
-
-    // OpenHands
-    if providers_to_search.iter().any(|p| p == "openhands") {
-        match providers::openhands::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("OpenHands search failed: {e}");
-            }
-        }
-    }
-
-    // Trae IDE
-    if providers_to_search.iter().any(|p| p == "trae") {
-        match providers::trae::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Trae search failed: {e}");
-            }
-        }
-    }
-
-    // claude.ai account exports
-    if providers_to_search.iter().any(|p| p == "claude-ai") {
-        match providers::claude_ai::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("claude.ai export search failed: {e}");
-            }
-        }
-    }
-
-    // Unified GitHub Copilot search (CLI + Desktop + VS Code Copilot Chat).
-    if providers_to_search.iter().any(|p| p == "copilot") {
-        match providers::copilot::search(&query, max_results) {
-            Ok(results) => all_results.extend(results),
-            Err(e) => {
-                log::warn!("Copilot search failed: {e}");
+            SearchAdapter::Capped(search) => {
+                if let Err(e) =
+                    extend_in_scope(&mut all_results, &parsed_filters, max_results, |limit| {
+                        search(&query, limit)
+                    })
+                {
+                    log::warn!("{label} search failed: {e}");
+                }
             }
         }
     }
@@ -1314,16 +1200,17 @@ pub async fn search_all_providers(
                 let canonical_index = select_wsl_vscode_base_index(&vscode_bases);
                 let canonical_vscode = canonical_index.map(|idx| vscode_bases[idx].0.clone());
                 if copilot_base.is_some() || canonical_vscode.is_some() {
-                    match providers::copilot::search_from_paths(
-                        copilot_base.as_deref(),
-                        canonical_vscode.as_deref(),
-                        &query,
-                        max_results,
-                    ) {
-                        Ok(results) => all_results.extend(results),
-                        Err(e) => {
-                            log::warn!("WSL Copilot search failed for '{}': {e}", distro.name);
-                        }
+                    if let Err(e) =
+                        extend_in_scope(&mut all_results, &parsed_filters, max_results, |limit| {
+                            providers::copilot::search_from_paths(
+                                copilot_base.as_deref(),
+                                canonical_vscode.as_deref(),
+                                &query,
+                                limit,
+                            )
+                        })
+                    {
+                        log::warn!("WSL Copilot search failed for '{}': {e}", distro.name);
                     }
                 }
 
@@ -1331,29 +1218,25 @@ pub async fn search_all_providers(
                     if Some(idx) == canonical_index {
                         continue;
                     }
-                    match providers::copilot::search_from_paths(
-                        None,
-                        Some(unc_path.as_path()),
-                        &query,
-                        max_results,
-                    ) {
-                        Ok(results) => all_results.extend(results),
-                        Err(e) => {
-                            log::warn!(
-                                "WSL Copilot ({editor_label}) search failed for '{}': {e}",
-                                distro.name
-                            );
-                        }
+                    if let Err(e) =
+                        extend_in_scope(&mut all_results, &parsed_filters, max_results, |limit| {
+                            providers::copilot::search_from_paths(
+                                None,
+                                Some(unc_path.as_path()),
+                                &query,
+                                limit,
+                            )
+                        })
+                    {
+                        log::warn!(
+                            "WSL Copilot ({editor_label}) search failed for '{}': {e}",
+                            distro.name
+                        );
                     }
                 }
             }
         }
     }
-
-    // Claude, Codex, Aider, Cline and Crush already filter before their cap.
-    // Keep filtering hits from adapters that only expose capped, unfiltered
-    // search; for those adapters an out-of-scope hit can still use up a slot.
-    all_results.retain(|message| parsed_filters.matches(message));
 
     // Prefer the user's matching prompts, then displayable assistant text,
     // while preserving tool-only matches after conversational results.
@@ -1769,6 +1652,37 @@ mod tests {
             );
             assert_eq!(target.last_modified, sessions[0].last_modified);
             assert_search_opens_session(target, &sessions[0], "find me").await;
+        }
+    }
+
+    /// A provider whose search caps before filtering (Gemini): a one-project
+    /// search at limit 1 must return that project's hit, whichever project the
+    /// unfiltered walk reaches first (#806).
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn capped_search_applies_project_scope_before_the_limit() {
+        let home = SandboxHome::new();
+        for (dir, id) in [("hash-a", "s-a"), ("hash-b", "s-b")] {
+            let chats = home.path().join(".gemini/tmp").join(dir).join("chats");
+            fs::create_dir_all(&chats).unwrap();
+            let session = json!({
+                "sessionId": id,
+                "projectHash": dir,
+                "lastUpdated": "2026-03-24T12:05:00Z",
+                "messages": [{"id": "u1", "type": "user", "content": [{"text": "shared needle"}]}]
+            });
+            fs::write(chats.join("session-1.json"), session.to_string()).unwrap();
+        }
+        let projects = scan_only("gemini").await;
+        assert_eq!(projects.len(), 2);
+        for project in &projects {
+            let hit = search_at_limit_one(
+                "gemini",
+                "needle",
+                Some(json!({"projectPaths": [project.path]})),
+            )
+            .await;
+            assert_eq!(hit.project_path.as_deref(), Some(project.path.as_str()));
         }
     }
 
