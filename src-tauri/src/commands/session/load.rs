@@ -1819,7 +1819,8 @@ fn parse_line_to_message(
         return None;
     }
 
-    let log_entry: RawLogEntry = serde_json::from_str(line).ok()?;
+    let mut log_entry: RawLogEntry = serde_json::from_str(line).ok()?;
+    log_entry.promote_queued_prompt();
 
     // Skip meta messages (internal/command-related messages)
     if log_entry.is_meta.unwrap_or(false) {
@@ -1923,7 +1924,8 @@ fn parse_line_simd(
     }
 
     // Use simd_json for faster parsing
-    let log_entry: RawLogEntry = simd_json::serde::from_slice(line).ok()?;
+    let mut log_entry: RawLogEntry = simd_json::serde::from_slice(line).ok()?;
+    log_entry.promote_queued_prompt();
 
     // Skip meta messages
     if log_entry.is_meta.unwrap_or(false) {
@@ -2934,6 +2936,36 @@ mod tests {
             .unwrap();
         let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
         assert_eq!(types, vec!["user", "assistant"]);
+    }
+
+    /// A message typed while Claude Code is working is an `attachment` line
+    /// (#815): it loads as a user message with its text; a queued task
+    /// notification is not user input and stays an attachment.
+    #[tokio::test]
+    async fn test_load_session_messages_shows_queued_prompt_as_user() {
+        let temp_dir = TempDir::new().unwrap();
+        let queued = r#"{"type":"attachment","uuid":"q1","parentUuid":"uuid-2","sessionId":"session-1","timestamp":"2025-06-26T10:01:30Z","attachment":{"type":"queued_command","prompt":"also check database B","commandMode":"prompt","origin":{"kind":"human"},"humanTurn":true}}"#;
+        let notification = r#"{"type":"attachment","uuid":"q2","parentUuid":"q1","sessionId":"session-1","timestamp":"2025-06-26T10:01:40Z","attachment":{"type":"queued_command","prompt":"<task-notification>done</task-notification>","commandMode":"task-notification"}}"#;
+        let content = format!(
+            "{}\n{}\n{queued}\n{notification}\n",
+            create_sample_user_message("uuid-1", "session-1", "check database A"),
+            create_sample_assistant_message("uuid-2", "session-1", "Checking"),
+        );
+        let file_path = create_test_jsonl_file(&temp_dir, "test.jsonl", &content);
+
+        let messages = load_session_messages(file_path.to_string_lossy().to_string())
+            .await
+            .unwrap();
+        let types: Vec<&str> = messages.iter().map(|m| m.message_type.as_str()).collect();
+        assert_eq!(types, vec!["user", "assistant", "user", "attachment"]);
+        let queued = &messages[2];
+        assert_eq!(queued.uuid, "q1");
+        assert_eq!(queued.role.as_deref(), Some("user"));
+        assert_eq!(
+            queued.content,
+            Some(serde_json::json!("also check database B"))
+        );
+        assert_eq!(messages[3].content, None);
     }
 
     /// Claude Code (2.1.302 and later) request bookkeeping: one `api-request-shape`,
