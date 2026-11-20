@@ -219,10 +219,11 @@ fn search_in_file(
         parse_buffer.clear();
         parse_buffer.extend_from_slice(raw_line);
 
-        let log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut parse_buffer) {
+        let mut log_entry: RawLogEntry = match simd_json::serde::from_slice(&mut parse_buffer) {
             Ok(entry) => entry,
             Err(_) => continue,
         };
+        log_entry.promote_queued_prompt();
 
         if log_entry.message_type != "user" && log_entry.message_type != "assistant" {
             continue;

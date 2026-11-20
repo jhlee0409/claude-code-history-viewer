@@ -140,9 +140,55 @@ pub struct RawLogEntry {
     pub microcompact_metadata: Option<serde_json::Value>,
     pub content: Option<serde_json::Value>,
 
+    // Attachment payload (for type: "attachment")
+    pub attachment: Option<serde_json::Value>,
+
     // Meta message flag (internal/command-related messages)
     #[serde(rename = "isMeta")]
     pub is_meta: Option<bool>,
+}
+
+impl RawLogEntry {
+    /// A message the user sends while Claude Code is working is written as an
+    /// `attachment` line (`queued_command`, `commandMode: "prompt"`,
+    /// `origin.kind: "human"`), not as a `user` line (#815). Turn such a line
+    /// into the user message it is. Every other line is left unchanged,
+    /// including queued commands that are not user input (`task-notification`).
+    pub fn promote_queued_prompt(&mut self) {
+        if self.message_type != "attachment" || self.message.is_some() {
+            return;
+        }
+        let Some(attachment) = self
+            .attachment
+            .as_mut()
+            .filter(|a| is_queued_human_prompt(a))
+        else {
+            return;
+        };
+        let content = attachment["prompt"].take();
+        self.message_type = "user".to_string();
+        self.message = Some(MessageContent {
+            role: "user".to_string(),
+            content,
+            id: None,
+            model: None,
+            stop_reason: None,
+            usage: None,
+        });
+    }
+}
+
+/// A queued command the user typed, with a prompt: text, or content blocks.
+fn is_queued_human_prompt(attachment: &serde_json::Value) -> bool {
+    let str_at = |pointer: &str| attachment.pointer(pointer).and_then(|v| v.as_str());
+    str_at("/type") == Some("queued_command")
+        && str_at("/commandMode") == Some("prompt")
+        && str_at("/origin/kind") == Some("human")
+        && match attachment.get("prompt") {
+            Some(serde_json::Value::String(text)) => !text.trim().is_empty(),
+            Some(serde_json::Value::Array(blocks)) => !blocks.is_empty(),
+            _ => false,
+        }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

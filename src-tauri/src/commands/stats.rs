@@ -835,7 +835,9 @@ fn cursor_virtual_paths_match(left: &str, right: &str) -> bool {
 #[inline]
 /// Parse a raw log entry with simd-json.
 fn parse_raw_log_entry_simd(line: &mut [u8]) -> Option<RawLogEntry> {
-    simd_json::serde::from_slice(line).ok()
+    let mut entry: RawLogEntry = simd_json::serde::from_slice(line).ok()?;
+    entry.promote_queued_prompt();
+    Some(entry)
 }
 
 /// Track session-title rows for stats: the last Claude Code `ai-title` and the
@@ -6478,6 +6480,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            attachment: None,
             is_meta: None,
         };
 
@@ -6542,6 +6545,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            attachment: None,
             is_meta: None,
         };
 
@@ -6596,6 +6600,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            attachment: None,
             is_meta: None,
         };
 
@@ -6647,6 +6652,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            attachment: None,
             is_meta: None,
         };
 
@@ -6698,6 +6704,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            attachment: None,
             is_meta: None,
         };
 
@@ -9252,6 +9259,7 @@ mod tests {
             compact_metadata: None,
             microcompact_metadata: None,
             content: None,
+            attachment: None,
             is_meta: None,
         };
         ClaudeMessage::try_from(raw).expect("test message construction")
