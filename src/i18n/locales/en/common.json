@@ -227,6 +227,7 @@
   "common.command.openSettingsManager": "Open Claude Code Settings",
   "common.command.openArchive": "Open Archive",
   "common.command.sendFeedback": "Send Feedback…",
+  "common.command.openLogFolder": "Open Log Folder",
   "common.command.checkForUpdates": "Check for Updates…",
   "common.command.failed": "Command failed: {{command}}",
   "common.toolbar.location": "Location",

@@ -227,6 +227,7 @@
   "common.command.openSettingsManager": "Claude Code 設定を開く",
   "common.command.openArchive": "アーカイブを開く",
   "common.command.sendFeedback": "フィードバックを送る…",
+  "common.command.openLogFolder": "ログフォルダーを開く",
   "common.command.checkForUpdates": "アップデートを確認…",
   "common.command.failed": "コマンドを実行できませんでした: {{command}}",
   "common.toolbar.location": "現在の場所",

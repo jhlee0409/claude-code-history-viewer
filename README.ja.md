@@ -529,6 +529,8 @@ claude-code-history-viewer://session-title/auth%20bug
 
 **デスクトップモードはローカル優先です。** 会話ファイルはローカルディスクから読み込まれ、会話データのアップロード、分析、トラッキング、テレメトリーは行いません。
 
+デスクトップアプリは OS のログフォルダーにログを残します（**Help → Open Log Folder**）。記録するのはアプリのイベント、ファイルパス、エラーのみで、会話の内容は記録しません。バグ報告に添付しない限り、コンピューターの外に出ることはありません。
+
 **サーバーモード**では、サーバーに到達できるブラウザやクライアントにローカルファイルを意図的に提供します。ローカルだけで使う場合は`127.0.0.1`にバインドし、ネットワークに公開する前にトークン認証を有効にしてください。
 
 ## トラブルシューティング
@@ -541,6 +543,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | 「Unauthorized」/ HTTP 401 | 起動時に表示されたトークン付きURLを使うか、`Authorization: Bearer <token>`を送信してください。固定トークンは`--token`または`CCHV_TOKEN`で設定できます。 |
 | パフォーマンスの問題 | 大量の履歴は初期読み込みが遅い場合あり — アプリは仮想スクロールを使用 |
 | 更新の問題 | 自動更新が失敗した場合、[Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)から手動ダウンロード |
+| バグの報告 | ログを添付してください: デスクトップアプリの **Help → Open Log Folder**（macOS `~/Library/Logs/com.claude.history-viewer`、Windows `%LOCALAPPDATA%\com.claude.history-viewer\logs`、Linux `~/.local/share/com.claude.history-viewer/logs`）。ログにはアプリのイベント、ファイルパス、エラーのみが記録され、会話の内容は含まれません。`cchv-server` は stderr に出力し、`RUST_LOG=debug` で詳細を表示できます |
 
 ## コントリビュート
 

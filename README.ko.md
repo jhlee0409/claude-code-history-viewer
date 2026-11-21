@@ -529,6 +529,8 @@ claude-code-history-viewer://session-title/auth%20bug
 
 **데스크톱 모드는 로컬 우선입니다.** 대화 파일은 로컬 디스크에서 읽으며 대화 데이터 업로드, 분석, 추적 또는 원격 측정이 없습니다.
 
+데스크톱 앱은 OS 로그 폴더에 로그를 남깁니다(**Help → Open Log Folder**). 앱 이벤트, 파일 경로, 오류만 기록하며 대화 내용은 기록하지 않습니다. 버그 신고에 첨부하지 않는 한 컴퓨터 밖으로 나가지 않습니다.
+
 **서버 모드**는 서버에 접근할 수 있는 브라우저와 클라이언트에 로컬 파일을 의도적으로 제공합니다. 로컬 전용으로 사용하려면 `127.0.0.1`에 바인딩하고, 네트워크에 노출하기 전에는 토큰 인증을 유지하세요.
 
 ## 문제 해결
@@ -541,6 +543,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | "Unauthorized" / HTTP 401 | 시작 시 출력된 토큰 URL을 사용하거나 `Authorization: Bearer <token>`을 보내세요. 고정 토큰은 `--token` 또는 `CCHV_TOKEN`으로 설정할 수 있습니다. |
 | 성능 문제 | 대용량 대화 기록은 초기 로딩이 느릴 수 있음 — 앱은 가상 스크롤링 사용 |
 | 업데이트 오류 | 자동 업데이트 실패 시 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases)에서 수동 다운로드 |
+| 버그 신고 | 로그를 첨부하세요: 데스크톱 앱의 **Help → Open Log Folder**(macOS `~/Library/Logs/com.claude.history-viewer`, Windows `%LOCALAPPDATA%\com.claude.history-viewer\logs`, Linux `~/.local/share/com.claude.history-viewer/logs`). 로그에는 앱 이벤트, 파일 경로, 오류만 남고 대화 내용은 남지 않습니다. `cchv-server`는 stderr로 출력하며, `RUST_LOG=debug`로 더 자세히 볼 수 있습니다 |
 
 ## 기여하기
 

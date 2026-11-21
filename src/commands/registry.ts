@@ -27,6 +27,7 @@ import {
   Coins,
   Map as MinimapGlyph,
   MessageSquare,
+  ScrollText,
   Plus,
   RefreshCw,
   Scan,
@@ -89,6 +90,7 @@ export interface CommandActions {
   openSettingsManager: () => unknown;
   openArchive: () => unknown;
   openFeedback: () => void;
+  openLogFolder: () => unknown;
   checkForUpdates: () => void;
   /** Open another app window (desktop). */
   newWindow: () => unknown;
@@ -254,6 +256,13 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     icon: MessageSquare,
     target: APP_TARGET,
     run: (ctx) => ctx.actions.openFeedback(),
+  },
+  "help.openLogFolder": {
+    icon: ScrollText,
+    // The desktop app's log files (#821); `cchv-server` logs to stderr.
+    target: APP_TARGET,
+    available: (ctx) => ctx.runtime === "desktop",
+    run: (ctx) => ctx.actions.openLogFolder(),
   },
   "app.checkForUpdates": {
     icon: RefreshCw,

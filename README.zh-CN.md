@@ -529,6 +529,8 @@ claude-code-history-viewer://session-title/auth%20bug
 
 **桌面模式以本地为主。** 对话文件从本地磁盘读取；不会上传对话数据，也没有分析、跟踪或遥测。
 
+桌面应用会在系统日志文件夹中保存日志（**Help → Open Log Folder**）：只记录应用事件、文件路径和错误，从不记录对话内容。除非你把它附在问题报告中，日志不会离开你的电脑。
+
 **服务器模式**会有意将本地文件提供给能够访问服务器的浏览器和客户端。仅限本机使用时请绑定到 `127.0.0.1`；向网络公开前请保持令牌身份验证启用。
 
 ## 常见问题
@@ -541,6 +543,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | "Unauthorized" / HTTP 401 | 使用启动时输出的令牌 URL，或发送 `Authorization: Bearer <token>`。固定令牌可通过 `--token` 或 `CCHV_TOKEN` 设置。 |
 | 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能 |
 | 更新问题 | 如果自动更新失败,请从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手动下载 |
+| 报告问题 | 请附上日志：桌面应用中的 **Help → Open Log Folder**（macOS `~/Library/Logs/com.claude.history-viewer`，Windows `%LOCALAPPDATA%\com.claude.history-viewer\logs`，Linux `~/.local/share/com.claude.history-viewer/logs`）。日志只记录应用事件、文件路径和错误，不包含对话内容。`cchv-server` 输出到 stderr，设置 `RUST_LOG=debug` 可查看更多细节 |
 
 ## 贡献
 

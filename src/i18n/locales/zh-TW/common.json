@@ -227,6 +227,7 @@
   "common.command.openSettingsManager": "開啟 Claude Code 設定",
   "common.command.openArchive": "開啟封存",
   "common.command.sendFeedback": "發送意見回饋…",
+  "common.command.openLogFolder": "開啟記錄檔資料夾",
   "common.command.checkForUpdates": "檢查更新…",
   "common.command.failed": "命令執行失敗：{{command}}",
   "common.toolbar.location": "目前位置",
