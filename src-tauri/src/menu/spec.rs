@@ -340,6 +340,7 @@ mod tests {
             ids(win.submenu(MenuId::Help).unwrap()),
             vec![
                 "help.feedback",
+                "help.openLogFolder",
                 "-",
                 "app.checkForUpdates",
                 "-",

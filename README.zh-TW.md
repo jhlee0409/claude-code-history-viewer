@@ -529,6 +529,8 @@ claude-code-history-viewer://session-title/auth%20bug
 
 **桌面模式以本機為主。** 對話檔案從本機磁碟讀取；不會上傳對話資料，也沒有分析、追蹤或遙測。
 
+桌面應用程式會在系統記錄檔資料夾中保存記錄檔（**Help → Open Log Folder**）：只記錄應用程式事件、檔案路徑和錯誤，從不記錄對話內容。除非你把它附在問題回報中，記錄檔不會離開你的電腦。
+
 **伺服器模式**會刻意將本機檔案提供給能夠存取伺服器的瀏覽器和用戶端。僅限本機使用時請繫結至 `127.0.0.1`；向網路公開前請保持權杖驗證啟用。
 
 ## 疑難排解
@@ -541,6 +543,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | 「Unauthorized」/ HTTP 401 | 使用啟動時輸出的權杖 URL，或傳送 `Authorization: Bearer <token>`。固定權杖可透過 `--token` 或 `CCHV_TOKEN` 設定。 |
 | 效能問題 | 大量歷史記錄可能導致初始載入較慢 — 應用程式使用虛擬捲動技術 |
 | 更新問題 | 如果自動更新失敗，請從 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手動下載 |
+| 回報問題 | 請附上記錄檔：桌面應用程式中的 **Help → Open Log Folder**（macOS `~/Library/Logs/com.claude.history-viewer`，Windows `%LOCALAPPDATA%\com.claude.history-viewer\logs`，Linux `~/.local/share/com.claude.history-viewer/logs`）。記錄檔只記錄應用程式事件、檔案路徑和錯誤，不包含對話內容。`cchv-server` 輸出到 stderr，設定 `RUST_LOG=debug` 可查看更多細節 |
 
 ## 貢獻
 

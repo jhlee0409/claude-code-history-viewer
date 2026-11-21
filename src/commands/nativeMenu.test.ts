@@ -39,6 +39,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     openSettingsManager: vi.fn(),
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
+    openLogFolder: vi.fn(),
     checkForUpdates: vi.fn(),
     newWindow: vi.fn(),
     newTab: vi.fn(),

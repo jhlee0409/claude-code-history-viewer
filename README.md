@@ -529,6 +529,8 @@ The app includes accessibility features for keyboard-only, low-vision, and scree
 
 **Desktop mode is local-first.** Conversation files are read from local disk; no conversation data is uploaded, and there is no analytics, tracking, or telemetry.
 
+The desktop app keeps a log in the OS log folder (**Help → Open Log Folder**): app events, file paths and errors only, never conversation text. It stays on your computer unless you attach it to a bug report.
+
 **Server mode** intentionally serves local files to browsers and clients that can reach the server. Keep it bound to `127.0.0.1` for local-only use, or keep token authentication enabled before exposing it to a network.
 
 ## Troubleshooting
@@ -541,6 +543,7 @@ The app includes accessibility features for keyboard-only, low-vision, and scree
 | "Unauthorized" / HTTP 401 | Use the token URL printed at startup or send `Authorization: Bearer <token>`. For a fixed token, use `--token` or `CCHV_TOKEN`. |
 | Performance issues | Large histories may be slow initially — the app uses virtual scrolling |
 | Update problems | If auto-updater fails, download manually from [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) |
+| Reporting a bug | Attach the log: **Help → Open Log Folder** in the desktop app (macOS `~/Library/Logs/com.claude.history-viewer`, Windows `%LOCALAPPDATA%\com.claude.history-viewer\logs`, Linux `~/.local/share/com.claude.history-viewer/logs`). `cchv-server` logs to stderr; set `RUST_LOG=debug` for more detail |
 
 ## Contributing
 

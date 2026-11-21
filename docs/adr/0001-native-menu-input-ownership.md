@@ -99,6 +99,7 @@ Measured in the real macOS app (WKWebView, System Events key presses, a page pro
    | `app.checkForUpdates` | `app` - the app | runs |
    | `window.new` | `app` - a new window of the app (#656) | runs |
    | `help.feedback` | `app` - the feedback dialog | runs |
+   | `help.openLogFolder` | `app` - the desktop app's log directory (#821) | runs |
    | `view.toggleInspector` | `app` - its open state is app-wide (`stateScope.ts`) | runs; `enabled` is re-checked on the tab in front |
    | `view.toggleMinimap` | `app` - its open state is app-wide | runs |
    | `view.toggleInlineTokens` | `app` - a saved display preference, app-wide | runs |
