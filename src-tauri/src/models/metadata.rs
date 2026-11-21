@@ -297,6 +297,10 @@ pub struct UserSettings {
     /// Custom CLI arguments per provider for session resumption
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub resume_cli_args: std::collections::HashMap<String, String>,
+
+    /// Desktop live refresh (watching the history folders); `None` is on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub live_refresh: Option<bool>,
 }
 
 #[cfg(test)]

@@ -484,6 +484,7 @@ mod tests {
                 "view.toggleInspector",
                 "view.toggleMinimap",
                 "view.toggleInlineTokens",
+                "view.toggleLiveRefresh",
                 "-",
                 "view.zoomIn",
                 "view.zoomOut",

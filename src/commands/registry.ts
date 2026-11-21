@@ -25,6 +25,7 @@ import {
   ChevronRight,
   ChevronUp,
   Coins,
+  FolderSync,
   Map as MinimapGlyph,
   MessageSquare,
   Plus,
@@ -86,6 +87,7 @@ export interface CommandActions {
   toggleInspector: () => void;
   toggleMinimap: () => void;
   toggleInlineTokenUsage: () => void;
+  toggleLiveRefresh: () => unknown;
   openSettingsManager: () => unknown;
   openArchive: () => unknown;
   openFeedback: () => void;
@@ -234,6 +236,14 @@ const HANDLERS: Record<CommandId, CommandHandler> = {
     // A saved display preference, app-wide like the minimap.
     target: APP_TARGET,
     run: (ctx) => ctx.actions.toggleInlineTokenUsage(),
+  },
+  "view.toggleLiveRefresh": {
+    icon: FolderSync,
+    // The desktop app's history-folder watcher (#820); the WebUI server runs
+    // its own. A saved setting, app-wide.
+    target: APP_TARGET,
+    available: (ctx) => ctx.runtime === "desktop",
+    run: (ctx) => ctx.actions.toggleLiveRefresh(),
   },
   "view.zoomIn": zoomCommand(ZoomIn, "in"),
   "view.zoomOut": zoomCommand(ZoomOut, "out"),

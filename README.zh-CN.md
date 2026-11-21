@@ -539,7 +539,7 @@ claude-code-history-viewer://session-title/auth%20bug
 | 缺少某个提供商 | 检查提供商表中的数据路径。要添加其他 Claude 目录，请打开**设置 → 自定义 Claude 目录**。使用 Docker 时，将该提供商的数据目录作为只读卷挂载。 |
 | 无法连接 WebUI | `cchv-server` 默认使用 `3727` 端口。使用启动时输出的 URL；远程连接时检查端口冲突以及防火墙/代理规则。 |
 | "Unauthorized" / HTTP 401 | 使用启动时输出的令牌 URL，或发送 `Authorization: Bearer <token>`。固定令牌可通过 `--token` 或 `CCHV_TOKEN` 设置。 |
-| 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能 |
+| 性能问题 | 大量历史记录初次加载可能较慢 — 应用使用虚拟滚动优化性能。如果桌面应用使电脑变慢，请关闭 **齿轮菜单 → 查看 → 实时刷新**（View 菜单和 ⌘K 中也有）。应用将停止监视历史记录文件夹，新消息需要重新加载才会显示 |
 | 更新问题 | 如果自动更新失败,请从 [Releases](https://github.com/jhlee0409/claude-code-history-viewer/releases) 手动下载 |
 
 ## 贡献

@@ -718,4 +718,26 @@ describe("metadataSlice", () => {
       expect(useStore.getState().metadataError).toBeNull();
     });
   });
+
+  describe("toggleLiveRefresh (#820)", () => {
+    it("turns live refresh off when it was never set, and back on", async () => {
+      const useStore = createTestStore();
+      const saved = (liveRefresh: boolean): UserMetadata => ({
+        ...DEFAULT_USER_METADATA,
+        settings: { liveRefresh },
+      });
+
+      mockInvoke.mockResolvedValueOnce(saved(false));
+      await useStore.getState().toggleLiveRefresh();
+      expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
+        settings: { liveRefresh: false },
+      });
+
+      mockInvoke.mockResolvedValueOnce(saved(true));
+      await useStore.getState().toggleLiveRefresh();
+      expect(mockInvoke).toHaveBeenLastCalledWith("update_user_settings", {
+        settings: { liveRefresh: true },
+      });
+    });
+  });
 });

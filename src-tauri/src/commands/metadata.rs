@@ -143,25 +143,37 @@ pub(crate) fn get_user_data_path() -> Result<PathBuf, String> {
     Ok(get_metadata_folder()?.join("user-data.json"))
 }
 
+/// The `settings` object of the `user-data.json` at `user_data`; `None` when
+/// the file is missing or unreadable. Read leniently, as the file may be from
+/// another version.
+fn saved_settings_in(user_data: &Path) -> Option<serde_json::Value> {
+    let content = fs::read_to_string(user_data).ok()?;
+    let mut metadata = serde_json::from_str::<serde_json::Value>(&content).ok()?;
+    Some(metadata.get_mut("settings")?.take())
+}
+
 /// The `path` of each custom Claude directory in the `user-data.json` at
-/// `user_data`; none when the file is missing or unreadable. Read leniently
-/// (any entry with a string `path`), as the file may be from another version.
+/// `user_data` (any entry with a string `path`); none when there is none.
 pub(crate) fn custom_claude_dirs_in(user_data: &Path) -> Vec<String> {
-    let Ok(content) = fs::read_to_string(user_data) else {
+    let Some(settings) = saved_settings_in(user_data) else {
         return Vec::new();
     };
-    let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) else {
-        return Vec::new();
-    };
-    metadata
-        .get("settings")
-        .and_then(|s| s.get("customClaudePaths"))
+    settings
+        .get("customClaudePaths")
         .and_then(|v| v.as_array())
         .into_iter()
         .flatten()
         .filter_map(|entry| entry.get("path").and_then(|p| p.as_str()))
         .map(str::to_string)
         .collect()
+}
+
+/// Whether desktop live refresh is on in the `user-data.json` at `user_data`:
+/// on unless `settings.liveRefresh` is `false` (#820).
+pub(crate) fn live_refresh_enabled_in(user_data: &Path) -> bool {
+    saved_settings_in(user_data)
+        .and_then(|settings| settings.get("liveRefresh")?.as_bool())
+        .unwrap_or(true)
 }
 
 /// Ensure the metadata folder exists
@@ -247,7 +259,7 @@ pub async fn save_user_metadata(
     state: State<'_, MetadataState>,
 ) -> Result<(), String> {
     let (_, changed) = mutate_and_save_with(state.inner(), move |current| {
-        let changed = current.settings.custom_claude_paths != metadata.settings.custom_claude_paths;
+        let changed = watcher_settings_changed(&current.settings, &metadata.settings);
         *current = metadata;
         changed
     })
@@ -256,7 +268,14 @@ pub async fn save_user_metadata(
     Ok(())
 }
 
-/// Bring the shared desktop watcher up to date after the saved roots change.
+/// Whether a settings change affects the desktop watcher: its Claude roots or
+/// whether live refresh is on.
+fn watcher_settings_changed(old: &UserSettings, new: &UserSettings) -> bool {
+    old.custom_claude_paths != new.custom_claude_paths || old.live_refresh != new.live_refresh
+}
+
+/// Bring the shared desktop watcher up to date after the saved roots or the
+/// live refresh setting change.
 async fn refresh_file_watcher(app_handle: AppHandle, changed: bool) {
     if !changed {
         return;
@@ -319,7 +338,7 @@ pub async fn update_user_settings(
     state: State<'_, MetadataState>,
 ) -> Result<UserMetadata, String> {
     let (saved, changed) = mutate_and_save_with(state.inner(), move |metadata| {
-        let changed = metadata.settings.custom_claude_paths != settings.custom_claude_paths;
+        let changed = watcher_settings_changed(&metadata.settings, &settings);
         metadata.settings = settings;
         changed
     })
