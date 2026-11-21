@@ -142,6 +142,7 @@ export {
   isProjectMetadataEmpty,
   getSessionDisplayName,
   isProjectHidden,
+  isLiveRefreshOn,
 } from "./core/project";
 
 // Settings Types

@@ -42,6 +42,7 @@ import {
 import { getCommand, isCommandEnabled, issueMenuCommand, type CommandContext } from "./registry";
 import { appCommandQueue, type CommandQueue } from "./commandQueue";
 import type { AppStore } from "@/store/useAppStore";
+import { isLiveRefreshOn } from "@/types";
 
 export { MENU_COMMAND_EVENT };
 
@@ -69,6 +70,7 @@ export const MENU_CHECKS: Partial<Record<CommandId, (state: AppStore) => boolean
   "view.toggleInspector": (state) => state.isInspectorOpen,
   "view.toggleMinimap": (state) => state.isMinimapOpen,
   "view.toggleInlineTokens": (state) => state.showInlineTokenUsage,
+  "view.toggleLiveRefresh": (state) => isLiveRefreshOn(state.userMetadata),
 };
 
 export function computeMenuState(

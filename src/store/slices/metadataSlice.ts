@@ -15,7 +15,7 @@ import type {
   ClaudeAiExportAdded,
   WslSettings,
 } from "../../types";
-import { DEFAULT_USER_METADATA } from "../../types";
+import { DEFAULT_USER_METADATA, isLiveRefreshOn } from "../../types";
 import { matchGlobPattern } from "../../utils/globUtils";
 import {
   CLAUDE_AI_PROVIDER_ID,
@@ -128,6 +128,8 @@ export interface MetadataSliceActions {
   setWslEnabled: (enabled: boolean) => Promise<void>;
   /** Toggle a WSL distro in/out of the excluded list */
   toggleWslDistro: (distroName: string) => Promise<void>;
+  /** Turn desktop live refresh (watching the history folders) on or off (#820) */
+  toggleLiveRefresh: () => Promise<void>;
   /** Clear metadata error */
   clearMetadataError: () => void;
 }
@@ -532,6 +534,14 @@ export const createMetadataSlice: StateCreator<
       ? wsl.excludedDistros.filter((d: string) => d !== distroName)
       : [...wsl.excludedDistros, distroName];
     await get().updateUserSettings({ wsl: { ...wsl, excludedDistros: excluded } });
+  },
+
+  toggleLiveRefresh: async () => {
+    try {
+      await get().updateUserSettings({ liveRefresh: !isLiveRefreshOn(get().userMetadata) });
+    } catch {
+      // `updateUserSettings` has recorded the failure in `metadataError`.
+    }
   },
 
   clearMetadataError: () => {

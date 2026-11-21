@@ -36,6 +36,7 @@ function makeContext(overrides: Partial<CommandContext> = {}): CommandContext {
     toggleInspector: vi.fn(),
     toggleMinimap: vi.fn(),
     toggleInlineTokenUsage: vi.fn(),
+    toggleLiveRefresh: vi.fn(),
     openSettingsManager: vi.fn(),
     openArchive: vi.fn(),
     openFeedback: vi.fn(),
@@ -582,7 +583,13 @@ describe("View → Zoom (§9b A1)", () => {
 
   it("lists Zoom In ⌘=, Zoom Out ⌘- and Actual Size ⌘0 in the View menu, on every desktop", () => {
     const view = COMMAND_MANIFEST.filter((e) => e.menu === "view").map((e) => e.id);
-    expect(view).toEqual(["view.toggleInspector", "view.toggleMinimap", "view.toggleInlineTokens", ...ZOOM_IDS]);
+    expect(view).toEqual([
+      "view.toggleInspector",
+      "view.toggleMinimap",
+      "view.toggleInlineTokens",
+      "view.toggleLiveRefresh",
+      ...ZOOM_IDS,
+    ]);
     const where = (id: string) => COMMAND_MANIFEST.find((e) => e.id === id);
     expect(where("view.zoomIn")).toMatchObject({ shortcut: { mac: "Cmd+=", win: "Ctrl+=", linux: "Ctrl+=" } });
     expect(where("view.zoomOut")).toMatchObject({ shortcut: { mac: "Cmd+-", win: "Ctrl+-", linux: "Ctrl+-" } });

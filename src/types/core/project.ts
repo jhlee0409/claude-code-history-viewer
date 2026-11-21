@@ -117,7 +117,13 @@ export interface UserSettings {
   providersDiscovered?: boolean;
   /** Custom extra CLI arguments per provider for session resumption (e.g. claude: "--dangerously-skip-permissions") */
   resumeCliArgs?: Record<string, string>;
+  /** Desktop live refresh (watching the history folders); absent means on (#820) */
+  liveRefresh?: boolean;
 }
+
+/** Whether desktop live refresh is on: unless it was turned off (#820). */
+export const isLiveRefreshOn = (metadata: UserMetadata | null | undefined): boolean =>
+  metadata?.settings.liveRefresh !== false;
 
 // ============================================================================
 // User Metadata Root

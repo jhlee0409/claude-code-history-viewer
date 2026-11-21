@@ -52,8 +52,10 @@ static WATCHED_FILE_SIGNATURES: OnceLock<Mutex<HashMap<PathBuf, FileSignature>>>
 /// `useFileWatcher` listens for the `session-file-changed` events it emits.
 ///
 /// Started at launch (`sync_desktop_watcher` in `setup`), brought up to date
-/// when the custom Claude directories change, stopped on exit. The `WebUI`
-/// server runs its own watcher (`start_server_file_watcher` in `lib.rs`).
+/// when the custom Claude directories or the live refresh setting change,
+/// stopped on exit. Live refresh off (`settings.liveRefresh: false`, #820)
+/// runs no watcher. The `WebUI` server runs its own watcher
+/// (`start_server_file_watcher` in `lib.rs`).
 #[derive(Default)]
 pub struct WatcherState(Mutex<Option<ActiveWatcher>>);
 
@@ -73,13 +75,21 @@ pub enum WatcherSync {
     Running,
     /// No root could be watched; no watcher runs.
     Disabled,
+    /// Live refresh is turned off; no watcher runs.
+    Off,
 }
 
 impl WatcherState {
-    /// Run one watcher over `roots`, calling `on_event` for each debounced
-    /// event. Idempotent: the running watcher is kept when its roots are the
-    /// same; otherwise it is replaced.
-    fn sync<F>(&self, collect_roots: impl FnOnce() -> Vec<PathBuf>, on_event: F) -> WatcherSync
+    /// Run one watcher over the roots `collect_roots` returns, calling
+    /// `on_event` for each debounced event; `None` (live refresh off) stops
+    /// the watcher. Idempotent: the running watcher is kept when its roots are
+    /// the same; otherwise it is replaced. `collect_roots` runs under the lock,
+    /// so concurrent syncs apply the setting and roots each one read in order.
+    fn sync<F>(
+        &self,
+        collect_roots: impl FnOnce() -> Option<Vec<PathBuf>>,
+        on_event: F,
+    ) -> WatcherSync
     where
         F: Fn(&DebouncedEvent) + Send + 'static,
     {
@@ -87,7 +97,10 @@ impl WatcherState {
             .0
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let roots = collect_roots();
+        let Some(roots) = collect_roots() else {
+            *slot = None;
+            return WatcherSync::Off;
+        };
         if slot.as_ref().is_some_and(|active| active.roots == roots) {
             return WatcherSync::Running;
         }
@@ -161,14 +174,20 @@ where
 }
 
 /// Start the desktop watcher over [`collect_watch_paths`], or bring it up to
-/// date with them. Blocking: priming walks every watched tree.
+/// date with them; stop it when live refresh is off. Blocking: priming walks
+/// every watched tree.
 pub fn sync_desktop_watcher(app_handle: &AppHandle) -> WatcherSync {
     let handle = app_handle.clone();
-    app_handle
-        .state::<WatcherState>()
-        .sync(collect_watch_paths, move |event| {
+    app_handle.state::<WatcherState>().sync(
+        || {
+            let live_refresh = super::metadata::get_user_data_path()
+                .map_or(true, |path| super::metadata::live_refresh_enabled_in(&path));
+            live_refresh.then(collect_watch_paths)
+        },
+        move |event| {
             handle_file_event(&handle, event);
-        })
+        },
+    )
 }
 
 /// Run [`sync_desktop_watcher`] off the async runtime.
@@ -188,6 +207,7 @@ pub async fn start_file_watcher(app_handle: AppHandle) -> Result<String, String>
         WatcherSync::Started(_) => Ok("watcher-started".to_string()),
         WatcherSync::Running => Ok("watcher-running".to_string()),
         WatcherSync::Disabled => Err("No history directory could be watched".to_string()),
+        WatcherSync::Off => Err("Live refresh is turned off".to_string()),
     }
 }
 
@@ -1114,29 +1134,69 @@ mod tests {
         let state = WatcherState::default();
 
         let one = vec![roots[0].clone()];
-        assert_eq!(state.sync(|| one.clone(), |_| {}), WatcherSync::Started(1));
-        assert_eq!(state.sync(|| one, |_| {}), WatcherSync::Running);
+        assert_eq!(
+            state.sync(|| Some(one.clone()), |_| {}),
+            WatcherSync::Started(1)
+        );
+        assert_eq!(state.sync(|| Some(one), |_| {}), WatcherSync::Running);
 
         assert_eq!(
-            state.sync(|| roots.clone(), |_| {}),
+            state.sync(|| Some(roots.clone()), |_| {}),
             WatcherSync::Started(2)
         );
-        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Running);
+        assert_eq!(state.sync(|| Some(roots), |_| {}), WatcherSync::Running);
 
         assert!(state.stop());
         assert!(!state.stop());
+    }
+
+    /// Live refresh off stops a running watcher; on again starts it (#820).
+    #[test]
+    fn watcher_sync_with_live_refresh_off_runs_nothing() {
+        let (_dir, roots) = temp_roots(1);
+        let state = WatcherState::default();
+        assert_eq!(
+            state.sync(|| Some(roots.clone()), |_| {}),
+            WatcherSync::Started(1)
+        );
+        assert_eq!(state.sync(|| None, |_| {}), WatcherSync::Off);
+        assert!(!state.stop(), "the running watcher was stopped");
+        assert_eq!(state.sync(|| Some(roots), |_| {}), WatcherSync::Started(1));
+        assert!(state.stop());
+    }
+
+    #[test]
+    fn live_refresh_is_on_unless_saved_off() {
+        let dir = TempDir::new().unwrap();
+        let user_data = dir.path().join("user-data.json");
+        assert!(super::super::metadata::live_refresh_enabled_in(&user_data));
+        for (settings, on) in [
+            (r#"{"settings":{}}"#, true),
+            (r#"{"settings":{"liveRefresh":true}}"#, true),
+            (r#"{"settings":{"liveRefresh":false}}"#, false),
+        ] {
+            std::fs::write(&user_data, settings).unwrap();
+            assert_eq!(
+                super::super::metadata::live_refresh_enabled_in(&user_data),
+                on,
+                "{settings}"
+            );
+        }
     }
 
     #[test]
     fn watcher_sync_without_a_watchable_root_runs_nothing() {
         let (dir, roots) = temp_roots(1);
         let state = WatcherState::default();
-        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(1));
+        assert_eq!(state.sync(|| Some(roots), |_| {}), WatcherSync::Started(1));
 
-        assert_eq!(state.sync(Vec::new, |_| {}), WatcherSync::Disabled);
+        assert_eq!(
+            state.sync(|| Some(Vec::new()), |_| {}),
+            WatcherSync::Disabled
+        );
         assert!(!state.stop(), "the old watcher is stopped, not kept");
         let missing = vec![dir.path().join("missing")];
-        assert_eq!(state.sync(|| missing, |_| {}), WatcherSync::Disabled);
+        assert_eq!(state.sync(|| Some(missing), |_| {}), WatcherSync::Disabled);
         assert!(!state.stop());
     }
 
@@ -1148,11 +1208,11 @@ mod tests {
         let state = WatcherState::default();
 
         assert_eq!(
-            state.sync(|| roots.clone(), |_| {}),
+            state.sync(|| Some(roots.clone()), |_| {}),
             WatcherSync::Started(1)
         );
         std::fs::create_dir(&missing).unwrap();
-        assert_eq!(state.sync(|| roots, |_| {}), WatcherSync::Started(2));
+        assert_eq!(state.sync(|| Some(roots), |_| {}), WatcherSync::Started(2));
     }
 
     #[test]
@@ -1162,7 +1222,7 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
         let tx = Mutex::new(tx);
         state.sync(
-            || roots.clone(),
+            || Some(roots.clone()),
             move |event| {
                 let _ = tx.lock().unwrap().send(event.path.clone());
             },

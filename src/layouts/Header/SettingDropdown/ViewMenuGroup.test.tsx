@@ -2,13 +2,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ViewMenuGroup } from "./ViewMenuGroup";
 
-const { storeState } = vi.hoisted(() => ({
+const { storeState, platform } = vi.hoisted(() => ({
   storeState: {
     isMinimapOpen: false,
     toggleMinimap: vi.fn(),
     showInlineTokenUsage: false,
     toggleInlineTokenUsage: vi.fn(),
+    userMetadata: { settings: {} as { liveRefresh?: boolean } },
+    toggleLiveRefresh: vi.fn(),
   },
+  platform: { isDesktop: true },
+}));
+
+vi.mock("@/contexts/platform", () => ({
+  DesktopOnly: ({ children }: { children: React.ReactNode }) =>
+    platform.isDesktop ? <>{children}</> : null,
 }));
 
 vi.mock("react-i18next", () => ({
@@ -70,10 +78,13 @@ describe("ViewMenuGroup", () => {
     vi.clearAllMocks();
     storeState.isMinimapOpen = false;
     storeState.showInlineTokenUsage = false;
+    storeState.userMetadata = { settings: {} };
+    platform.isDesktop = true;
   });
 
   const minimapItem = () => screen.getByRole("menuitemcheckbox", { name: /showMinimap/ });
   const tokensItem = () => screen.getByRole("menuitemcheckbox", { name: /showInlineTokens/ });
+  const liveRefreshItem = () => screen.queryByRole("menuitemcheckbox", { name: /liveRefresh/ });
 
   it("renders its own View heading", () => {
     render(<ViewMenuGroup />);
@@ -112,5 +123,23 @@ describe("ViewMenuGroup", () => {
     render(<ViewMenuGroup />);
     expect(tokensItem()).toHaveAttribute("aria-checked", "true");
     expect(minimapItem()).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("live refresh is on unless it was turned off, and toggles it (#820)", () => {
+    render(<ViewMenuGroup />);
+    expect(liveRefreshItem()).toHaveAttribute("aria-checked", "true");
+    liveRefreshItem()?.click();
+    expect(storeState.toggleLiveRefresh).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    storeState.userMetadata = { settings: { liveRefresh: false } };
+    render(<ViewMenuGroup />);
+    expect(liveRefreshItem()).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("live refresh is not offered in the WebUI, whose server runs its own watcher", () => {
+    platform.isDesktop = false;
+    render(<ViewMenuGroup />);
+    expect(liveRefreshItem()).toBeNull();
   });
 });

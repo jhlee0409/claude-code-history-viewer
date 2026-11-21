@@ -190,6 +190,15 @@
       "toggle": true
     },
     {
+      "id": "view.toggleLiveRefresh",
+      "labelKey": "common.command.toggleLiveRefresh",
+      "menuLabelKey": "common.menu.liveRefresh",
+      "shortcut": null,
+      "source": "frontend",
+      "menu": "view",
+      "toggle": true
+    },
+    {
       "id": "view.zoomIn",
       "labelKey": "common.command.zoomIn",
       "shortcut": { "mac": "Cmd+=", "win": "Ctrl+=", "linux": "Ctrl+=", "web": "CmdOrCtrl+=" },

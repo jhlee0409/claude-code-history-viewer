@@ -30,6 +30,7 @@ export function useCommandContext(): () => CommandContext {
   const screens = { openView };
   const toggleMinimap = useAppStore((s) => s.toggleMinimap);
   const toggleInlineTokenUsage = useAppStore((s) => s.toggleInlineTokenUsage);
+  const toggleLiveRefresh = useAppStore((s) => s.toggleLiveRefresh);
 
   const actions: CommandActions = {
     openPalette: () => openModal("globalSearch"),
@@ -45,6 +46,7 @@ export function useCommandContext(): () => CommandContext {
     toggleInspector,
     toggleMinimap,
     toggleInlineTokenUsage,
+    toggleLiveRefresh,
     openSettingsManager: switchToSettings,
     openArchive: switchToArchive,
     openFeedback: () => openModal("feedback"),

@@ -5,8 +5,8 @@
  * 직접 수정하지 마세요.
  *
  * 생성 명령: pnpm run generate:i18n-types
- * 생성 시간: 2026-11-18T15:17:59.271Z
- * 총 키 개수: 2501
+ * 생성 시간: 2026-11-21T15:13:22.664Z
+ * 총 키 개수: 2505
  * Namespace 수: 13
  */
 
@@ -44,7 +44,7 @@ export type I18nNamespace =
   | 'webui';
 
 /**
- * common namespace의 번역 키 (319개)
+ * common namespace의 번역 키 (323개)
  * 파일: locales/{lang}/common.json
  */
 export type CommonKeys =
@@ -92,6 +92,7 @@ export type CommonKeys =
   | 'common.command.sendFeedback'
   | 'common.command.toggleInlineTokens'
   | 'common.command.toggleInspector'
+  | 'common.command.toggleLiveRefresh'
   | 'common.command.toggleMinimap'
   | 'common.command.zoomIn'
   | 'common.command.zoomOut'
@@ -178,6 +179,7 @@ export type CommonKeys =
   | 'common.menu.inlineTokens'
   | 'common.menu.inspector'
   | 'common.menu.listenFailed'
+  | 'common.menu.liveRefresh'
   | 'common.menu.maximize'
   | 'common.menu.minimap'
   | 'common.menu.minimize'
@@ -288,6 +290,8 @@ export type CommonKeys =
   | 'common.settings.title'
   | 'common.settings.tools'
   | 'common.settings.updateSettings'
+  | 'common.settings.view.liveRefresh'
+  | 'common.settings.view.liveRefreshHint'
   | 'common.settings.view.minimapShortcutHint'
   | 'common.settings.view.showInlineTokens'
   | 'common.settings.view.showMinimap'
@@ -3123,6 +3127,7 @@ export type TranslationKey =
   | 'common.command.sendFeedback'
   | 'common.command.toggleInlineTokens'
   | 'common.command.toggleInspector'
+  | 'common.command.toggleLiveRefresh'
   | 'common.command.toggleMinimap'
   | 'common.command.zoomIn'
   | 'common.command.zoomOut'
@@ -3209,6 +3214,7 @@ export type TranslationKey =
   | 'common.menu.inlineTokens'
   | 'common.menu.inspector'
   | 'common.menu.listenFailed'
+  | 'common.menu.liveRefresh'
   | 'common.menu.maximize'
   | 'common.menu.minimap'
   | 'common.menu.minimize'
@@ -3319,6 +3325,8 @@ export type TranslationKey =
   | 'common.settings.title'
   | 'common.settings.tools'
   | 'common.settings.updateSettings'
+  | 'common.settings.view.liveRefresh'
+  | 'common.settings.view.liveRefreshHint'
   | 'common.settings.view.minimapShortcutHint'
   | 'common.settings.view.showInlineTokens'
   | 'common.settings.view.showMinimap'
